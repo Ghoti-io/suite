@@ -78,13 +78,15 @@ export PKG_CONFIG_PATH="$PWD/../.local/share/pkgconfig"
 
 The manual is built in a container, so the documentation toolchain does not
 have to be installed on the host. The image has Doxygen, Graphviz, cloc and
-Python. The first run builds the image; later runs reuse it.
+Python. The image is rebuilt from the container file on each run; an unchanged
+file is cached.
 
 ```bash
 ./docs.sh --container
 ```
 
-Either Docker or Podman will do. The result is `../docs/html/index.html`.
+Either Docker or Podman will do. The image is Debian 13, so its Doxygen
+matches the page ids in `manual/`. The result is `../docs/html/index.html`.
 
 Line counts, version pins and each library's version are read from the
 source. The test totals are filled in once a library has been built; a

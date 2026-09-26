@@ -41,9 +41,10 @@ if [ "${1:-}" = "--container" ]; then
     exit 1
   fi
   image=ghoti-io-docs
-  if ! "$run" image inspect "$image" >/dev/null 2>&1; then
-    "$run" build -t "$image" -f "$SUITE/Containerfile" "$SUITE"
-  fi
+  # Build every time. An unchanged Containerfile is cached, and a change
+  # has to take effect: an image left from an older file would rebuild
+  # the manual with the wrong Doxygen.
+  "$run" build -t "$image" -f "$SUITE/Containerfile" "$SUITE"
   exec "$run" run --rm -v "$ROOT":/work -w /work "$image" "$@"
 fi
 
