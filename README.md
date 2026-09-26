@@ -46,7 +46,7 @@ If you only want the script to fetch and list the commits that **would be** fast
 
 Compiling source is always a headache.  This process is not containerized yet, but it is on my todo list.
 
-When compiling, a host build needs to have a compiler, as well as a couple of dependencies required by some of the libraries.  CTang needs ICU.  CJelly needs Vulkan and X11.  The tests need GoogleTest.
+When compiling, a host build needs to have a compiler, as well as a couple of dependencies required by some of the libraries.  CJelly needs Vulkan and X11.  The tests need GoogleTest.  Chron's optional format check looks for ICU; none of the libraries link it.
 
 ```bash
 sudo apt install build-essential pkgconf libgtest-dev bison flex libicu-dev \
