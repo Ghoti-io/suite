@@ -9,7 +9,8 @@
 # page, and runs Doxygen. Output is
 # docs/html/index.html. docs/ is gitignored.
 #
-# The workspace README is the coordination notes. It is not an input.
+# Library READMEs are folded into pages by this script. They are not
+# Doxygen inputs on their own.
 #
 # The left-hand tree has one Libraries node. Opening a library shows its
 # README. manual/*.md lists that library's other pages, and this script
@@ -24,9 +25,10 @@
 
 set -u
 
-# This script lives in suite/. The libraries and the generated manual are
-# siblings, in the parent. --container rebuilds nothing it can reuse: the
-# image is the toolchain, and the tree is mounted in.
+# Paths come from this file, so the shell can be in any directory. The
+# libraries and the generated manual are siblings of suite/, in the parent.
+# --container rebuilds nothing it can reuse: the image is the toolchain,
+# and the tree is mounted in.
 SUITE=$(cd "$(dirname "$0")" && pwd)
 ROOT=$(cd "$SUITE/.." && pwd)
 
@@ -462,6 +464,28 @@ def slug(title):
     text = re.sub(r"[^\w\s-]", "", title.lower())
     return re.sub(r"\s+", "-", text).strip("-")
 
+# Getting Started is the suite README. GitHub shows that file; this page is
+# the same text, so the two cannot drift. The title is the page name, and
+# the headings are HTML so the menu stays one entry.
+readme = (suite / "README.md").read_text().splitlines(keepends=True)
+if readme and readme[0].startswith("# "):
+    readme = readme[1:]
+started = []
+readme_fence = False
+for line in readme:
+    if line.startswith("```"):
+        readme_fence = not readme_fence
+    elif not readme_fence:
+        for n, tag in ((4, "h4"), (3, "h3"), (2, "h2")):
+            prefix = "#" * n + " "
+            if line.startswith(prefix):
+                title = line[len(prefix):].strip()
+                line = f'<{tag} id="{slug(title)}">{title}</{tag}>\n'
+                break
+    started.append(line)
+(suite / "manual" / "pages" / "getting-started.md").write_text(
+    "@page getting_started Getting Started\n\n" + "".join(started).strip() + "\n")
+
 lines = (suite / "documents" / "index.md").read_text().splitlines(keepends=True)
 # The first heading is the title drawn on the page. @mainpage stays
 # "Ghoti.io", the same words as PROJECT_NAME: a different @mainpage title
@@ -517,6 +541,7 @@ hidden.append("")
 pages = """
 <div style="display:none">
 
+- @subpage getting_started "Getting Started"
 - @subpage libraries "Libraries"
 - @subpage suite_measured "What was measured"
 

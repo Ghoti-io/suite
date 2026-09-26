@@ -6,6 +6,8 @@
 # Run this from a checkout of this repository. The libraries land beside it,
 # not inside it:
 #
+#     mkdir ghoti.io
+#     cd ghoti.io
 #     git clone https://github.com/Ghoti-io/suite.git
 #     cd suite
 #     ./clone.sh
@@ -24,10 +26,22 @@ if [ "${1:-}" = "-n" ] || [ "${1:-}" = "--dry-run" ]; then
   DRY_RUN=1
 fi
 
+# Paths come from this file, so the shell can be in any directory.
 SUITE=$(cd "$(dirname "$0")" && pwd)
 ROOT=$(cd "$SUITE/.." && pwd)
 LIBS="$ROOT/libs"
 mkdir -p "$LIBS"
+
+# A sibling script, spelled so the line can be run from the current directory.
+# A relative path that climbs out of this directory is harder to read than
+# the absolute one, so that case uses the absolute path.
+beside() {
+  rel=$(realpath --relative-to="$PWD" "$SUITE/$1" 2>/dev/null) || rel=""
+  case "$rel" in
+    ""|..|../*) printf '%s\n' "$SUITE/$1" ;;
+    *) printf './%s\n' "$rel" ;;
+  esac
+}
 
 MANIFEST="$SUITE/libraries.txt"
 if [ ! -f "$MANIFEST" ]; then
@@ -80,13 +94,13 @@ printf '\n=== summary ===\n'
 if [ -n "$present" ]; then
   echo
   echo "The ones already here were left as they are. To update them:"
-  echo "  ./pull.sh"
+  echo "  $(beside pull.sh)"
 fi
 
 if [ -z "$failed" ] && [ "$DRY_RUN" -eq 0 ]; then
   echo
-  echo "Next: ./install.sh"
-  echo "      ./docs.sh --container"
+  echo "Next: $(beside install.sh)"
+  echo "      $(beside docs.sh) --container"
 fi
 
 [ -z "$failed" ] || exit 1

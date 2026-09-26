@@ -4,6 +4,9 @@ This is a suite of cross-platform C libraries.
 
 There are also puns.  Please forgive me.
 
+Clone the libraries, build them, and build this manual from
+[Getting Started](@ref getting_started).
+
 ## Libraries
 
 | Library | What it implements |

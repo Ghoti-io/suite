@@ -1,6 +1,7 @@
 # Public manual. docs.sh runs Doxygen from the parent of suite/, so the
 # library inputs are libs/ and the generated pages are suite/manual/pages.
-# Output goes to docs/ in that parent. The workspace README is not an input.
+# Output goes to docs/ in that parent. Coordination notes that live outside
+# this repository are not inputs.
 # ctang and cjelly have no Doxyfile of their own; their sources and pages
 # are inputs here anyway.
 #
