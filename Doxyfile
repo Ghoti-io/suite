@@ -1,0 +1,121 @@
+# Public manual. docs.sh runs Doxygen from the parent of suite/, so the
+# library inputs are libs/ and the generated pages are suite/manual/pages.
+# Output goes to docs/ in that parent. The workspace README is not an input.
+# ctang and cjelly have no Doxyfile of their own; their sources and pages
+# are inputs here anyway.
+#
+# Page ids that text and image both used (modules, examples, functions_index,
+# format_references, format_adding) are prefixed text_ and image_. A combined
+# run allows each id once.
+
+PROJECT_NAME           = "Ghoti.io"
+PROJECT_BRIEF          = "C libraries for text, Unicode, time, compression, images, fonts, models, and regular expressions."
+OUTPUT_DIRECTORY       = docs
+OUTPUT_LANGUAGE        = English
+
+OPTIMIZE_OUTPUT_FOR_C  = YES
+JAVADOC_AUTOBRIEF      = YES
+TAB_SIZE               = 2
+MARKDOWN_SUPPORT       = YES
+MARKDOWN_ID_STYLE      = GITHUB
+
+EXTRACT_ALL            = NO
+EXTRACT_PRIVATE        = YES
+EXTRACT_STATIC         = NO
+SHOW_INCLUDE_FILES     = YES
+# The file index is the same list as the Files tab, and its tree node is
+# named Files, which is also CUtil's file-API page.
+SHOW_FILES             = NO
+SOURCE_BROWSER         = NO
+QUIET                  = NO
+WARN_IF_UNDOCUMENTED   = YES
+WARN_IF_DOC_ERROR      = YES
+WARN_NO_PARAMDOC       = NO
+WARN_AS_ERROR          = NO
+
+INPUT                  = suite/suite.md \
+                         suite/manual/pages \
+                         libs/cutil/include \
+                         libs/cutil/src \
+                         libs/cutil/documentation \
+                         libs/cutil/CONTRIBUTING.md \
+                         libs/unicode/include \
+                         libs/unicode/src \
+                         libs/unicode/documentation \
+                         libs/unicode/examples \
+                         libs/unicode/CONTRIBUTING.md \
+                         libs/chron/include \
+                         libs/chron/src \
+                         libs/chron/documentation \
+                         libs/chron/examples \
+                         libs/chron/CONTRIBUTING.md \
+                         libs/compress/include \
+                         libs/compress/src \
+                         libs/compress/documentation \
+                         libs/compress/examples \
+                         libs/compress/CONTRIBUTING.md \
+                         libs/text/include \
+                         libs/text/src \
+                         libs/text/documentation \
+                         libs/text/examples \
+                         libs/text/CONTRIBUTING.md \
+                         libs/image/include \
+                         libs/image/src \
+                         libs/image/documentation \
+                         libs/image/examples \
+                         libs/image/CONTRIBUTING.md \
+                         libs/font/include \
+                         libs/font/src \
+                         libs/font/documentation \
+                         libs/font/examples \
+                         libs/font/CONTRIBUTING.md \
+                         libs/model/include \
+                         libs/model/src \
+                         libs/model/documentation \
+                         libs/model/examples \
+                         libs/model/CONTRIBUTING.md \
+                         libs/regex/include \
+                         libs/regex/src \
+                         libs/regex/documentation \
+                         libs/regex/examples \
+                         libs/regex/CONTRIBUTING.md \
+                         libs/ctang/include \
+                         libs/ctang/src \
+                         libs/ctang/documentation \
+                         libs/ctang/CONTRIBUTING.md \
+                         libs/cjelly/include \
+                         libs/cjelly/src \
+                         libs/cjelly/docs \
+                         libs/cjelly/CONTRIBUTING.md
+
+FILE_PATTERNS          = *.c *.h *.md
+RECURSIVE              = YES
+
+# cutil's own @mainpage. The combined manual has one main page, suite.md.
+# Library READMEs are not inputs: docs.sh folds each one into that library's
+# page, so the overview is the page you open rather than a child of it.
+EXCLUDE                = libs/cutil/documentation/main.md \
+                         libs/cjelly/docs/CurrentTask.md
+EXCLUDE_PATTERNS       = */build/* \
+                         */.git/* \
+                         *internal.h \
+                         */README.before.md \
+                         */examples/README.md \
+                         */examples/*/README.md
+
+# docs.sh writes suite/suite.md from documents/index.md before running, and
+# Doxygen is started from the parent, so this path is relative to that
+# directory. The name has to stay unique: a value of README.md would also
+# match every library README.
+USE_MDFILE_AS_MAINPAGE = suite/suite.md
+
+GENERATE_HTML          = YES
+HTML_OUTPUT            = html
+GENERATE_TREEVIEW      = YES
+SEARCHENGINE           = YES
+HTML_COLORSTYLE_HUE    = 220
+HTML_COLORSTYLE_SAT    = 100
+HTML_COLORSTYLE_GAMMA  = 80
+GENERATE_LATEX         = NO
+HAVE_DOT               = YES
+ALPHABETICAL_INDEX     = YES

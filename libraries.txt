@@ -1,0 +1,19 @@
+# The libraries, in build order. clone.sh and install.sh read this file.
+# A library's dependencies are the comma-separated fourth field; "-" means
+# none, and a name prefixed with ? is optional. A non-optional dependency
+# must appear on an earlier line.
+#
+# Remotes are https so a clone does not need an ssh key. The remote inside
+# a checkout is named upstream.
+
+cutil      https://github.com/Ghoti-io/cutil.git      master -
+unicode    https://github.com/Ghoti-io/unicode.git    master cutil
+chron      https://github.com/Ghoti-io/chron.git      master cutil
+compress   https://github.com/Ghoti-io/compress.git   master cutil
+text       https://github.com/Ghoti-io/text.git       master cutil,chron,unicode
+image      https://github.com/Ghoti-io/image.git      master cutil,compress
+font       https://github.com/Ghoti-io/font.git       master cutil
+model      https://github.com/Ghoti-io/model.git      master cutil
+regex      https://github.com/Ghoti-io/regex.git      master cutil,unicode,?text
+ctang      https://github.com/Ghoti-io/ctang.git      master cutil
+cjelly     https://github.com/Ghoti-io/cjelly.git     master cutil,image,model
