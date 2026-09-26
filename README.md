@@ -26,7 +26,14 @@ cd suite
 ```
 
 `libraries.txt` is the list: name, remote, branch, dependencies, in build
-order. A repository that is already in `../libs` is left alone.
+order. A repository that is already in `../libs` is left alone. `./clone.sh`
+says so, and says to run `./pull.sh`, which fetches each one and
+fast-forwards `master`.
+
+```bash
+./pull.sh
+./pull.sh -n
+```
 
 ## Build and install
 

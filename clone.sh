@@ -10,8 +10,8 @@
 #     cd suite
 #     ./clone.sh
 #
-# A repository that is already there is left alone, so re-running is harmless.
-# Every repository is attempted even if an earlier one fails.
+# A repository that is already there is left alone. ./pull.sh brings those
+# up to date. Every repository is attempted even if an earlier one fails.
 #
 # Usage:
 #   ./clone.sh          clone whatever is not here yet
@@ -76,6 +76,12 @@ printf '\n=== summary ===\n'
 [ -n "$cloned" ]  && echo "  cloned:   $cloned"
 [ -n "$present" ] && echo "  present:  $present"
 [ -n "$failed" ]  && echo "  failed:   $failed"
+
+if [ -n "$present" ]; then
+  echo
+  echo "The ones already here were left as they are. To update them:"
+  echo "  ./pull.sh"
+fi
 
 if [ -z "$failed" ] && [ "$DRY_RUN" -eq 0 ]; then
   echo
