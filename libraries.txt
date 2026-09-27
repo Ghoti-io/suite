@@ -15,6 +15,7 @@ text       https://github.com/Ghoti-io/text.git       master cutil,chron,unicode
 image      https://github.com/Ghoti-io/image.git      master cutil,compress
 font       https://github.com/Ghoti-io/font.git       master cutil
 model      https://github.com/Ghoti-io/model.git      master cutil
+archive    https://github.com/Ghoti-io/archive.git    master cutil
 regex      https://github.com/Ghoti-io/regex.git      master cutil,unicode,?text
 ctang      https://github.com/Ghoti-io/ctang.git      master cutil,unicode
 cjelly     https://github.com/Ghoti-io/cjelly.git     master cutil,image,model
