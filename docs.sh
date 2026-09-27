@@ -85,7 +85,7 @@ names = {
     "cutil": "CUtil", "unicode": "Unicode", "chron": "Chron",
     "compress": "Compress", "text": "Text", "image": "Image",
     "font": "Font", "model": "Model", "regex": "Regex",
-    "ctang": "CTang", "cjelly": "CJelly",
+    "ctang": "CTang", "cjelly": "CJelly", "security": "Security",
 }
 
 exclude = {}
@@ -309,6 +309,7 @@ pin_groups = [
     ("Text", [], root / "libs/text/tools/oracle/containers/IMAGES"),
     ("Image", [], root / "libs/image/tools/oracle/containers/IMAGES"),
     ("Font", [], root / "libs/font/tools/oracle/containers/IMAGES"),
+    ("Security", [], root / "libs/security/tools/oracle/containers/IMAGES"),
     ("Regex", [], root / "libs/regex/tools/oracle/containers/IMAGES"),
 ]
 def pin_heading(title):
@@ -389,7 +390,7 @@ PY
 # child pages. The README's own title is dropped. Its headings are written
 # as HTML so they stay on the page and out of the tree: a Markdown heading
 # on a page that also has @subpage is drawn under the first child.
-for lib in cutil unicode chron compress text image font model regex ctang cjelly; do
+for lib in cutil security unicode chron compress text image font model regex ctang cjelly; do
   python3 - "$lib" << 'PY'
 import os, pathlib, re, sys
 lib = sys.argv[1]

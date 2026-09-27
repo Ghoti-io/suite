@@ -7,6 +7,7 @@
 # a checkout is named upstream.
 
 cutil      https://github.com/Ghoti-io/cutil.git      master -
+security   https://github.com/Ghoti-io/security.git   master cutil
 unicode    https://github.com/Ghoti-io/unicode.git    master cutil
 chron      https://github.com/Ghoti-io/chron.git      master cutil
 compress   https://github.com/Ghoti-io/compress.git   master cutil

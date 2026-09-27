@@ -20,6 +20,7 @@ Clone the libraries, build them, and build this manual from
 | [Image](@ref image) | PNG, including APNG, and JPEG, BMP, and GIF. |
 | [Model](@ref model) | Wavefront OBJ and MTL. |
 | [Regex](@ref regex) | Regular expressions. Which of the sixteen named dialects compile is measured with the rest of the figures below. |
+| [Security](@ref security) | Cryptographic primitives. Phase 0 is the constant-time gate, the vector corpus, constant-time compare, and the entropy and explicit-zero calls. Hashes and ciphers are not implemented yet. |
 | [Text](@ref text) | JSON, CSV, and YAML, including JSON Schema. |
 | [Unicode](@ref unicode) | Character properties, the four normalisation forms, segmentation, the bidirectional algorithm, case mapping, and character names. |
 
