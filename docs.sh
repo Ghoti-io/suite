@@ -86,6 +86,7 @@ names = {
     "compress": "Compress", "text": "Text", "image": "Image",
     "font": "Font", "model": "Model", "regex": "Regex",
     "ctang": "CTang", "cjelly": "CJelly", "security": "Security",
+    "color": "Color", "archive": "Archive",
 }
 
 exclude = {}
@@ -310,6 +311,7 @@ pin_groups = [
     ("Image", [], root / "libs/image/tools/oracle/containers/IMAGES"),
     ("Font", [], root / "libs/font/tools/oracle/containers/IMAGES"),
     ("Security", [], root / "libs/security/tools/oracle/containers/IMAGES"),
+    ("Archive", [], root / "libs/archive/tools/oracle/containers/IMAGES"),
     ("Regex", [], root / "libs/regex/tools/oracle/containers/IMAGES"),
 ]
 def pin_heading(title):
@@ -367,7 +369,7 @@ pretty = {
     "PERL": "Perl", "PCRE": "PCRE2", "ECMASCRIPT": "ECMAScript",
     "PYTHON": "Python", "JAVA": "Java", "DOTNET": ".NET",
     "RUBY": "Ruby", "RE2": "RE2", "RUST": "Rust", "TCL": "Tcl",
-    "VIM": "Vim", "EMACS": "Emacs",
+    "VIM": "Vim", "EMACS": "Emacs", "IREGEXP": "I-Regexp",
 }
 built_names = [pretty[n.removeprefix("GRX_SYNTAX_")] for n in built]
 missing = [pretty[n] for n in named if f"GRX_SYNTAX_{n}" not in built]
@@ -390,7 +392,9 @@ PY
 # child pages. The README's own title is dropped. Its headings are written
 # as HTML so they stay on the page and out of the tree: a Markdown heading
 # on a page that also has @subpage is drawn under the first child.
-for lib in cutil security unicode chron compress text image font model regex ctang cjelly; do
+# libraries.txt is the list. A library with no manual/<name>.md fails in
+# the fold below.
+for lib in $(awk 'NF && $1 !~ /^#/ { print $1 }' "$SUITE/libraries.txt"); do
   python3 - "$lib" << 'PY'
 import os, pathlib, re, sys
 lib = sys.argv[1]

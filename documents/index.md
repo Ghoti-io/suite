@@ -11,15 +11,17 @@ Clone the libraries, build them, and build this manual from
 
 | Library | What it implements |
 | --- | --- |
+| [Archive](@ref archive) | Tar from a file or a pipe: v7, ustar, GNU, and pax, with member names classified rather than rewritten. Zip is not implemented yet. |
 | [Chron](@ref chron) | Civil time, calendars, instants, durations, time zones, and the text formats for them. |
 | [CJelly](@ref cjelly) | A Vulkan GUI: native windows, and a renderer for panels, an image, and a Wavefront model. |
+| [Color](@ref color) | A colour engine's scaffold: the result vocabulary, the allocator alias, and the version accessors. |
 | [Compress](@ref compress) | Deflate, zlib, gzip, LZ4, LZW, RLE, and zstd. |
 | [CTang](@ref ctang) | A template language for a host program, with an x86-64 JIT and a bytecode fallback. |
 | [CUtil](@ref cutil) | An allocator, containers, checked arithmetic, threads, and the filesystem. |
 | [Font](@ref font) | An sfnt reader: the container, metric tables, `cmap`, and names. |
 | [Image](@ref image) | PNG, including APNG, and JPEG, BMP, and GIF. |
 | [Model](@ref model) | Wavefront OBJ and MTL. |
-| [Regex](@ref regex) | Regular expressions. Which of the sixteen named dialects compile is measured with the rest of the figures below. |
+| [Regex](@ref regex) | Regular expressions. Which of the seventeen named dialects compile is measured with the rest of the figures below. |
 | [Security](@ref security) | SHA-256, SHA-512, SHA-384, SHA-1, and MD5, with HMAC, HKDF, PBKDF2, AES (one block, CTR, and GCM), ChaCha20-Poly1305, X25519, Ed25519, P-256 ECDH and ECDSA, and RSA signature verification. |
 | [Text](@ref text) | JSON, CSV, and YAML, including JSON Schema. |
 | [Unicode](@ref unicode) | Character properties, the four normalisation forms, segmentation, the bidirectional algorithm, case mapping, and character names. |

@@ -10,7 +10,7 @@
 # run allows each id once.
 
 PROJECT_NAME           = "Ghoti.io"
-PROJECT_BRIEF          = "C libraries for text, Unicode, time, compression, images, fonts, models, and regular expressions."
+PROJECT_BRIEF          = "C libraries for text, Unicode, time, compression, cryptography, colour, images, fonts, archives, models, and regular expressions."
 OUTPUT_DIRECTORY       = docs
 OUTPUT_LANGUAGE        = English
 
@@ -40,6 +40,11 @@ INPUT                  = suite/suite.md \
                          libs/cutil/src \
                          libs/cutil/documentation \
                          libs/cutil/CONTRIBUTING.md \
+                         libs/security/include \
+                         libs/security/src \
+                         libs/security/documentation \
+                         libs/security/examples \
+                         libs/security/CONTRIBUTING.md \
                          libs/unicode/include \
                          libs/unicode/src \
                          libs/unicode/documentation \
@@ -60,6 +65,11 @@ INPUT                  = suite/suite.md \
                          libs/text/documentation \
                          libs/text/examples \
                          libs/text/CONTRIBUTING.md \
+                         libs/color/include \
+                         libs/color/src \
+                         libs/color/documentation \
+                         libs/color/examples \
+                         libs/color/CONTRIBUTING.md \
                          libs/image/include \
                          libs/image/src \
                          libs/image/documentation \
@@ -75,6 +85,11 @@ INPUT                  = suite/suite.md \
                          libs/model/documentation \
                          libs/model/examples \
                          libs/model/CONTRIBUTING.md \
+                         libs/archive/include \
+                         libs/archive/src \
+                         libs/archive/documentation \
+                         libs/archive/examples \
+                         libs/archive/CONTRIBUTING.md \
                          libs/regex/include \
                          libs/regex/src \
                          libs/regex/documentation \
