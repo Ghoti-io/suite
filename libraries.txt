@@ -12,6 +12,7 @@ unicode    https://github.com/Ghoti-io/unicode.git    master cutil
 chron      https://github.com/Ghoti-io/chron.git      master cutil
 compress   https://github.com/Ghoti-io/compress.git   master cutil
 text       https://github.com/Ghoti-io/text.git       master cutil,chron,unicode
+color      https://github.com/Ghoti-io/color.git      master cutil
 image      https://github.com/Ghoti-io/image.git      master cutil,compress
 font       https://github.com/Ghoti-io/font.git       master cutil
 model      https://github.com/Ghoti-io/model.git      master cutil
