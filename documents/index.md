@@ -21,7 +21,7 @@ Clone the libraries, build them, and build this manual from
 | [Font](@ref font) | An sfnt reader: the container, metric tables, `cmap`, and names. |
 | [Image](@ref image) | PNG, including APNG, and JPEG, BMP, and GIF. |
 | [Model](@ref model) | Wavefront OBJ and MTL, STL in both spellings, and Geomview OFF. |
-| [Regex](@ref regex) | Regular expressions. Which of the seventeen named dialects compile is measured with the rest of the figures below. |
+| [Regex](@ref regex) | Regular expressions. Which of the eighteen named dialects compile is measured with the rest of the figures below. |
 | [Security](@ref security) | SHA-256, SHA-512, SHA-384, SHA-1, and MD5, with HMAC, HKDF, PBKDF2, AES (one block, CTR, and GCM), ChaCha20-Poly1305, X25519, Ed25519, P-256 ECDH and ECDSA, and RSA signature verification and signing. |
 | [Text](@ref text) | JSON, CSV, and YAML, including JSON Schema. |
 | [Unicode](@ref unicode) | Character properties, the four normalisation forms, segmentation, the bidirectional algorithm, case mapping, and character names. |
