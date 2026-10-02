@@ -10,7 +10,7 @@
 # run allows each id once.
 
 PROJECT_NAME           = "Ghoti.io"
-PROJECT_BRIEF          = "C libraries for text, Unicode, time, compression, cryptography, colour, images, fonts, archives, models, and regular expressions."
+PROJECT_BRIEF          = "C libraries for text, Unicode, time, compression, cryptography, colour, images, fonts, archives, audio, models, templates, a Vulkan GUI, and regular expressions."
 OUTPUT_DIRECTORY       = docs
 OUTPUT_LANGUAGE        = English
 
@@ -90,6 +90,11 @@ INPUT                  = suite/suite.md \
                          libs/archive/documentation \
                          libs/archive/examples \
                          libs/archive/CONTRIBUTING.md \
+                         libs/audio/include \
+                         libs/audio/src \
+                         libs/audio/documentation \
+                         libs/audio/examples \
+                         libs/audio/CONTRIBUTING.md \
                          libs/regex/include \
                          libs/regex/src \
                          libs/regex/documentation \

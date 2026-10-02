@@ -86,7 +86,7 @@ names = {
     "compress": "Compress", "text": "Text", "image": "Image",
     "font": "Font", "model": "Model", "regex": "Regex",
     "ctang": "CTang", "cjelly": "CJelly", "security": "Security",
-    "color": "Color", "archive": "Archive",
+    "color": "Color", "archive": "Archive", "audio": "Audio",
 }
 
 exclude = {}
@@ -173,6 +173,7 @@ def list_tests(lib):
     return total if found else None
 
 test_counts = {lib: list_tests(lib) for lib, _, _ in rows}
+rows.sort(key=lambda item: names[item[0]].casefold())
 
 def parse_images(path):
     rows = []
@@ -312,6 +313,7 @@ pin_groups = [
     ("Font", [], root / "libs/font/tools/oracle/containers/IMAGES"),
     ("Security", [], root / "libs/security/tools/oracle/containers/IMAGES"),
     ("Archive", [], root / "libs/archive/tools/oracle/containers/IMAGES"),
+    ("Audio", [], root / "libs/audio/tools/oracle/containers/IMAGES"),
     ("Regex", [], root / "libs/regex/tools/oracle/containers/IMAGES"),
 ]
 def pin_heading(title):
@@ -370,6 +372,7 @@ pretty = {
     "PYTHON": "Python", "JAVA": "Java", "DOTNET": ".NET",
     "RUBY": "Ruby", "RE2": "RE2", "RUST": "Rust", "TCL": "Tcl",
     "VIM": "Vim", "EMACS": "Emacs", "IREGEXP": "I-Regexp",
+    "REFLEX": "RE/flex",
 }
 built_names = [pretty[n.removeprefix("GRX_SYNTAX_")] for n in built]
 missing = [pretty[n] for n in named if f"GRX_SYNTAX_{n}" not in built]

@@ -11,19 +11,20 @@ Clone the libraries, build them, and build this manual from
 
 | Library | What it implements |
 | --- | --- |
-| [Archive](@ref archive) | Tar from a file or a pipe: v7, ustar, GNU, and pax, with member names classified rather than rewritten. Zip is not implemented yet. |
+| [Archive](@ref archive) | Tar, read and written: v7, ustar, GNU, and pax, from a file or a pipe, with member names classified rather than rewritten. Zip, read and written, stored and deflate, plus zstd and ZipCrypto on read. |
+| [Audio](@ref audio) | WAV, AIFF, and FLAC, read and written, with tags and cover art; MPEG audio and Vorbis, read; Opus identified. |
 | [Chron](@ref chron) | Civil time, calendars, instants, durations, time zones, and the text formats for them. |
 | [CJelly](@ref cjelly) | A Vulkan GUI: native windows, and a renderer for panels, an image, and a Wavefront model. |
-| [Color](@ref color) | A colour engine's scaffold: the result vocabulary, the allocator alias, and the version accessors. |
-| [Compress](@ref compress) | Deflate, zlib, gzip, LZ4, LZW, RLE, and zstd. |
+| [Color](@ref color) | A colour engine: a colour described exactly, an ICC profile parsed and written, and samples transformed between two spaces, including CMYK LUT profiles and PQ/HLG. |
+| [Compress](@ref compress) | Deflate, zlib, gzip, Brotli, LZ4, LZW, RLE, and zstd. |
 | [CTang](@ref ctang) | A template language for a host program, with an x86-64 JIT and a bytecode fallback. |
 | [CUtil](@ref cutil) | An allocator, containers, checked arithmetic, threads, and the filesystem. |
-| [Font](@ref font) | An sfnt reader: the container, metric tables, `cmap`, and names. |
-| [Image](@ref image) | PNG, including APNG, and JPEG, BMP, and GIF. |
+| [Font](@ref font) | sfnt outlines (`glyf` and CFF) and Type 1, rasterised to coverage, plus the bitmap formats PCF, BDF, PSF, and Unifont hex. |
+| [Image](@ref image) | PNG, including APNG, JPEG, BMP, GIF, ICO, WebP, and TIFF. |
 | [Model](@ref model) | Wavefront OBJ and MTL, STL in both spellings, and Geomview OFF. |
 | [Regex](@ref regex) | Regular expressions. Which of the eighteen named dialects compile is measured with the rest of the figures below. |
-| [Security](@ref security) | SHA-256, SHA-512, SHA-384, SHA-1, and MD5, with HMAC, HKDF, PBKDF2, AES (one block, CTR, and GCM), ChaCha20-Poly1305, X25519, Ed25519, P-256 ECDH and ECDSA, and RSA signature verification and signing. |
-| [Text](@ref text) | JSON, CSV, and YAML, including JSON Schema. |
+| [Security](@ref security) | SHA-256, SHA-384, SHA-512, SHA-1, and MD5, with HMAC, HKDF, and PBKDF2; AES, ChaCha20-Poly1305, Triple DES, RC2, and RC4; X25519, Ed25519, P-256, P-384, and RSA; Argon2, scrypt, and bcrypt; and DER, PEM, PKCS#8, PKCS#12, X.509, a certificate revocation list, and a basic OCSP response. |
+| [Text](@ref text) | JSON, including JSON Schema, and CSV, YAML, TOML, and INI. |
 | [Unicode](@ref unicode) | Character properties, the four normalisation forms, segmentation, the bidirectional algorithm, case mapping, and character names. |
 
 The size of each library, the tests its build lists, and the versions its
