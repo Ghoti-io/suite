@@ -24,4 +24,4 @@ cjelly     https://github.com/Ghoti-io/cjelly.git     master cutil,image,model
 runtime-core https://github.com/Ghoti-io/runtime-core.git master cutil
 runtime-heap https://github.com/Ghoti-io/runtime-heap.git master cutil,runtime-core
 runtime-debug https://github.com/Ghoti-io/runtime-debug.git master cutil,text,runtime-core
-lang-tang https://github.com/Ghoti-io/lang-tang.git master cutil,unicode,runtime-core,runtime-heap,ctang
+lang-tang https://github.com/Ghoti-io/lang-tang.git master cutil,unicode,runtime-core,runtime-heap,runtime-debug,text,ctang
