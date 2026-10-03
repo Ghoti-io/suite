@@ -24,6 +24,7 @@ Clone the libraries, build them, and build this manual from
 | [Model](@ref model) | Wavefront OBJ and MTL, STL in both spellings, and Geomview OFF. |
 | [Regex](@ref regex) | Regular expressions. Which of the eighteen named dialects compile is measured with the rest of the figures below. |
 | [Runtime-core](@ref runtime-core) | The core of the language runtime stack: the execution context and the frame protocol that engines run on. A scaffold so far: the version, the result vocabulary, and the gates that keep its layering. |
+| [Runtime-heap](@ref runtime-heap) | The collector of the language runtime stack: a precise, non-moving mark and sweep heap that attaches to a runtime-core context, with objects described by type descriptors, roots, handles, pins and an arena mode. It works for a C program with no engine. |
 | [Security](@ref security) | SHA-256, SHA-384, SHA-512, SHA-1, and MD5, with HMAC, HKDF, and PBKDF2; AES, ChaCha20-Poly1305, Triple DES, RC2, and RC4; X25519, Ed25519, P-256, P-384, and RSA; Argon2, scrypt, and bcrypt; and DER, PEM, PKCS#8, PKCS#12, X.509, a certificate revocation list, and a basic OCSP response. |
 | [Text](@ref text) | JSON, including JSON Schema, and CSV, YAML, TOML, and INI. |
 | [Unicode](@ref unicode) | Character properties, the four normalisation forms, segmentation, the bidirectional algorithm, case mapping, and character names. |
