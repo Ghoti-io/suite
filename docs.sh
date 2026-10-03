@@ -88,6 +88,7 @@ names = {
     "ctang": "CTang", "cjelly": "CJelly", "security": "Security",
     "color": "Color", "archive": "Archive", "audio": "Audio",
     "runtime-core": "Runtime-core", "runtime-heap": "Runtime-heap",
+    "lang-tang": "Lang-tang",
 }
 
 exclude = {}

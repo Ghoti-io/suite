@@ -21,6 +21,7 @@ Clone the libraries, build them, and build this manual from
 | [CUtil](@ref cutil) | An allocator, containers, checked arithmetic, threads, and the filesystem. |
 | [Font](@ref font) | sfnt outlines (`glyf` and CFF) and Type 1, rasterised to coverage, plus the bitmap formats PCF, BDF, PSF, and Unifont hex. |
 | [Image](@ref image) | PNG, including APNG, JPEG, BMP, GIF, ICO, WebP, and TIFF. |
+| [Lang-tang](@ref lang-tang) | The Tang engine of the language runtime stack, replacing CTang. So far its front end: the parser and syntax tree ported from CTang, an interface that parses a template or a script into a tree, a `tang` command that parses and dumps, and the divergence ledger and oracle that compare it with CTang. Execution comes later. |
 | [Model](@ref model) | Wavefront OBJ and MTL, STL in both spellings, and Geomview OFF. |
 | [Regex](@ref regex) | Regular expressions. Which of the eighteen named dialects compile is measured with the rest of the figures below. |
 | [Runtime-core](@ref runtime-core) | The core of the language runtime stack: the execution context and the frame protocol that engines run on. A scaffold so far: the version, the result vocabulary, and the gates that keep its layering. |
