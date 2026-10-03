@@ -21,3 +21,4 @@ archive    https://github.com/Ghoti-io/archive.git    master cutil,compress
 audio      https://github.com/Ghoti-io/audio.git      master cutil,security,?compress,?image
 ctang      https://github.com/Ghoti-io/ctang.git      master cutil,unicode
 cjelly     https://github.com/Ghoti-io/cjelly.git     master cutil,image,model
+runtime-core https://github.com/Ghoti-io/runtime-core.git master cutil

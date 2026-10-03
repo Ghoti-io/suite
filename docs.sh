@@ -87,6 +87,7 @@ names = {
     "font": "Font", "model": "Model", "regex": "Regex",
     "ctang": "CTang", "cjelly": "CJelly", "security": "Security",
     "color": "Color", "archive": "Archive", "audio": "Audio",
+    "runtime-core": "Runtime-core",
 }
 
 exclude = {}
