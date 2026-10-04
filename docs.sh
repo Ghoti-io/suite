@@ -88,7 +88,7 @@ names = {
     "ctang": "CTang", "cjelly": "CJelly", "security": "Security",
     "color": "Color", "archive": "Archive", "audio": "Audio",
     "runtime-core": "Runtime-core", "runtime-heap": "Runtime-heap",
-    "runtime-debug": "Runtime-debug",
+    "runtime-debug": "Runtime-debug", "runtime-jit": "Runtime-jit",
     "lang-tang": "Lang-tang",
 }
 
