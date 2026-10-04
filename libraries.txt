@@ -25,4 +25,4 @@ runtime-core https://github.com/Ghoti-io/runtime-core.git master cutil
 runtime-heap https://github.com/Ghoti-io/runtime-heap.git master cutil,runtime-core
 runtime-debug https://github.com/Ghoti-io/runtime-debug.git master cutil,text,runtime-core
 runtime-jit https://github.com/Ghoti-io/runtime-jit.git master cutil,runtime-core
-lang-tang https://github.com/Ghoti-io/lang-tang.git master cutil,unicode,runtime-core,runtime-heap,runtime-debug,text,ctang
+lang-tang https://github.com/Ghoti-io/lang-tang.git master cutil,unicode,runtime-core,runtime-heap,runtime-jit,runtime-debug,text,ctang
