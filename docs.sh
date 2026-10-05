@@ -447,8 +447,19 @@ lines = with_version
 # link to a Markdown file that is not a Doxygen input (the examples index,
 # excluded in the Doxyfile) is left as its text.
 def page_id(rel):
+    # A file that opens with @page has that name, not the md_ one.
+    first = (root / "libs" / lib / rel).read_text().split("\n", 1)[0]
+    named = re.match(r"@page\s+(\S+)", first)
+    if named:
+        return named.group(1)
     stem = re.sub(r"\.md$", "", f"libs/{lib}/{rel}")
     return "md_" + stem.replace("_", "__").replace("/", "_2")
+
+# Only these are Doxygen inputs (see the Doxyfile); a link to any other
+# Markdown file has no page to land on and is left as its text.
+def is_input(rel):
+    rel = os.path.normpath(rel)
+    return rel == "CONTRIBUTING.md" or rel.startswith("documentation" + os.sep)
 
 def fix_link(match):
     text, target, fragment = match.group(1), match.group(2), match.group(3) or ""
@@ -457,11 +468,12 @@ def fix_link(match):
     path = pathlib.Path(root / "libs" / lib / target)
     if not path.is_file():
         return match.group(0)
-    if target.endswith("examples/README.md"):
+    if target.endswith("examples/README.md") or not is_input(target):
         return text
     return f"[{text}](@ref {page_id(target)})"
 
 link = re.compile(r"\[([^\]]+)\]\(([^)#\s]+\.md)(#[^)\s]*)?\)")
+anchor = re.compile(r"\[([^\]]+)\]\(#([^)\s]+)\)")
 out = []
 fence = False
 for line in lines:
@@ -469,6 +481,9 @@ for line in lines:
         fence = not fence
     elif not fence:
         line = link.sub(fix_link, line)
+        # The headings below become HTML with an id, which \ref cannot see,
+        # so a link to one on the same page is a plain anchor.
+        line = anchor.sub(r'<a href="#\2">\1</a>', line)
         for n, tag in ((4, "h4"), (3, "h3"), (2, "h2")):
             prefix = "#" * n + " "
             if line.startswith(prefix):
@@ -578,12 +593,12 @@ hidden.append("")
 hidden.append("</div>")
 hidden.append("")
 (suite / "manual" / "pages" / "libraries.md").write_text(
-    "@page libraries Libraries\n\n" + table + "\n\n" + "\n".join(hidden))
+    "@page suite_libraries Libraries\n\n" + table + "\n\n" + "\n".join(hidden))
 pages = """
 <div style="display:none">
 
 - @subpage getting_started "Getting Started"
-- @subpage libraries "Libraries"
+- @subpage suite_libraries "Libraries"
 - @subpage suite_measured "What was measured"
 
 </div>

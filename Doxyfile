@@ -132,6 +132,14 @@ FILE_PATTERNS          = *.c *.h *.md
 ALIASES                = "stability=@par Stability:^^"
 RECURSIVE              = YES
 
+# GTA_CALL is a calling-convention attribute on some targets. Left in place it
+# makes a function-pointer member such as GTA_Ast_Node_VTable's destroy read as
+# a function named GTA_CALL, so its @param lines match nothing.
+ENABLE_PREPROCESSING   = YES
+MACRO_EXPANSION        = YES
+EXPAND_ONLY_PREDEF     = YES
+PREDEFINED             = GTA_CALL=
+
 # cutil's own @mainpage. The combined manual has one main page, suite.md.
 # Library READMEs are not inputs: docs.sh folds each one into that library's
 # page, so the overview is the page you open rather than a child of it.

@@ -12,6 +12,6 @@
 
 @page regex_development Development
 
-- @subpage md_libs_2regex_2documentation_2plan "Plan"
+- @subpage md_libs_2regex_2documentation_2work-packages "Work packages"
 - @subpage md_libs_2regex_2documentation_2testing "Conformance and testing"
 - @subpage md_libs_2regex_2documentation_2development "Layout"
