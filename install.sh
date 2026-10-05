@@ -15,9 +15,11 @@
 #
 #     ./install.sh BUILD=debug
 #
-# --test runs `make test` in each library right after installing it, so one
-# command builds, installs and tests the whole set; a library's tests may need
-# the libraries before it, which is why each is installed first. --test=a,b
+# --test runs `make test` in each library once all of them are installed, so
+# one command builds, installs and tests the whole set; a library's tests may
+# need a library after it (regex's need text), which is why the tests wait for
+# the whole install. Any tools/*/fetch.sh a library has runs first, since its
+# tests may need the data it fetches. --test=a,b
 # tests only the named libraries (all are still built and installed). A
 # failure stops the run and names the log, .bootstrap-<library>.log in the
 # parent directory.
@@ -116,12 +118,32 @@ for repo in $walk; do
     eval "make -C \"\$LIBS/\$repo\" -j\"\$jobs\" PREFIX=\"\$PREFIX\" $ACTION $make_args" >"$log" 2>&1 \
       || { echo "install.sh: $repo failed; see $log" >&2; exit 1; }
   fi
-  if [ "$ACTION" = install ] && [ -n "$TEST" ]; then
+done
+
+# The tests run after everything is installed, not one by one as each library
+# lands: regex lists text as an optional dependency and text depends on regex,
+# so regex's own tests (the JSON Schema adapter gate) need text installed, which
+# a test run right after regex's install cannot give them.
+if [ "$ACTION" = install ] && [ -n "$TEST" ]; then
+  for repo in $ORDER; do
+    [ -f "$LIBS/$repo/Makefile" ] || continue
     case "$TEST" in
       all) ;;
       *",$repo,"*) ;;
       *) continue ;;
     esac
+    log="$ROOT/.bootstrap-$repo.log"
+    # A library's tests can measure against somebody else's data (the Unicode
+    # Character Database, the JSON Schema test suite), which is pinned and
+    # fetched, never committed. A gate that cannot find it fails rather than
+    # skips, so a fresh clone fetches it first; the scripts keep what they
+    # have already fetched.
+    for fetch in "$LIBS/$repo"/tools/*/fetch.sh; do
+      [ -f "$fetch" ] || continue
+      echo "  $repo: ${fetch#"$LIBS/$repo/"}"
+      sh "$fetch" >>"$log" 2>&1 \
+        || { echo "install.sh: $repo: $fetch failed; see $log" >&2; exit 1; }
+    done
     echo "  $repo: make test"
     if [ "$GLOBAL" -eq 1 ]; then
       prefix_arg=""
@@ -131,7 +153,7 @@ for repo in $walk; do
     # shellcheck disable=SC2086
     eval "make -C \"\$LIBS/\$repo\" -j\"\$jobs\" $prefix_arg test $make_args" >>"$log" 2>&1 \
       || { echo "install.sh: $repo: make test failed; see $log" >&2; exit 1; }
-  fi
-done
+  done
+fi
 
 echo "Done."

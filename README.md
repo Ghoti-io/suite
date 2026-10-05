@@ -61,7 +61,7 @@ The default install is the sibling `.local/` directory.  This method does not ne
 ./install.sh
 ```
 
-To test as well, add `--test`. Each library's `make test` then runs right after that library is installed, so the ones after it find it. `--test=runtime-core,lang-tang` tests only the libraries named (every library is still built and installed). A failure stops the run and names the log, `.bootstrap-<library>.log` in the parent directory.
+To test as well, add `--test`. Each library's `make test` then runs once every library is installed, because a library's tests can need one that comes after it (regex's need text). Data the tests measure against, which is fetched and never committed, is fetched first by each library's `tools/*/fetch.sh`. `--test=runtime-core,lang-tang` tests only the libraries named (every library is still built and installed). A failure stops the run and names the log, `.bootstrap-<library>.log` in the parent directory.
 
 ```bash
 ./install.sh --test
