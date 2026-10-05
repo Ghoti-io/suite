@@ -15,7 +15,7 @@ regex      https://github.com/Ghoti-io/regex.git      master cutil,unicode,?text
 text       https://github.com/Ghoti-io/text.git       master cutil,chron,unicode,regex
 color      https://github.com/Ghoti-io/color.git      master cutil,security
 image      https://github.com/Ghoti-io/image.git      master cutil,compress,color
-font       https://github.com/Ghoti-io/font.git       master cutil,compress
+font       https://github.com/Ghoti-io/font.git       master cutil,compress,unicode
 model      https://github.com/Ghoti-io/model.git      master cutil
 archive    https://github.com/Ghoti-io/archive.git    master cutil,compress
 audio      https://github.com/Ghoti-io/audio.git      master cutil,security,?compress,?image
