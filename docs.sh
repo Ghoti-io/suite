@@ -142,7 +142,13 @@ def list_tests(lib):
     apps_dirs = [p for p in base.glob("build/*/*/apps") if p.is_dir()]
     if not apps_dirs:
         return None
-    apps = max(apps_dirs, key=lambda p: p.stat().st_mtime)
+    # The configuration a library ships is the plain release build. A tree
+    # built later for a gate sits beside it (release-nojit, release-asan,
+    # release-plant-N) with fewer tests or none of the same, and the newest
+    # directory is one of those as often as not, so it is not taken unless
+    # there is no release build at all.
+    shipped = [p for p in apps_dirs if p.parent.name == "release"]
+    apps = shipped[0] if shipped else max(apps_dirs, key=lambda p: p.stat().st_mtime)
     lib_path = [str(apps)]
     lib_path += [str(p) for p in root.glob("libs/*/build/*/*/apps") if p.is_dir()]
     local = root / ".local" / "lib"
@@ -433,12 +439,36 @@ for line in lines:
 if not noted:
     with_version.append(f"\nVersion {version}\n")
 lines = with_version
+# A README is folded into suite/manual/pages/<lib>.md, so a relative link to
+# another Markdown file in the library no longer resolves from where it now
+# sits. Doxygen names the page for libs/<lib>/documentation/design.md
+# md_libs_2<lib>_2documentation_2design, and the manual's own page for the
+# library lists those names as subpages, so the link is rewritten to that. A
+# link to a Markdown file that is not a Doxygen input (the examples index,
+# excluded in the Doxyfile) is left as its text.
+def page_id(rel):
+    stem = re.sub(r"\.md$", "", f"libs/{lib}/{rel}")
+    return "md_" + stem.replace("_", "__").replace("/", "_2")
+
+def fix_link(match):
+    text, target, fragment = match.group(1), match.group(2), match.group(3) or ""
+    if re.match(r"[a-z]+:", target) or target.startswith(("/", "#")):
+        return match.group(0)
+    path = pathlib.Path(root / "libs" / lib / target)
+    if not path.is_file():
+        return match.group(0)
+    if target.endswith("examples/README.md"):
+        return text
+    return f"[{text}](@ref {page_id(target)})"
+
+link = re.compile(r"\[([^\]]+)\]\(([^)#\s]+\.md)(#[^)\s]*)?\)")
 out = []
 fence = False
 for line in lines:
     if line.startswith("```"):
         fence = not fence
     elif not fence:
+        line = link.sub(fix_link, line)
         for n, tag in ((4, "h4"), (3, "h3"), (2, "h2")):
             prefix = "#" * n + " "
             if line.startswith(prefix):
