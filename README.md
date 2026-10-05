@@ -61,6 +61,12 @@ The default install is the sibling `.local/` directory.  This method does not ne
 ./install.sh
 ```
 
+To test as well, add `--test`. Each library's `make test` then runs right after that library is installed, so the ones after it find it. `--test=runtime-core,lang-tang` tests only the libraries named (every library is still built and installed). A failure stops the run and names the log, `.bootstrap-<library>.log` in the parent directory.
+
+```bash
+./install.sh --test
+```
+
 If creating a debug build, then use the appropriate command line option.
 
 ```bash
