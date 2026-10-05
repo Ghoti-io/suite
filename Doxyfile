@@ -104,12 +104,32 @@ INPUT                  = suite/suite.md \
                          libs/ctang/src \
                          libs/ctang/documentation \
                          libs/ctang/CONTRIBUTING.md \
+                         libs/runtime-core/include \
+                         libs/runtime-core/documentation \
+                         libs/runtime-core/CONTRIBUTING.md \
+                         libs/runtime-heap/include \
+                         libs/runtime-heap/documentation \
+                         libs/runtime-heap/CONTRIBUTING.md \
+                         libs/runtime-jit/include \
+                         libs/runtime-jit/documentation \
+                         libs/runtime-jit/CONTRIBUTING.md \
+                         libs/runtime-debug/include \
+                         libs/runtime-debug/documentation \
+                         libs/runtime-debug/CONTRIBUTING.md \
+                         libs/lang-tang/include \
+                         libs/lang-tang/documentation \
+                         libs/lang-tang/CONTRIBUTING.md \
                          libs/cjelly/include \
                          libs/cjelly/src \
                          libs/cjelly/docs \
                          libs/cjelly/CONTRIBUTING.md
 
 FILE_PATTERNS          = *.c *.h *.md
+
+# Every public header of the runtime stack opens with "@stability stable" or
+# "@stability free" (check-labels fails without one). Doxygen has no such
+# command, so it is declared here and shows as a paragraph.
+ALIASES                = "stability=@par Stability:^^"
 RECURSIVE              = YES
 
 # cutil's own @mainpage. The combined manual has one main page, suite.md.
