@@ -22,7 +22,7 @@ archive    https://github.com/Ghoti-io/archive.git    master cutil,compress,secu
 audio      https://github.com/Ghoti-io/audio.git      master cutil,security,?compress,?image
 ctang      https://github.com/Ghoti-io/ctang.git      master cutil,unicode
 cjelly     https://github.com/Ghoti-io/cjelly.git     master cutil,image,model
-http       https://github.com/Ghoti-io/http.git       master cutil
+http       https://github.com/Ghoti-io/http.git       master cutil,security,compress
 runtime-core https://github.com/Ghoti-io/runtime-core.git master cutil
 runtime-heap https://github.com/Ghoti-io/runtime-heap.git master cutil,runtime-core
 runtime-debug https://github.com/Ghoti-io/runtime-debug.git master cutil,text,runtime-core
