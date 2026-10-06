@@ -17,7 +17,7 @@ color      https://github.com/Ghoti-io/color.git      master cutil,security
 image      https://github.com/Ghoti-io/image.git      master cutil,compress,color
 font       https://github.com/Ghoti-io/font.git       master cutil,compress,unicode
 model      https://github.com/Ghoti-io/model.git      master cutil
-archive    https://github.com/Ghoti-io/archive.git    master cutil,compress
+archive    https://github.com/Ghoti-io/archive.git    master cutil,compress,security
 audio      https://github.com/Ghoti-io/audio.git      master cutil,security,?compress,?image
 ctang      https://github.com/Ghoti-io/ctang.git      master cutil,unicode
 cjelly     https://github.com/Ghoti-io/cjelly.git     master cutil,image,model
