@@ -50,6 +50,13 @@ A bare `./install.sh` builds the `ghoti-build:gcc16` image (an unchanged contain
 ./install.sh
 ```
 
+`./images.sh` lists the local images this suite built: each repository whose last component starts with `ghoti-`.  `./images.sh --apply` removes those references.  Stock names such as `debian`, `gcc`, `perl`, `node`, and `python` are left.  A fixed string after `--apply` narrows the set (`./images.sh --apply ghoti-docs`) and cannot select a name outside that prefix.
+
+```bash
+./images.sh
+./images.sh --apply
+```
+
 `--no-container` is the host-compiler exception.  It does not build the image.  A host build needs a compiler and the packages some libraries and tests look for.  CJelly needs Vulkan and X11.  The tests need GoogleTest.  Chron's optional format check looks for ICU; none of the libraries link it.
 
 ```bash
