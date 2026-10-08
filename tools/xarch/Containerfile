@@ -1,0 +1,37 @@
+# A throwaway container for answering questions this machine cannot answer:
+# what the code does on a big-endian target, on a strict-alignment target, and
+# in a 32-bit build.
+#
+# No binfmt registration and no privileges are needed.  The cross compilers
+# produce foreign binaries and `qemu-<arch>` runs them explicitly, entirely in
+# userspace, so this works under rootless podman.
+#
+# gcc-multilib is deliberately absent: it conflicts with the powerpc64 cross,
+# and gcc-i686-linux-gnu covers 32-bit little-endian better anyway.
+#
+# The libc6-dev-*-cross packages are not pulled in by the compilers under
+# --no-install-recommends, and without them every cross build dies on
+# <stdio.h> -- which reads as a broken toolchain rather than a missing header.
+FROM docker.io/library/debian:trixie-slim
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+      build-essential \
+      gcc-s390x-linux-gnu \
+      gcc-powerpc64-linux-gnu \
+      gcc-powerpc-linux-gnu \
+      gcc-sparc64-linux-gnu \
+      gcc-aarch64-linux-gnu \
+      gcc-i686-linux-gnu \
+      libc6-dev-s390x-cross \
+      libc6-dev-ppc64-cross \
+      libc6-dev-powerpc-cross \
+      libc6-dev-sparc64-cross \
+      libc6-dev-arm64-cross \
+      libc6-dev-i386-cross \
+      file \
+      qemu-user \
+      ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /work

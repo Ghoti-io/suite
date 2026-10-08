@@ -1,0 +1,45 @@
+# Builds the runtime stack for AArch64 and runs the CAP-10 suite under
+# qemu-aarch64 (story 17 of the runtime-stack milestone).
+#
+# It adds to ghoti-xarch:deb13 what a whole-suite run needs and a smoke test
+# does not: a C++ cross compiler and its libstdc++, pkg-config, bison and flex
+# (lang-tang generates its parser at build time, on the build host, so these
+# are the host's, not the target's), and a googletest built for aarch64 from
+# the distribution's source, with a gtest.pc beside it, because the libraries'
+# Makefiles ask pkg-config for gtest and the host's gtest is x86-64.
+#
+# The tag names what is inside (notes/suite/CONTAINERS.md section 6): the
+# parent image, the compiler, and that gtest is in it. Never :latest.
+FROM localhost/ghoti-xarch:deb13
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+      g++-aarch64-linux-gnu \
+      libstdc++-14-dev-arm64-cross \
+      pkg-config \
+      bison \
+      flex \
+      googletest \
+      libgtest-dev \
+      cmake \
+      make \
+      python3 \
+      binutils-aarch64-linux-gnu \
+      rsync \
+ && rm -rf /var/lib/apt/lists/*
+
+# googletest for the target: the source the distribution ships, compiled with
+# the cross compiler into an archive, and a pkg-config file that points at it.
+RUN set -eux; \
+    mkdir -p /opt/aarch64/lib/pkgconfig /tmp/gtest-build; \
+    cd /tmp/gtest-build; \
+    aarch64-linux-gnu-g++ -std=c++17 -O1 -fPIC \
+      -I/usr/src/googletest/googletest \
+      -I/usr/src/googletest/googletest/include \
+      -c /usr/src/googletest/googletest/src/gtest-all.cc -o gtest-all.o; \
+    aarch64-linux-gnu-ar rcs /opt/aarch64/lib/libgtest.a gtest-all.o; \
+    printf 'Name: gtest\nDescription: googletest for aarch64\nVersion: 0\nLibs: -L/opt/aarch64/lib -lgtest -pthread\nCflags: -I/usr/src/googletest/googletest/include\n' \
+      > /opt/aarch64/lib/pkgconfig/gtest.pc; \
+    rm -rf /tmp/gtest-build
+
+WORKDIR /work
