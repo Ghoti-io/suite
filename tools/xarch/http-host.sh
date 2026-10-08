@@ -78,8 +78,10 @@ else
 fi
 P4=$ROOT/libs/http/build/linux/release/apps/oracle/ws_h2_probe
 if [ -x "$P4" ] && [ -s "$D/out/wsh2probe.out" ]; then
-  if "$P4" < "$D/corpus_wsh2.tsv" | cmp -s - "$D/out/wsh2probe.out"; then
-    echo "the container's host build answers as $P4 does (WebSocket over HTTP/2)"
+  if grep -v '^ok ' "$D/out/wsh2probe.out" | grep -q .; then
+    echo "FAIL: the WebSocket-over-HTTP/2 probe did not say ok on every line of the host control" >&2; rc=1
+  elif "$P4" < "$D/corpus_wsh2.tsv" | cmp -s - "$D/out/wsh2probe.out"; then
+    echo "the container's host build answers as $P4 does (WebSocket over HTTP/2), every line ok"
   else
     echo "FAIL: the container's host build does NOT answer as $P4 does (WebSocket over HTTP/2)" >&2; rc=1
   fi

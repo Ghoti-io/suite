@@ -291,6 +291,13 @@ for p in $PROBES; do
   want=$(corpus_lines $p); got=$(wc -l < "$B/x86_64-linux-gnu/$(probe_out $p)")
   [ "$got" -eq "$want" ] || { fail "the host's $p answered $got of $want lines"; exit 1; }
 done
+# The WebSocket-over-HTTP/2 probe prints `ok` or `FAILED` for each line: identical
+# answers are worth something only if the host's own are successes.
+if grep -v '^ok ' "$B/x86_64-linux-gnu/wsh2probe.out" | grep -q .; then
+  fail "the host's WebSocket-over-HTTP/2 probe did not succeed on every line:"
+  grep -v '^ok ' "$B/x86_64-linux-gnu/wsh2probe.out" | head -3
+  exit 1
+fi
 tail -3 "$B/x86_64-linux-gnu/write.out"
 
 # same TARGET -> 0 when every output equals the host's; DIFFERS lists the ones that do not.
