@@ -21,33 +21,66 @@
 #
 # Usage:
 #   ./docs.sh
-#   ./docs.sh --container
+#   ./docs.sh --no-container
 
 set -u
 
 # Paths come from this file, so the shell can be in any directory. The
 # libraries and the generated manual are siblings of suite/, in the parent.
-# --container rebuilds nothing it can reuse: the image is the toolchain,
-# and the tree is mounted in.
+# A bare run builds ghoti-docs:doxygen-1.9.8 and runs this script inside
+# it. An unchanged Containerfile is cached. --container is that same run.
+# --no-container uses the host Doxygen and cloc and does not start a
+# container. The inner run is marked and does not start another one.
 SUITE=$(cd "$(dirname "$0")" && pwd)
 ROOT=$(cd "$SUITE/.." && pwd)
 
-if [ "${1:-}" = "--container" ]; then
-  shift
-  if command -v podman >/dev/null 2>&1; then
-    run=podman
-  elif command -v docker >/dev/null 2>&1; then
-    run=docker
-  else
-    printf "docs.sh: podman or docker is required for --container.\n" >&2
-    exit 1
+# The marker is set by the outer run. The inner script builds the manual
+# and must not build the image again. --no-container is the host toolchain.
+if [ -z "${GHOTI_DOCS_CONTAINER:-}" ]; then
+  no_container=0
+  for arg in "$@"; do
+    case "$arg" in
+      --container) ;;
+      --no-container) no_container=1 ;;
+      *)
+        printf 'docs.sh: unknown argument %s.\n' "$arg" >&2
+        exit 1
+        ;;
+    esac
+  done
+  # --no-container wins when it is present, including beside --container.
+  if [ "$no_container" -eq 0 ]; then
+    if command -v podman >/dev/null 2>&1; then
+      run=podman
+    elif command -v docker >/dev/null 2>&1; then
+      run=docker
+    else
+      printf "docs.sh: podman or docker is required.\n" >&2
+      exit 1
+    fi
+    image=ghoti-docs:doxygen-1.9.8
+    # Build every time. An unchanged Containerfile is cached, and a change
+    # has to take effect: an image left from an older file would rebuild
+    # the manual with the wrong Doxygen.
+    "$run" build -t "$image" -f "$SUITE/Containerfile" "$SUITE" || exit 1
+    # Rootless podman maps the host user to container root; --user alone
+    # is a different uid and cannot write the mount. keep-id makes the
+    # process the invoking user. Otherwise --user is that uid, so Docker
+    # or rootful podman does not leave the manual owned by root.
+    own_uid=$(id -u)
+    own_gid=$(id -g)
+    if [ "$run" = podman ] && [ "$(id -u)" -ne 0 ]; then
+      exec "$run" run --rm --userns=keep-id --user "$own_uid:$own_gid" \
+        -e HOME=/tmp \
+        -e GHOTI_DOCS_CONTAINER=1 \
+        -v "$ROOT":/work -w /work "$image" "$@"
+    else
+      exec "$run" run --rm --user "$own_uid:$own_gid" \
+        -e HOME=/tmp \
+        -e GHOTI_DOCS_CONTAINER=1 \
+        -v "$ROOT":/work -w /work "$image" "$@"
+    fi
   fi
-  image=ghoti-io-docs
-  # Build every time. An unchanged Containerfile is cached, and a change
-  # has to take effect: an image left from an older file would rebuild
-  # the manual with the wrong Doxygen.
-  "$run" build -t "$image" -f "$SUITE/Containerfile" "$SUITE"
-  exec "$run" run --rm -v "$ROOT":/work -w /work "$image" "$@"
 fi
 
 if ! command -v doxygen >/dev/null 2>&1; then
@@ -609,7 +642,7 @@ pages = """
 PY
 
 rm -rf docs/html
-doxygen "$SUITE/Doxyfile"
+doxygen "$SUITE/Doxyfile" || exit 1
 
 # Doxygen titles the page from @mainpage, which has to stay "Ghoti.io" so the
 # library list stays at the top of the tree. The heading in documents/index.md

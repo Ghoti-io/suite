@@ -110,24 +110,22 @@ Of course, this example assumes that you are in a directory that is a sibling to
 
 ## Manual
 
-The manual is built in a container, so the documentation toolchain does not have to be installed on the host.  The image has Doxygen, Graphviz, cloc, and Python.  The image is rebuilt from the container file on each run; an unchanged file is cached.
+The manual is built in a container, so the documentation toolchain does not have to be installed on the host.  The image is `ghoti-docs:doxygen-1.9.8`.  It has Doxygen 1.9.8, Graphviz, cloc, and Python.  The image is rebuilt from the container file on each run; an unchanged file is cached.
 
 ```bash
-./docs.sh --container
+./docs.sh
 ```
 
-Either Docker or Podman must be installed in order to use this method.
+Either Podman or Docker must be installed.  `./docs.sh --no-container` is the host-toolchain exception: it runs the Doxygen and cloc already installed on the host, and it does not start a container.
 
 Line counts, version pins, and each library's version are read from the library source.  The test totals are filled in once a library has been built; a library that has not been built shows a dash.
 
 To rebuild the image after the container file changes:
 
 ```bash
-podman build -t ghoti-io-docs -f Containerfile .
-# or: docker build -t ghoti-io-docs -f Containerfile .
+podman build -t ghoti-docs:doxygen-1.9.8 -f Containerfile .
+# or: docker build -t ghoti-docs:doxygen-1.9.8 -f Containerfile .
 ```
-
-`./docs.sh` without `--container` runs Doxygen and cloc on the host.
 
 ## License
 
