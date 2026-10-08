@@ -9,11 +9,14 @@
  * both directions; drives the server with the RFC's ClientHello and checks its
  * flight, as a message and as records, against the RFC; and runs a real client
  * against a real server over a loopback with the stream split at several
- * sizes. It prints one line per check. The output is the same on every target
+ * sizes; checks RFC 8448's resumed handshake (the PSK a ticket stands for, the
+ * binder, and every secret after them), rebuilds the RFC's NewSessionTicket and
+ * ServerHello with its PSK, and runs a real client and server through a full
+ * handshake, a ticket and a resumption. It prints one line per check. The output is the same on every target
  * or something is wrong with that target, which is what the script compares;
  * the exit status is non-zero if any check failed.
  *
- *   tls-probe DIR     DIR holds simple-1rtt.vec and hrr.vec; DIR/../pki the
+ *   tls-probe DIR     DIR holds simple-1rtt.vec, hrr.vec and resumed.vec; DIR/../pki the
  *                     test credentials
  */
 
@@ -705,6 +708,203 @@ static void loopback(const char * dir, GTLS_Suite suite, GTLS_Group group, size_
   free(kd);
 }
 
+/* ------------------------------------------------------------- resumption */
+
+static void resumption_known_answers(const char * dir) {
+  Vec simple, resumed;
+  unsigned char psk[GTLS_HASH_MAX], out[GTLS_HASH_MAX], key[GTLS_HASH_MAX], th[GTLS_HASH_MAX];
+  GTLS_Schedule s;
+  static const unsigned char nonce[2] = {0, 0};
+  size_t n;
+  const unsigned char * p;
+
+  if (!load(&simple, dir, "simple-1rtt") || !load(&resumed, dir, "resumed")) {
+    failures++;
+    return;
+  }
+  p = get(&simple, "client.derive-secret-tls13-res-master.expanded", &n);
+  check(gtls_resumption_psk(GTLS_HASH_SHA256, p, nonce, sizeof nonce, psk) == GTLS_OK &&
+      same(&resumed, "client.extract-secret-early.ikm", psk, 32), "resumption: the PSK a ticket stands for");
+  check(gtls_schedule_early_psk(&s, GTLS_HASH_SHA256, psk, 32) == GTLS_OK &&
+      same(&resumed, "client.extract-secret-early.secret", s.early, 32), "resumption: the early secret from the PSK");
+  check(gtls_schedule_binder_key(&s, key) == GTLS_OK && same(&resumed, "client.calculate-psk-binder.prk", key, 32),
+      "resumption: the binder key");
+  p = get(&resumed, "client.calculate-psk-binder.binder-hash", &n);
+  memcpy(th, p, n);
+  check(gtls_binder_compute(GTLS_HASH_SHA256, psk, 32, th, out) == GTLS_OK &&
+      same(&resumed, "client.calculate-psk-binder.finished", out, 32), "resumption: the binder");
+  check(gtls_binder_check(GTLS_HASH_SHA256, psk, 32, th, out, 32) == GTLS_OK, "resumption: the binder checks");
+  out[31] ^= 1;
+  check(gtls_binder_check(GTLS_HASH_SHA256, psk, 32, th, out, 32) == GTLS_ERR_MISMATCH, "resumption: a changed binder does not");
+  p = get(&resumed, "server.derive-secret-tls13-c-hs-traffic.hash", &n);
+  memcpy(th, p, n);
+  check(gtls_schedule_handshake(&s, get(&resumed, "server.extract-secret-handshake.ikm", &n), 32, th) == GTLS_OK &&
+      same(&resumed, "server.extract-secret-handshake.secret", s.handshake, 32) &&
+      same(&resumed, "server.derive-secret-tls13-c-hs-traffic.expanded", s.c_hs, 32) &&
+      same(&resumed, "server.derive-secret-tls13-s-hs-traffic.expanded", s.s_hs, 32), "resumption: the handshake secrets");
+  p = get(&resumed, "server.derive-secret-tls13-c-ap-traffic.hash", &n);
+  memcpy(th, p, n);
+  check(gtls_schedule_master(&s, th) == GTLS_OK && same(&resumed, "server.extract-secret-master.secret", s.master, 32) &&
+      same(&resumed, "server.derive-secret-tls13-c-ap-traffic.expanded", s.c_ap, 32) &&
+      same(&resumed, "server.derive-secret-tls13-s-ap-traffic.expanded", s.s_ap, 32), "resumption: the application secrets");
+  {
+    /* The RFC's NewSessionTicket and its ServerHello, rebuilt. */
+    const unsigned char * nst = get(&simple, "server.construct-a-newsessionticket-handshake-message.newsessionticket", &n);
+    GTLS_NewSessionTicket t;
+    GTLS_Limits lim;
+    GTLS_Buf b;
+    GTLS_ServerHelloParams sp;
+    const unsigned char * sh;
+    size_t shn, kxn;
+    const unsigned char * kx;
+
+    gtls_limits_default(&lim);
+    check(gtls_msg_parse_new_session_ticket(nst + 4, n - 4, &lim, &t) == GTLS_OK, "resumption: the RFC's NewSessionTicket parses");
+    gtls_buf_init(&b, NULL, 4096);
+    check(gtls_msg_build_new_session_ticket(&t, &b) == GTLS_OK && b.len == n && memcmp(b.data, nst, n) == 0,
+        "resumption: and builds back byte for byte");
+    gtls_buf_free(&b);
+    sh = get(&resumed, "server.construct-a-serverhello-handshake-message.serverhello", &shn);
+    kx = get(&resumed, "server.create-an-ephemeral-x25519-key-pair.public-key", &kxn);
+    memset(&sp, 0, sizeof sp);
+    memcpy(sp.random, sh + 6, 32);
+    sp.suite = GTLS_SUITE_AES_128_GCM_SHA256;
+    sp.group = GTLS_GROUP_X25519;
+    sp.key_exchange = kx;
+    sp.key_exchange_len = kxn;
+    sp.psk = 1;
+    gtls_buf_init(&b, NULL, 4096);
+    check(gtls_msg_build_server_hello(&sp, &b) == GTLS_OK && b.len == shn && memcmp(b.data, sh, shn) == 0,
+        "resumption: the RFC's ServerHello with its pre_shared_key, byte for byte");
+    gtls_buf_free(&b);
+  }
+  gtls_schedule_wipe(&s);
+}
+
+static void resume_loopback(const char * dir, GTLS_Suite suite, GTLS_Group group, size_t chunk, int retry) {
+  size_t leaf_len = 0, ca_len = 0, key_len = 0, i, round;
+  unsigned char * leaf = slurp(dir, "ed-leaf.der", &leaf_len);
+  unsigned char * ca = slurp(dir, "ed-ca.der", &ca_len);
+  unsigned char * kd = slurp(dir, "ed-leaf.pkcs8", &key_len);
+  GCERT_TrustStore * trust = NULL;
+  GCERT_Key * key = NULL;
+  GTLS_ContextConfig cc, sc;
+  GTLS_Identity id;
+  GTLS_Context * cctx = NULL;
+  GTLS_Context * sctx = NULL;
+  GTLS_Conn * c = NULL;
+  GTLS_Conn * s = NULL;
+  GTLS_Session * session = NULL;
+  GTLS_TicketKey tk;
+  const void * chain[1];
+  size_t lens[1];
+  static const char * const names[1] = {"ed.example.com"};
+  GTLS_Group only_p256 = GTLS_GROUP_SECP256R1;
+  unsigned char data[2000];
+  static unsigned char back[8192];
+  size_t back_len = 0, w = 0;
+  int resumed_ok = 0;
+
+  if (leaf == NULL || ca == NULL || kd == NULL) {
+    failures++;
+    return;
+  }
+  gcert_trust_new(NULL, NULL, &trust);
+  gcert_trust_add_der(trust, ca, ca_len);
+  gcert_key_from_pkcs8(NULL, kd, key_len, &key);
+  gtls_context_config_default(&cc);
+  gtls_context_config_default(&sc);
+  cc.trust = trust;
+  cc.groups = &group;
+  cc.group_count = 1;
+  if (retry) {
+    static const GTLS_Group both[2] = {GTLS_GROUP_X25519, GTLS_GROUP_SECP256R1};
+    cc.groups = both;
+    cc.group_count = 2;
+    sc.groups = &only_p256;
+    sc.group_count = 1;
+  }
+  sc.role = GTLS_ROLE_SERVER;
+  sc.suites = &suite;
+  sc.suite_count = 1;
+  chain[0] = leaf;
+  lens[0] = leaf_len;
+  memset(&id, 0, sizeof id);
+  id.chain = chain;
+  id.chain_lens = lens;
+  id.chain_count = 1;
+  id.key = key;
+  id.names = names;
+  id.name_count = 1;
+  sc.identities = &id;
+  sc.identity_count = 1;
+  memset(&tk, 0x5a, sizeof tk);
+  tk.not_before = 1699990000;
+  tk.not_after = 1700100000;
+  sc.ticket_keys = &tk;
+  sc.ticket_key_count = 1;
+  gtls_context_new(NULL, &cc, &cctx);
+  gtls_context_new(NULL, &sc, &sctx);
+  for (round = 0; round < 2; round++) {
+    back_len = 0;
+    gtls_conn_new(cctx, "ed.example.com", 14, &c);
+    gtls_conn_new_server(sctx, &s);
+    if (round == 1) {
+      check(gtls_conn_set_session(c, session, 1700000000) == GTLS_OK, "a session is offered");
+    }
+    gtls_conn_start(c);
+    gtls_conn_start(s);
+    for (i = 0; i < 100; i++) {
+      int a = carry(c, s, chunk, NULL, NULL);
+      int b = carry(s, c, chunk, NULL, NULL);
+
+      if (a < 0 || b < 0 || (a == 0 && b == 0)) {
+        break;
+      }
+    }
+    check(gtls_conn_is_connected(c) && gtls_conn_is_connected(s), round == 0 ? "a full handshake with a ticket" : "a resumed handshake");
+    check(gtls_conn_resumed(c) == (int)round && gtls_conn_resumed(s) == (int)round, round == 0 ? "is not resumed" : "is resumed on both ends");
+    check(gtls_conn_retried(c) == retry, "with or without a retry");
+    check(gtls_conn_session_count(c) == 1, "and a ticket arrives");
+    if (round == 1) {
+      const unsigned char * der = NULL;
+      size_t dn = 1;
+
+      check(gtls_conn_peer_certificate(c, &der, &dn) == GTLS_OK && dn == 0, "no certificate in the abbreviated one");
+    }
+    if (round == 0) {
+      check(gtls_conn_session(c, 0, &session) == GTLS_OK, "the client keeps the session");
+    }
+    for (i = 0; i < sizeof data; i++) {
+      data[i] = (unsigned char)(i * 11 + round);
+    }
+    check(gtls_conn_write(c, data, sizeof data, &w) == GTLS_OK && w == sizeof data, "the client writes");
+    for (i = 0; i < 30; i++) {
+      int a = carry(c, s, chunk, back, &back_len);
+      int b = carry(s, c, chunk, NULL, NULL);
+
+      if (a == 0 && b == 0) {
+        break;
+      }
+    }
+    check(back_len == sizeof data && memcmp(back, data, sizeof data) == 0, "application data arrives");
+    resumed_ok += gtls_conn_resumed(c);
+    gtls_conn_free(c);
+    gtls_conn_free(s);
+    c = NULL;
+    s = NULL;
+  }
+  check(resumed_ok == 1, "only the second connection was resumed");
+  gtls_session_free(session);
+  gtls_context_free(cctx);
+  gtls_context_free(sctx);
+  gcert_trust_free(trust);
+  gcert_key_free(key);
+  free(leaf);
+  free(ca);
+  free(kd);
+}
+
 int main(int argc, char ** argv) {
   const char * dir = argc > 1 ? argv[1] : ".";
   size_t chunks[] = {0, 1, 7};
@@ -741,6 +941,17 @@ int main(int argc, char ** argv) {
     printf("-- loopback with a HelloRetryRequest, whole and one byte at a time\n");
     loopback(dir, GTLS_SUITE_AES_128_GCM_SHA256, GTLS_GROUP_X25519, 0, 1);
     loopback(dir, GTLS_SUITE_CHACHA20_POLY1305_SHA256, GTLS_GROUP_X25519, 1, 1);
+    printf("-- RFC 8448's resumed handshake\n");
+    resumption_known_answers(dir);
+    for (i = 0; i < 3; i++) {
+      for (j = 0; j < 3; j++) {
+        printf("-- resumption, suite %zu, group %zu, feed size 5\n", i, j);
+        resume_loopback(dir, suites[i], groups[j], 5, 0);
+      }
+    }
+    printf("-- resumption after a HelloRetryRequest, whole and one byte at a time\n");
+    resume_loopback(dir, GTLS_SUITE_AES_256_GCM_SHA384, GTLS_GROUP_X25519, 0, 1);
+    resume_loopback(dir, GTLS_SUITE_CHACHA20_POLY1305_SHA256, GTLS_GROUP_X25519, 1, 1);
   }
   printf("%d checks failed\n", failures);
   return failures == 0 ? 0 : 1;

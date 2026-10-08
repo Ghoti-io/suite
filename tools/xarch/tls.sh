@@ -26,7 +26,12 @@
 #      RFC's records in both directions; drives the server with the RFC's
 #      ClientHello and checks its flight, as messages and as records, against
 #      the RFC; and runs a real client against a real server (each suite and
-#      group, a retry, a key update, close_notify) with the stream split small.
+#      group, a retry, a key update, close_notify) with the stream split small;
+#      then RFC 8448's resumed handshake (the PSK a ticket stands for, the
+#      binder, every secret after them, the NewSessionTicket and the ServerHello
+#      with its PSK, rebuilt byte for byte) and a real client and server through
+#      a full handshake, a ticket and a resumption, for each suite and group and
+#      after a retry.
 #   3. Runs it under qemu-user (the host's directly) and requires every
 #      target's output to be IDENTICAL to the host's, byte for byte, apart from
 #      the size_t line, and every check on it to hold. That is the key schedule,
@@ -174,7 +179,7 @@ build_deps x86_64-linux-gnu gcc && build x86_64-linux-gnu gcc || { echo "FAIL: c
 run x86_64-linux-gnu x86_64-linux-gnu "" || { fail "the host's own run failed"; tail -n 5 "$B/x86_64-linux-gnu/probe.out"; tail -n 5 "$B/x86_64-linux-gnu/probe.err"; exit 1; }
 checks=$(grep -c '^ok' "$B/x86_64-linux-gnu/probe.out")
 echo "   $checks checks hold on the host; $(tail -1 "$B/x86_64-linux-gnu/probe.out")"
-[ "$checks" -ge 203 ] || { fail "only $checks checks ran on the host: the probe measured less than it says"; exit 1; }
+[ "$checks" -ge 390 ] || { fail "only $checks checks ran on the host: the probe measured less than it says"; exit 1; }
 grep -q '^FAIL' "$B/x86_64-linux-gnu/probe.out" && { fail "a check failed on the host"; exit 1; }
 
 one() {
@@ -230,6 +235,10 @@ plant planted-hrr "no restart" src/client/client.c 'result = gtls_transcript_res
 echo
 echo "== the control: a record nonce built without the sequence number, on aarch64"
 plant planted-nonce "no sequence in the nonce" src/record/record.c 'nonce[GTLS_IV_LEN - 1u - i] ^= (unsigned char)(k->seq >> (8u * i));' '(void)i;'
+
+echo
+echo "== the control: a PSK binder derived under the wrong label, on aarch64"
+plant planted-binder "wrong binder label" src/schedule/schedule.c '"res binder"' '"res binderx"'
 
 echo
 [ $status -eq 0 ] && echo "PASS: every target answers the RFC 8448 traces as the host does, and the planted defects are caught" || echo "FAIL"

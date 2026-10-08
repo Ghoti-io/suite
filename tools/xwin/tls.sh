@@ -14,8 +14,9 @@
 # libraries and tls's tests with the real Windows headers; the DLL carries the
 # dllexport arm of GTLS_API; every unit test, the RFC 8448 known answers and
 # the loopback of a real client against a real server among them, passes under
-# wine; and a planted defect in the key schedule, and another in the record
-# nonce, are each caught by the same run. It does not mean the same on a Windows machine: wine
+# wine, and so do RFC 8448's resumed trace and a real client and server resuming
+# a ticket; and a planted defect in the key schedule, another in the record
+# nonce and a third in the PSK binder are each caught by the same run. It does not mean the same on a Windows machine: wine
 # is not Windows (see README.md).
 # Exit status is 0 only if every step held and the planted defect was caught.
 set -u
