@@ -23,12 +23,22 @@ WSDUMP="$ROOT/libs/http/tools/oracle/diff_ws.py"
 rm -f "$D/corpus_ws.tsv"
 [ -f "$WSDUMP" ] || { echo "http-host: $WSDUMP does not exist" >&2; exit 2; }
 python3 "$WSDUMP" --probe /bin/true --dump "$D/corpus_ws.tsv" --count "$COUNT_WS" >/dev/null || exit 2
+# The WebSocket-over-HTTP/2 corpus (libs/http story 3d): lines for ws_h2_probe's
+# loop mode, `[--deflate] SIZE...`, the sizes of every class.
+cat > "$D/corpus_wsh2.tsv" <<'LINES'
+0 1 125 126 1000 65535 65536 300000
+--deflate 0 1 125 126 1000 65535 65536 300000
+7
+--deflate 7 7 7
+--deflate 100000 100000
+1000 1000 1000 1000
+LINES
 # The dependencies as committed, for the container (see http.sh).
 rm -rf "$D/deps"; mkdir -p "$D/deps" || exit 2
 for l in cutil security compress; do
   mkdir -p "$D/deps/$l" && git -C "$ROOT/libs/$l" archive HEAD | tar -x -C "$D/deps/$l" || exit 2
 done
-mkdir -p "$D/out" && rm -f "$D/out/probe.out" "$D/out/write.out" "$D/out/h2probe.out" "$D/out/wsprobe.out"
+mkdir -p "$D/out" && rm -f "$D/out/probe.out" "$D/out/write.out" "$D/out/h2probe.out" "$D/out/wsprobe.out" "$D/out/wsh2probe.out"
 podman run --rm -v "$ROOT:/work:ro,z" -v "$D:/corpus:ro,z" -v "$D/deps:/deps:ro,z" -v "$D/out:/out:rw,z" \
   localhost/ghoti-xarch:deb13 bash /work/suite/tools/xarch/http.sh
 rc=$?
@@ -65,5 +75,15 @@ if [ -x "$P3" ] && [ -s "$D/out/wsprobe.out" ]; then
   fi
 else
   echo "FAIL: no $P3 or no WebSocket answers to compare (run make oracle-probe in libs/http)" >&2; rc=1
+fi
+P4=$ROOT/libs/http/build/linux/release/apps/oracle/ws_h2_probe
+if [ -x "$P4" ] && [ -s "$D/out/wsh2probe.out" ]; then
+  if "$P4" < "$D/corpus_wsh2.tsv" | cmp -s - "$D/out/wsh2probe.out"; then
+    echo "the container's host build answers as $P4 does (WebSocket over HTTP/2)"
+  else
+    echo "FAIL: the container's host build does NOT answer as $P4 does (WebSocket over HTTP/2)" >&2; rc=1
+  fi
+else
+  echo "FAIL: no $P4 or no WebSocket-over-HTTP/2 answers to compare (run make oracle-probe in libs/http)" >&2; rc=1
 fi
 exit $rc

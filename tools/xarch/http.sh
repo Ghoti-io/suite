@@ -78,6 +78,7 @@ B=${B:-/tmp/xarch-http}
 CORPUS=${CORPUS:-/corpus/corpus.tsv}
 CORPUS2=${CORPUS2:-/corpus/corpus_h2.tsv}   # the HTTP/2 corpus (libs/http story 3b)
 CORPUS3=${CORPUS3:-/corpus/corpus_ws.tsv}   # the WebSocket corpus (libs/http story 3c)
+CORPUS4=${CORPUS4:-/corpus/corpus_wsh2.tsv} # WebSocket over HTTP/2 (libs/http story 3d), see ws_h2_probe.c
 SECURITY=$DEPS/security
 COMPRESS=$DEPS/compress
 case "$B" in
@@ -174,12 +175,14 @@ SEFLAGS="-pedantic-errors -Wall -Wextra -Werror -Wno-error=type-limits -Wfloat-c
 COFLAGS="-pedantic-errors -Wall -Wextra -Werror -Wno-error=maybe-uninitialized -Wno-error=type-limits -Wfatal-errors -std=c17 -O3 -g -Wstrict-aliasing=2 -fvisibility=hidden -DGCOMP_BUILD"
 JOBS=${JOBS:-$(nproc)}
 # The programs that read a corpus on stdin: name, corpus, output file.
-probe_stdin() { case $1 in http_probe) echo "$CORPUS";; h2_probe) echo "$CORPUS2";; ws_probe) echo "$CORPUS3";; esac; }
-probe_out() { case $1 in http_probe) echo probe.out;; h2_probe) echo h2probe.out;; ws_probe) echo wsprobe.out;; esac; }
+probe_stdin() { case $1 in http_probe) echo "$CORPUS";; h2_probe) echo "$CORPUS2";; ws_probe) echo "$CORPUS3";; ws_h2_probe) echo "$CORPUS4";; esac; }
+probe_out() { case $1 in http_probe) echo probe.out;; h2_probe) echo h2probe.out;; ws_probe) echo wsprobe.out;; ws_h2_probe) echo wsh2probe.out;; esac; }
 WS_PROBE_SRC=$HTTP/tools/oracle/ws_probe.c
 [ -f "$WS_PROBE_SRC" ] || { echo "http.sh: $WS_PROBE_SRC does not exist" >&2; exit 2; }
 [ -s "$CORPUS3" ] || { echo "http.sh: no WebSocket corpus at $CORPUS3 (suite/tools/xarch/http-host.sh dumps it with diff_ws.py --dump)" >&2; exit 2; }
-PROBES="http_probe h2_probe ws_probe"
+[ -s "$CORPUS4" ] || { echo "http.sh: no WebSocket-over-HTTP/2 corpus at $CORPUS4 (suite/tools/xarch/http-host.sh writes it)" >&2; exit 2; }
+[ -f "$HTTP/tools/oracle/ws_h2_probe.c" ] || { echo "http.sh: ws_h2_probe.c does not exist" >&2; exit 2; }
+PROBES="http_probe h2_probe ws_probe ws_h2_probe"
 
 # compile_tree LIB FLAGS INCLUDES OBJDIR CC: every .c under the library's src/
 # (the .template.c files are #included by others and not compiled alone), in
@@ -262,7 +265,8 @@ lines=$(wc -l < "$CORPUS")
 [ -s "$CORPUS2" ] || { echo "http.sh: no HTTP/2 corpus at $CORPUS2 (suite/tools/xarch/http-host.sh writes it)" >&2; exit 2; }
 lines2=$(wc -l < "$CORPUS2")
 lines3=0; [ -s "$CORPUS3" ] && lines3=$(wc -l < "$CORPUS3")
-corpus_lines() { case $1 in http_probe) echo $lines;; h2_probe) echo $lines2;; ws_probe) echo $lines3;; esac; }
+lines4=$(wc -l < "$CORPUS4")
+corpus_lines() { case $1 in http_probe) echo $lines;; h2_probe) echo $lines2;; ws_probe) echo $lines3;; ws_h2_probe) echo $lines4;; esac; }
 echo "== machinery"
 build_deps aarch64-linux-gnu aarch64-linux-gnu-gcc qemu-aarch64 && build aarch64-linux-gnu aarch64-linux-gnu-gcc ||
   { echo "FAIL: cannot build for aarch64"; exit 1; }
@@ -280,7 +284,7 @@ fi
 echo "   dependencies built whole for aarch64: $(ls "$B"/aarch64-linux-gnu/deps/*.o | wc -l) objects (cutil, security, compress)"
 
 echo
-echo "== the host (the control): $lines probe lines, $lines2 HTTP/2 lines, $lines3 WebSocket lines"
+echo "== the host (the control): $lines probe lines, $lines2 HTTP/2 lines, $lines3 WebSocket lines, $lines4 WebSocket-over-HTTP/2 lines"
 build_deps x86_64-linux-gnu gcc && build x86_64-linux-gnu gcc || { echo "FAIL: cannot build for x86_64"; exit 1; }
 run x86_64-linux-gnu x86_64-linux-gnu "" || { fail "the host's own run failed"; cat "$B/x86_64-linux-gnu/http_probe.err" "$B/x86_64-linux-gnu/write.out" | head; exit 1; }
 for p in $PROBES; do
@@ -311,7 +315,7 @@ one() {
     fail "$triple: the run failed"; head -3 "$B/$triple/http_probe.err" "$B/$triple/write.out"; return 1
   fi
   if same "$triple"; then
-    echo "   $lines probe lines, $lines2 HTTP/2 probe lines, $lines3 WebSocket probe lines and the writer round trip are identical to the host's"
+    echo "   $lines probe lines, $lines2 HTTP/2 probe lines, $lines3 WebSocket probe lines, $lines4 WebSocket-over-HTTP/2 lines and the writer round trip are identical to the host's"
     grep '^sizeof' "$B/$triple/write.out"
   else
     local o
@@ -368,11 +372,20 @@ if true; then
   plant planted-ws "unmasked" ws_conn.c 'if (c->role == GHTTP_WS_SERVER && !fh->masked) {' \
     'if (0 && c->role == GHTTP_WS_SERVER && !fh->masked) {' wsprobe.out
 fi
+
+# The WebSocket-over-HTTP/2 control: an adapter that never ends its side of the
+# stream after the closing handshake changes the HTTP/2 bytes (no END_STREAM) and
+# so the digest the probe prints, though every message still arrives.
+echo
+echo "== the control: a WebSocket-over-HTTP/2 adapter that never ends the stream after a Close, on aarch64"
+plant planted-wsh2 "no END_STREAM" ws_h2.c 'if (st == GHTTP_WS_STATE_CLOSED || st == GHTTP_WS_STATE_FAILED || a->remote_ended) {' \
+  'if (st == GHTTP_WS_STATE_FAILED || a->remote_ended) {' wsh2probe.out
 [ -e "$B/.failed" ] && status=1
 
 # For the host script to compare with the probes `make check-oracle` runs.
 [ -d /out ] && cp "$B/x86_64-linux-gnu/probe.out" "$B/x86_64-linux-gnu/write.out" "$B/x86_64-linux-gnu/h2probe.out" /out/
 [ -d /out ] && [ -f "$B/x86_64-linux-gnu/wsprobe.out" ] && cp "$B/x86_64-linux-gnu/wsprobe.out" /out/
+[ -d /out ] && [ -f "$B/x86_64-linux-gnu/wsh2probe.out" ] && cp "$B/x86_64-linux-gnu/wsh2probe.out" /out/
 
 echo
 [ $status -eq 0 ] && echo "PASS: every target matches the host, and the planted defects are caught" || echo "FAIL"
