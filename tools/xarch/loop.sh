@@ -224,8 +224,8 @@ other_one() {
     fail "$triple: $rc check(s) failed"
   fi
 }
-# xarch_each runs its callback in a subshell, so the failures it finds are
-# reported through a file.
+# The tee is a pipeline, so the callback's status does not reach this shell.
+# The failures are in the transcript.
 xarch_each other_one 2>&1 | tee "$B/other.txt"
 grep -q '^FAIL' "$B/other.txt" && status=1
 

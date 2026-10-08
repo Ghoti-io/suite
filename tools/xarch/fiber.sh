@@ -175,19 +175,19 @@ unsupported_one() {
   local triple=$1 cc=$2 qemu=$3 desc=$4
   case "$triple" in x86_64-linux-gnu|aarch64-linux-gnu) return ;; esac
   if ! command -v "$cc" >/dev/null 2>&1; then
-    fail "$triple: no compiler"; return
+    fail "$triple: no compiler"; return 1
   fi
   local d=$B/unsupported-$triple
   mkdir -p "$d"
   local f
   for f in fiber allocator error; do
-    $cc $LIBFLAGS -c "$SRC/src/$f.c" -o "$d/$f.o" || { fail "$triple: $f.c does not build"; return; }
+    $cc $LIBFLAGS -c "$SRC/src/$f.c" -o "$d/$f.o" || { fail "$triple: $f.c does not build"; return 1; }
   done
   $cc -std=gnu17 -O2 -Wall -Wextra -Werror -I "$SRC/include" -I "$B/include" \
     "$HERE/fiber-unsupported.c" "$d"/fiber.o "$d"/allocator.o "$d"/error.o \
-    -o "$d/check" || { fail "$triple: does not link"; return; }
+    -o "$d/check" || { fail "$triple: does not link"; return 1; }
   local out
-  out=$(xarch_run "$triple" "$qemu" "$d/check" 2>&1) || { fail "$triple: $out"; return; }
+  out=$(xarch_run "$triple" "$qemu" "$d/check" 2>&1) || { fail "$triple: $out"; return 1; }
   printf "   %-22s %s\n" "$triple" "$out"
 }
 xarch_each unsupported_one

@@ -253,9 +253,8 @@ run() {
   [ $rc1 -eq 0 ] && [ $rc2 -eq 0 ]
 }
 
-# fail records itself in a file as well: xarch_each (targets.sh) runs its callback
-# in a pipeline's subshell, so a `status=1` set there would never reach the exit
-# status below, and a target that failed would still end the run with PASS.
+# fail records itself in a file as well. The exit below reads that file, so a
+# target that failed cannot end the run with PASS.
 status=0
 fail() { echo "FAIL: $*"; status=1; : > "$B/.failed"; }
 
@@ -307,9 +306,9 @@ one() {
   local triple="$1" cc="$2" qemu="$3" desc="$4"
   [ "$triple" = x86_64-linux-gnu ] && return
   printf "\n== %s (%s)\n" "$triple" "$desc"
-  if ! { build_deps "$triple" "$cc" "$qemu" && build "$triple" "$cc"; }; then fail "$triple: cannot build"; return; fi
+  if ! { build_deps "$triple" "$cc" "$qemu" && build "$triple" "$cc"; }; then fail "$triple: cannot build"; return 1; fi
   if ! run "$triple" "$triple" "$qemu"; then
-    fail "$triple: the run failed"; head -3 "$B/$triple/http_probe.err" "$B/$triple/write.out"; return
+    fail "$triple: the run failed"; head -3 "$B/$triple/http_probe.err" "$B/$triple/write.out"; return 1
   fi
   if same "$triple"; then
     echo "   $lines probe lines, $lines2 HTTP/2 probe lines, $lines3 WebSocket probe lines and the writer round trip are identical to the host's"

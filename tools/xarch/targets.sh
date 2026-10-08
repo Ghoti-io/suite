@@ -16,11 +16,18 @@ xarch_run() {
   if [ -z "$qemu" ]; then "$bin" "$@"; else "$qemu" -L "/usr/$triple" "$bin" "$@"; fi
 }
 
-xarch_each() {   # callback gets: triple cc qemu description
-  echo "$XARCH_TARGETS" | while IFS='|' read -r triple cc qemu desc; do
+# Callback gets: triple cc qemu description. It runs in this shell, so a
+# status it sets is still set when this returns. A callback that returns
+# non-zero fails this function after the remaining targets have run.
+xarch_each() {
+  local rc=0 triple cc qemu desc
+  while IFS='|' read -r triple cc qemu desc; do
     triple=$(echo "$triple" | tr -d ' '); cc=$(echo "$cc" | tr -d ' ')
     qemu=$(echo "$qemu" | tr -d ' ')
     [ -z "$triple" ] && continue
-    "$1" "$triple" "$cc" "$qemu" "$desc"
-  done
+    "$1" "$triple" "$cc" "$qemu" "$desc" || rc=1
+  done <<EOF
+$XARCH_TARGETS
+EOF
+  return "$rc"
 }

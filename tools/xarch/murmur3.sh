@@ -20,10 +20,12 @@ INC="-I $ROOT/libs/cutil/include -I $ROOT/libs/cutil/build/linux/release/include
 one() {
   local triple="$1" cc="$2" qemu="$3" desc="$4"
   local bin="/tmp/probe-$triple"
+  # A file left by an earlier run must not be compared as this run's answer.
+  rm -f "$OUT/$triple.txt" "$OUT/$triple.err"
   if ! $cc -std=c17 -O2 $INC "$HERE/murmur3-probe.c" "$SRC" \
         -o "$bin" 2>/tmp/err-$triple; then
     printf "%-22s BUILD FAILED: %s\n" "$triple" "$(head -2 /tmp/err-$triple | tr '\n' ' ')"
-    return
+    return 1
   fi
   local rc
   xarch_run "$triple" "$qemu" "$bin" > "$OUT/$triple.txt" 2>"$OUT/$triple.err"
@@ -32,9 +34,10 @@ one() {
     printf "%-22s EXIT %-3s %s | last line: %s\n" "$triple" "$rc" "$desc" \
       "$(tail -1 "$OUT/$triple.txt" 2>/dev/null)"
     head -2 "$OUT/$triple.err" | sed 's/^/                       /'
-  else
-    printf "%-22s ok        %s\n" "$triple" "$desc"
+    return 1
   fi
+  printf "%-22s ok        %s\n" "$triple" "$desc"
 }
 echo "probing with: $SRC"
 xarch_each one
+exit $?

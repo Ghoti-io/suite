@@ -181,9 +181,9 @@ one() {
   local triple="$1" cc="$2" qemu="$3" desc="$4"
   [ "$triple" = x86_64-linux-gnu ] && return
   printf "\n== %s (%s)\n" "$triple" "$desc"
-  if ! { build_deps "$triple" "$cc" "$qemu" && build "$triple" "$cc"; }; then fail "$triple: cannot build"; return; fi
+  if ! { build_deps "$triple" "$cc" "$qemu" && build "$triple" "$cc"; }; then fail "$triple: cannot build"; return 1; fi
   if ! run "$triple" "$triple" "$qemu"; then
-    fail "$triple: the run failed"; grep -m3 '^FAIL' "$B/$triple/probe.out"; head -3 "$B/$triple/probe.err"; return
+    fail "$triple: the run failed"; grep -m3 '^FAIL' "$B/$triple/probe.out"; head -3 "$B/$triple/probe.err"; return 1
   fi
   if cmp -s <(grep -v '^sizeof' "$B/x86_64-linux-gnu/probe.out") <(grep -v '^sizeof' "$B/$triple/probe.out"); then
     echo "   $(grep -c '^ok' "$B/$triple/probe.out") checks hold and the output is identical to the host's"

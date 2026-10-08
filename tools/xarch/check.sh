@@ -22,6 +22,17 @@ bash "$HERE/murmur3.sh" "${1:-$ROOT/libs/cutil/src/string.c}" || exit 1
 cd /tmp/xarch-out || exit 1
 
 fail=0
+while IFS='|' read -r triple _cc _qemu _desc; do
+  triple=$(echo "$triple" | tr -d ' ')
+  [ -z "$triple" ] && continue
+  if [ ! -s "$triple.txt" ]; then
+    printf "   FAIL  %-22s produced no output\n" "$triple"
+    fail=1
+  fi
+done <<EOF
+$XARCH_TARGETS
+EOF
+
 echo
 echo "1. published verification values (B0F57EE3 / B3ECE62A / 6384BA69)"
 for f in *.txt; do
