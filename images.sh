@@ -24,7 +24,12 @@ apply=0
 narrow=
 
 if [ "$#" -gt 2 ]; then
-  printf 'images.sh: unknown argument %s.\n' "$3" >&2
+  # Name the first argument that is not part of the allowed form.
+  if [ "$1" != --apply ]; then
+    printf 'images.sh: unknown argument %s.\n' "$1" >&2
+  else
+    printf 'images.sh: unknown argument %s.\n' "$3" >&2
+  fi
   exit 1
 fi
 
@@ -77,6 +82,15 @@ ours=$(printf '%s\n' "$list" | while IFS= read -r ref; do
 done)
 
 if [ -n "$narrow" ]; then
+  # grep -F splits a pattern on a newline, and an empty piece matches
+  # every line. That would remove every ghoti- reference.
+  case $narrow in
+    *'
+'*)
+      printf 'images.sh: refusing a narrow that contains a newline.\n' >&2
+      exit 1
+      ;;
+  esac
   ours=$(printf '%s\n' "$ours" | grep -F -e "$narrow" || true)
 fi
 
