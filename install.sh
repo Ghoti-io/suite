@@ -5,8 +5,9 @@
 #
 # The default prefix is the sibling .local/ directory. Nothing there needs
 # root, and pkg-config is pointed at it for the rest of the run. A bare
-# run builds ghoti-build:gcc16 and re-execs inside it, with this tree mounted
-# at /work. --no-container compiles with the host compiler and does not build
+# run builds ghoti-build:gcc16 and runs this script inside it, with this tree
+# mounted at /work, then returns so the host can run what the container
+# recorded. --no-container compiles with the host compiler and does not build
 # the image. --global compiles in the image and installs to the host
 # /usr/local; the host runs ldconfig after the container exits.
 #
@@ -25,7 +26,11 @@
 # tests may need the data it fetches. --test=a,b
 # tests only the named libraries (all are still built and installed). A
 # failure stops the run and names the log, .bootstrap-<library>.log in the
-# parent directory.
+# parent directory. A default test that would start a container is recorded
+# in .bootstrap-oracle-gates.log and not started inside the build container.
+# After that container exits 0, those gates run on the host engine. The
+# container is not given the host engine socket. --no-container runs the
+# same gates inside make test.
 #
 # Usage:
 #   ./install.sh
@@ -83,6 +88,59 @@ if [ "$GLOBAL" -eq 1 ]; then
     esac
   done
 fi
+
+# Each line the in-container tests append is "repo gate". Run those on the
+# host, against the prefix the container wrote. A missing file after --test
+# is a failed run, not an empty one: the container truncates the file before
+# its tests, so absence means that step never happened.
+run_recorded_oracle_gates() {
+  gates="$ROOT/.bootstrap-oracle-gates.log"
+  if [ ! -f "$gates" ]; then
+    echo "install.sh: $gates is missing after --test" >&2
+    exit 1
+  fi
+  if [ "$GLOBAL" -eq 1 ]; then
+    host_prefix=/usr/local
+  else
+    host_prefix=$(realpath -m "$PREFIX")
+  fi
+  # The build container prefers podman. http's oracle-build runs `docker
+  # build` by name, so a host that has both stores cannot see those images
+  # if this phase names podman. A podman-only host keeps the engine selected
+  # above.
+  if command -v docker >/dev/null 2>&1; then
+    host_engine=docker
+  else
+    host_engine=$run
+  fi
+  while read -r repo gate; do
+    # A blank or one-field line is not a gate.
+    [ -n "$gate" ] || continue
+    if [ ! -f "$LIBS/$repo/Makefile" ]; then
+      echo "install.sh: recorded gate '$repo $gate' has no Makefile" >&2
+      exit 1
+    fi
+    echo "  $repo: $gate"
+    # shellcheck disable=SC2086
+    eval "env -u GHOTI_BUILD_CONTAINER \
+      GHOTI_ORACLE_REPLAY=1 \
+      GHOTI_CONTAINER_ENGINE=\"\$host_engine\" \
+      PKG_CONFIG_PATH=\"\$host_prefix/share/pkgconfig\" \
+      make -C \"\$LIBS/\$repo\" PREFIX=\"\$host_prefix\" $make_args \"\$gate\"" \
+      < /dev/null \
+      || { echo "install.sh: $repo: $gate failed" >&2; exit 1; }
+  done < "$gates"
+}
+
+# The inner copy prints nothing here. This is the outer script, after the
+# container has returned 0.
+finish_after_container() {
+  if [ -n "$TEST" ]; then
+    run_recorded_oracle_gates
+  fi
+  echo "Done."
+  exit 0
+}
 
 # The marker is set by the outer run. The inner script is the install loop
 # below and must not build the image again. uninstall only deletes files.
@@ -199,6 +257,7 @@ if [ -z "${GHOTI_BUILD_CONTAINER:-}" ] && [ "$ACTION" != uninstall ] && [ "$NO_C
       -w /work/suite \
       -e GHOTI_BUILD_CONTAINER=1 \
       -e GHOTI_HOST_ROOT="$ROOT" \
+      -e GHOTI_ORACLE_GATES=/work/.bootstrap-oracle-gates.log \
       "$image" ./install.sh "$@"
     run_rc=$?
     set -e
@@ -217,7 +276,7 @@ if [ -z "${GHOTI_BUILD_CONTAINER:-}" ] && [ "$ACTION" != uninstall ] && [ "$NO_C
       exit "$run_rc"
     fi
     sudo ldconfig
-    exit 0
+    finish_after_container
   fi
 
   own_uid=$(id -u)
@@ -228,26 +287,46 @@ if [ -z "${GHOTI_BUILD_CONTAINER:-}" ] && [ "$ACTION" != uninstall ] && [ "$NO_C
   fi
 
   "$run" build -t "$image" -f "$SUITE/Containerfile.build" "$SUITE"
-  if [ "$run" = podman ]; then
-    # Rootless podman maps the host user to container root. --user alone
-    # is a different uid and cannot write the mount. keep-id makes the
-    # process the invoking user. A sudo'd script is root's podman, which
-    # has no such mapping: --user is the human who invoked sudo.
-    if [ "$(id -u)" -ne 0 ]; then
-      exec "$run" run --rm --userns=keep-id --user "$own_uid:$own_gid" \
-        -v "$ROOT":/work -w /work/suite \
-        -e HOME=/tmp \
-        -e GHOTI_BUILD_CONTAINER=1 \
-        -e GHOTI_HOST_ROOT="$ROOT" \
-        "$image" ./install.sh "$@"
-    fi
+  # One run, then the host phase. Rootless podman maps the host user to
+  # container root; --user alone is a different uid and cannot write the
+  # mount. keep-id makes the process the invoking user. A sudo'd script is
+  # root's podman, which has no such mapping: --user is the human who
+  # invoked sudo.
+  if [ "$run" = podman ] && [ "$(id -u)" -ne 0 ]; then
+    "$run" run --rm --userns=keep-id --user "$own_uid:$own_gid" \
+      -v "$ROOT":/work -w /work/suite \
+      -e HOME=/tmp \
+      -e GHOTI_BUILD_CONTAINER=1 \
+      -e GHOTI_HOST_ROOT="$ROOT" \
+      -e GHOTI_ORACLE_GATES=/work/.bootstrap-oracle-gates.log \
+      "$image" ./install.sh "$@"
+  else
+    "$run" run --rm --user "$own_uid:$own_gid" \
+      -v "$ROOT":/work -w /work/suite \
+      -e HOME=/tmp \
+      -e GHOTI_BUILD_CONTAINER=1 \
+      -e GHOTI_HOST_ROOT="$ROOT" \
+      -e GHOTI_ORACLE_GATES=/work/.bootstrap-oracle-gates.log \
+      "$image" ./install.sh "$@"
   fi
-  exec "$run" run --rm --user "$own_uid:$own_gid" \
-    -v "$ROOT":/work -w /work/suite \
-    -e HOME=/tmp \
-    -e GHOTI_BUILD_CONTAINER=1 \
-    -e GHOTI_HOST_ROOT="$ROOT" \
-    "$image" ./install.sh "$@"
+  finish_after_container
+fi
+
+# Anything that would start a container, and was not recorded, fails the
+# in-container test. These names sit ahead of a real engine. mktemp is
+# inside the container; --rm discards it.
+if [ -n "${GHOTI_BUILD_CONTAINER:-}" ]; then
+  oracle_refuse=$(mktemp -d)
+  for oracle_cmd in docker podman; do
+    cat > "$oracle_refuse/$oracle_cmd" <<'EOF'
+#!/bin/sh
+echo "the gate was not recorded" >&2
+exit 1
+EOF
+    chmod +x "$oracle_refuse/$oracle_cmd"
+  done
+  PATH="$oracle_refuse:$PATH"
+  export PATH
 fi
 
 ORDER=$(awk '!/^[[:space:]]*#/ && NF >= 4 { print $1 }' "$MANIFEST")
@@ -333,6 +412,11 @@ done
 # so regex's own tests (the JSON Schema adapter gate) need text installed, which
 # a test run right after regex's install cannot give them.
 if [ "$ACTION" = install ] && [ -n "$TEST" ]; then
+  # Before any test, so a gate recorded by an earlier run cannot be replayed
+  # and a parallel make test cannot truncate the file under itself.
+  if [ -n "${GHOTI_BUILD_CONTAINER:-}" ]; then
+    : > "${GHOTI_ORACLE_GATES:-$ROOT/.bootstrap-oracle-gates.log}"
+  fi
   for repo in $ORDER; do
     [ -f "$LIBS/$repo/Makefile" ] || continue
     case "$TEST" in
@@ -368,4 +452,8 @@ if [ "$ACTION" = install ] && [ -n "$TEST" ]; then
   done
 fi
 
-echo "Done."
+# The copy inside the container stops here. The outer script prints Done.
+# after the host oracle phase. --no-container and uninstall print it here.
+if [ -z "${GHOTI_BUILD_CONTAINER:-}" ]; then
+  echo "Done."
+fi
