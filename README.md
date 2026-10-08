@@ -44,7 +44,7 @@ If you only want the script to fetch and list the commits that **would be** fast
 
 ## Build And Install
 
-A bare `./install.sh` builds the `ghoti-build:gcc16` image (an unchanged container file is cached), then compiles and installs inside it.  The image is GCC 16.2.0 from the official image, with the tools the libraries need pinned in the container file.  The parent directory is mounted at `/work`, and the install prefix is written there, so it is still on the host after the container exits.  Podman is used when it is installed, otherwise Docker.  One of the two is required.  The script does not compile on the host when both are missing.  An absolute prefix has to live under the parent directory, so the container can write it.
+A bare `./install.sh` builds the `ghoti-build:gcc16` image (an unchanged container file is cached), then compiles and installs inside it.  The image is GCC 16.2.0 from the official image, with the tools the libraries need pinned in the container file.  The parent directory is mounted at its own path, so the install prefix means the same thing inside the container and out (the `.pc` files and rpaths it writes work on the host), and it is still there after the container exits.  Podman is used when it is installed, otherwise Docker.  One of the two is required.  The script does not compile on the host when both are missing.  An absolute prefix has to live under the parent directory, so the container can write it.
 
 ```bash
 ./install.sh

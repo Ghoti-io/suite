@@ -6,7 +6,7 @@
 # The default prefix is the sibling .local/ directory. Nothing there needs
 # root, and pkg-config is pointed at it for the rest of the run. A bare
 # run builds ghoti-build:gcc16 and runs this script inside it, with this tree
-# mounted at /work, then returns so the host can run what the container
+# mounted at its own path, then returns so the host can run what the container
 # recorded. --no-container compiles with the host compiler and does not build
 # the image. --global compiles in the image and installs to the host
 # /usr/local; the host runs ldconfig after the container exits.
@@ -156,13 +156,14 @@ if [ -z "${GHOTI_BUILD_CONTAINER:-}" ] && [ "$ACTION" != uninstall ] && [ "$NO_C
   fi
 
   image=ghoti-build:gcc16
-  # A prefix outside the parent is not on the /work mount, so the container
-  # would write it into a layer --rm throws away. Rewrite a prefix under
-  # the parent to the path it has inside the container.
+  # The tree is mounted at its own path, so the prefix means the same thing
+  # inside the container and out: the .pc files and the rpaths it writes are
+  # valid on the host. (At a path of its own, /work, they named a directory
+  # only the container had.) A prefix outside the parent is not on the mount,
+  # so the container would write it into a layer --rm throws away.
   if [ "$GLOBAL" -eq 0 ]; then
     # realpath -m resolves ".." and a relative prefix. "$ROOT"/* also
-    # matches "$ROOT/../tmp", which is not on the /work mount, so the
-    # container would write it into a layer --rm throws away.
+    # matches "$ROOT/../tmp", which is not on the mount.
     root_real=$(realpath -m "$ROOT")
     pref_real=$(realpath -m "$PREFIX")
     case "$pref_real" in
@@ -172,23 +173,21 @@ if [ -z "${GHOTI_BUILD_CONTAINER:-}" ] && [ "$ACTION" != uninstall ] && [ "$NO_C
         exit 1
         ;;
     esac
-    rel=${pref_real#"$root_real"/}
-    newpref="/work/$rel"
     replaced=0
     for arg in "$@"; do
       case "$arg" in
         PREFIX=*)
-          arg="PREFIX=$newpref"
+          arg="PREFIX=$pref_real"
           replaced=1
           ;;
       esac
       set -- "$@" "$arg"
       shift
     done
-    # The default prefix is already /work/.local once the script is the
-    # copy inside the container. Any other prefix has to be passed in.
+    # The default prefix is already $ROOT/.local in the copy inside the
+    # container. Any other prefix has to be passed in, as a real path.
     if [ "$replaced" -eq 0 ] && [ "$pref_real" != "$root_real/.local" ]; then
-      set -- "$@" "PREFIX=$newpref"
+      set -- "$@" "PREFIX=$pref_real"
     fi
   fi
 
@@ -249,15 +248,15 @@ if [ -z "${GHOTI_BUILD_CONTAINER:-}" ] && [ "$ACTION" != uninstall ] && [ "$NO_C
     # install fails, so a later unprivileged build can overwrite it.
     set +e
     as_priv run --rm \
-      -v "$ROOT":/work \
+      -v "$ROOT":"$ROOT" \
       -v /usr/local/lib/ghoti.io:/usr/local/lib/ghoti.io \
       -v /usr/local/include/ghoti.io:/usr/local/include/ghoti.io \
       -v /usr/local/share/pkgconfig:/usr/local/share/pkgconfig \
       -v /etc/ld.so.conf.d:/etc/ld.so.conf.d \
-      -w /work/suite \
+      -w "$ROOT/suite" \
       -e GHOTI_BUILD_CONTAINER=1 \
       -e GHOTI_HOST_ROOT="$ROOT" \
-      -e GHOTI_ORACLE_GATES=/work/.bootstrap-oracle-gates.log \
+      -e GHOTI_ORACLE_GATES="$ROOT/.bootstrap-oracle-gates.log" \
       "$image" ./install.sh "$@"
     run_rc=$?
     set -e
@@ -294,19 +293,19 @@ if [ -z "${GHOTI_BUILD_CONTAINER:-}" ] && [ "$ACTION" != uninstall ] && [ "$NO_C
   # invoked sudo.
   if [ "$run" = podman ] && [ "$(id -u)" -ne 0 ]; then
     "$run" run --rm --userns=keep-id --user "$own_uid:$own_gid" \
-      -v "$ROOT":/work -w /work/suite \
+      -v "$ROOT":"$ROOT" -w "$ROOT/suite" \
       -e HOME=/tmp \
       -e GHOTI_BUILD_CONTAINER=1 \
       -e GHOTI_HOST_ROOT="$ROOT" \
-      -e GHOTI_ORACLE_GATES=/work/.bootstrap-oracle-gates.log \
+      -e GHOTI_ORACLE_GATES="$ROOT/.bootstrap-oracle-gates.log" \
       "$image" ./install.sh "$@"
   else
     "$run" run --rm --user "$own_uid:$own_gid" \
-      -v "$ROOT":/work -w /work/suite \
+      -v "$ROOT":"$ROOT" -w "$ROOT/suite" \
       -e HOME=/tmp \
       -e GHOTI_BUILD_CONTAINER=1 \
       -e GHOTI_HOST_ROOT="$ROOT" \
-      -e GHOTI_ORACLE_GATES=/work/.bootstrap-oracle-gates.log \
+      -e GHOTI_ORACLE_GATES="$ROOT/.bootstrap-oracle-gates.log" \
       "$image" ./install.sh "$@"
   fi
   finish_after_container
