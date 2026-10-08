@@ -44,13 +44,18 @@ If you only want the script to fetch and list the commits that **would be** fast
 
 ## Build And Install
 
-Compiling source is always a headache.  This process is not containerized yet, but it is on my todo list.
+A bare `./install.sh` builds the `ghoti-build:gcc16` image (an unchanged container file is cached), then compiles and installs inside it.  The image is GCC 16.2.0 from the official image, with the tools the libraries need pinned in the container file.  The parent directory is mounted at `/work`, and the install prefix is written there, so it is still on the host after the container exits.  Podman is used when it is installed, otherwise Docker.  One of the two is required.  The script does not compile on the host when both are missing.  An absolute prefix has to live under the parent directory, so the container can write it.
 
-When compiling, a host build needs to have a compiler, as well as a couple of dependencies required by some of the libraries.  CJelly needs Vulkan and X11.  The tests need GoogleTest.  Chron's optional format check looks for ICU; none of the libraries link it.
+```bash
+./install.sh
+```
+
+`--no-container` is the host-compiler exception.  It does not build the image.  A host build needs a compiler and the packages some libraries and tests look for.  CJelly needs Vulkan and X11.  The tests need GoogleTest.  Chron's optional format check looks for ICU; none of the libraries link it.
 
 ```bash
 sudo apt install build-essential pkgconf libgtest-dev bison flex libicu-dev \
                  libvulkan-dev libx11-dev mesa-vulkan-drivers glslang-tools xxd
+./install.sh --no-container
 ```
 
 ### Local/Development Installation
@@ -75,7 +80,7 @@ If creating a debug build, then use the appropriate command line option.
 
 ### Global Installation
 
-`--global` is essentially `sudo make install`, installing to `/usr/local` and running `ldconfig` so that the libraries are properly registered.
+`--global` compiles in the same image and installs into the host `/usr/local`.  After the container exits, the host runs `ldconfig`.  Rootless Podman cannot write that prefix, so this run is the one that asks for privilege.  The libraries are on the host, not only inside the container.
 
 ```bash
 ./install.sh --global
@@ -83,7 +88,7 @@ If creating a debug build, then use the appropriate command line option.
 
 ### Uninstall
 
-Uninstall walks the same list from the last library back to the first, and uses the same flag.
+Uninstall runs on the host.  It does not build or start the image.  It walks the same list from the last library back to the first, and uses the same flag.  `uninstall --global` removes the host `/usr/local` install.
 
 ```bash
 ./install.sh uninstall

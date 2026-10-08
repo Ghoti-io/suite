@@ -1,0 +1,111 @@
+# Build image for ./install.sh. Tag ghoti-build:gcc16. The tree is mounted
+# at /work; this image does not copy it.
+#
+# GCC 16.2.0 and glibc are the ones in the official image, digest-pinned.
+# The registry is spelled out. This host's registries.conf has no
+# unqualified-search registry, so a short name `gcc` does not resolve
+# for root's podman. `./install.sh --global` builds with the invoking
+# user's engine and loads the image into the privileged store.
+# Debian's build-essential is GCC 14, and this file does not build GCC from
+# a tarball. Packages added on top are pinned to exact versions: a later
+# rebuild that cannot resolve one fails, rather than taking a newer package
+# from the mirror. googletest is the 1.18.0 release archive, not libgtest-dev.
+# libclang-rt is the runtime clang's -fsanitize=fuzzer link needs. security's
+# default make test builds that probe when clang is installed, and skips it
+# when clang is absent. valgrind is the same kind of dependency: check-ct is
+# on that default test and both compiles against the headers and runs memcheck.
+FROM docker.io/library/gcc:16.2.0@sha256:3f73339bf0d3d64081cac3f6d9fdafc6dd4cef2b9c49e0a09f91e97cb0eb139a
+
+RUN apt-get update \
+ && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+      bison=2:3.8.2+dfsg-1+b2 \
+      ca-certificates=20250419 \
+      clang-19=1:19.1.7-3+b1 \
+      clang=1:19.0-63 \
+      curl=8.14.1-2+deb13u5 \
+      flex=2.6.4-8.2+b4 \
+      lib32gcc-s1=14.2.0-19 \
+      lib32stdc++6=14.2.0-19 \
+      libc6-dbg=2.41-12+deb13u4 \
+      libc6-i386=2.41-12+deb13u4 \
+      libclang-common-19-dev=1:19.1.7-3+b1 \
+      libclang-cpp19=1:19.1.7-3+b1 \
+      libclang-rt-19-dev=1:19.1.7-3+b1 \
+      libclang1-19=1:19.1.7-3+b1 \
+      libgc1=1:8.2.8-1 \
+      libicu-dev=76.1-4 \
+      libllvm19=1:19.1.7-3+b1 \
+      libobjc-14-dev=14.2.0-19 \
+      libobjc4=14.2.0-19 \
+      libvulkan-dev=1.4.309.0-1 \
+      libvulkan1=1.4.309.0-1 \
+      libx11-dev=2:1.8.12-1 \
+      glslang-tools=15.1.0+1.4.309.0-1 \
+      spirv-tools=2025.1~rc1-1 \
+      cppcheck=2.17.1-2 \
+      libtinyxml2-11=11.0.0+dfsg-1+b1 \
+      python3-pygments=2.18.0+dfsg-2 \
+      libz3-4=4.13.3-1 \
+      llvm-19-linker-tools=1:19.1.7-3+b1 \
+      pkgconf=1.8.1-4 \
+      python3=3.13.5-1 \
+      valgrind=1:3.24.0-3 \
+      xxd=2:9.1.1230-2 \
+ && rm -rf /var/lib/apt/lists/*
+
+# Upstream ships no gtest.pc. The libraries find gtest through pkg-config,
+# so the file is written here. The libraries are installed system-wide:
+# the container runs as the invoking user, who can read them.
+RUN curl -fsSL -o /tmp/googletest.tar.gz \
+      https://github.com/google/googletest/releases/download/v1.18.0/googletest-1.18.0.tar.gz \
+ && echo "6e3191c1455468b3fc35a417fb565c1c5071aee1b7e7f85e30cf48a98d37d8b5  /tmp/googletest.tar.gz" | sha256sum -c - \
+ && mkdir -p /tmp/gtest-src \
+ && tar -xzf /tmp/googletest.tar.gz -C /tmp/gtest-src --strip-components=1 \
+ && g++ -std=c++17 -O2 -fPIC -pthread -DGTEST_HAS_PTHREAD=1 \
+      -I/tmp/gtest-src/googletest/include -I/tmp/gtest-src/googletest \
+      -c /tmp/gtest-src/googletest/src/gtest-all.cc -o /tmp/gtest-all.o \
+ && ar rcs /usr/local/lib/libgtest.a /tmp/gtest-all.o \
+ && g++ -std=c++17 -O2 -fPIC -pthread -DGTEST_HAS_PTHREAD=1 \
+      -I/tmp/gtest-src/googletest/include -I/tmp/gtest-src/googletest \
+      -c /tmp/gtest-src/googletest/src/gtest_main.cc -o /tmp/gtest-main.o \
+ && ar rcs /usr/local/lib/libgtest_main.a /tmp/gtest-main.o \
+ && mkdir -p /usr/local/include /usr/local/lib/pkgconfig \
+ && cp -a /tmp/gtest-src/googletest/include/gtest /usr/local/include/ \
+ && printf '%s\n' \
+      'libdir=/usr/local/lib' \
+      'includedir=/usr/local/include' \
+      '' \
+      'Name: gtest' \
+      'Description: GoogleTest (without main() function)' \
+      'Version: 1.18.0' \
+      'URL: https://github.com/google/googletest' \
+      'Libs: -L${libdir} -lgtest -pthread' \
+      'Cflags: -I${includedir} -DGTEST_HAS_PTHREAD=1' \
+      > /usr/local/lib/pkgconfig/gtest.pc \
+ && printf '%s\n' \
+      'libdir=/usr/local/lib' \
+      'includedir=/usr/local/include' \
+      '' \
+      'Name: gtest_main' \
+      'Description: GoogleTest (with main() function)' \
+      'Version: 1.18.0' \
+      'URL: https://github.com/google/googletest' \
+      'Requires: gtest = 1.18.0' \
+      'Libs: -L${libdir} -lgtest_main -pthread' \
+      'Cflags: -I${includedir} -DGTEST_HAS_PTHREAD=1' \
+      > /usr/local/lib/pkgconfig/gtest_main.pc \
+ && chmod 644 /usr/local/lib/libgtest.a /usr/local/lib/libgtest_main.a \
+      /usr/local/lib/pkgconfig/gtest.pc /usr/local/lib/pkgconfig/gtest_main.pc \
+ && chmod -R a+rX /usr/local/include/gtest \
+ && printf '%s\n' \
+      '#include <gtest/gtest.h>' \
+      'TEST(Smoke, Ok) {}' \
+      'int main(int argc, char** argv) {' \
+      '  testing::InitGoogleTest(&argc, argv);' \
+      '  return RUN_ALL_TESTS();' \
+      '}' \
+      > /tmp/gtest-smoke.cpp \
+ && g++ -std=c++20 -o /tmp/gtest-smoke /tmp/gtest-smoke.cpp $(pkg-config --cflags --libs gtest) \
+ && /tmp/gtest-smoke \
+ && rm -rf /tmp/googletest.tar.gz /tmp/gtest-src /tmp/gtest-all.o /tmp/gtest-main.o \
+      /tmp/gtest-smoke /tmp/gtest-smoke.cpp
