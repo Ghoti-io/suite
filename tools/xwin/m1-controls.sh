@@ -119,11 +119,16 @@ planted() { # planted <id> <macro> <exe> <filter> <what>
   rm -rf $tree
 }
 ONLY=${CONTROLS_ONLY:-}
+ran=0
 while IFS='|' read -r id macro exe filter what; do
   case "$id" in ''|'#'*) continue ;; esac
   [ -n "$ONLY" ] && case " $ONLY " in *" $id "*) ;; *) continue ;; esac
-  planted "$id" "$macro" "$exe" "$filter" "$what"
+  planted "$id" "$macro" "$exe" "$filter" "$what" </dev/null
+  ran=$((ran + 1))
 done < tools/win64-plants.txt
+if [ -n "$ONLY" ] && [ "$ran" -eq 0 ]; then
+  echo "CONTROL none: CONTROLS_ONLY='$ONLY' names no planted defect of tools/win64-plants.txt, so no control ran"; bad=1
+fi
 
 rm -rf $C
 [ $bad -eq 0 ] && echo "CONTROLS ok" || echo "CONTROLS NOT ok"
