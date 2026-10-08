@@ -69,7 +69,7 @@ for t in $APPS/test*.exe; do
   out=$(tr -d '\r' < /w/logs/$l.$(basename $t .exe).out)
   n=$(echo "$out" | sed -n 's/^\[==========\] \([0-9]*\) tests\? from.*/\1/p' | tail -1)
   p=$(echo "$out" | sed -n 's/^\[  PASSED  \] \([0-9]*\) tests\?\..*/\1/p' | tail -1)
-  s=$(echo "$out" | sed -n 's/^\[  SKIPPED \] \([0-9]*\) tests\?\..*/\1/p' | tail -1)
+  s=$(echo "$out" | sed -n 's/^\[  SKIPPED \] \([0-9]*\) tests\?[.,].*/\1/p' | tail -1)
   tot=$((tot + ${n:-0})); pass=$((pass + ${p:-0})); skip=$((skip + ${s:-0}))
   # The tests this program skipped, by name (the summary at the end of gtest's output lists them).
   echo "$out" | grep -E '^\[  SKIPPED \] [A-Za-z0-9_/]+\.[A-Za-z0-9_/]+$' | sed 's/^\[  SKIPPED \] //' \

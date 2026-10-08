@@ -12,3 +12,18 @@ runtime-jit testWin64 Win64Registers.TheDisassemblerAgreesThatNoCalleeSavedRegis
 runtime-jit testWin64 Win64Memory.WithNothingToRegisterWithTheMappingIsMadeAndTheTableIsNotClaimed this target registers with the operating system
 runtime-debug testDap_session DapSession.OverASocketPairItIsTheSameTranscript descriptor transports do not exist on Windows (create_fd is a stub)
 runtime-debug testDap_session DapSession.OverLoopbackTcpTheTestBindsAndAcceptsItIsTheSameTranscript descriptor transports do not exist on Windows (create_fd is a stub)
+# lang-tang: what needs fork, a descriptor transport or an RLIMIT_AS-style cap stays skipped and named.
+lang-tang testCompile AllocationFailure.EachAllocationCompileMakesFailedInTurnGivesAnAnswerAndLeaksNothing the allocation-failure sweep cannot reach this platform's allocations (needs an RLIMIT_AS-style cap; lang-tang tests/test_helpers.h)
+lang-tang testOom AllocationFailure.EachAllocationFailedInTurnGivesAnAnswerAndLeaksNothing the allocation-failure sweep cannot reach this platform's allocations (RLIMIT_AS)
+lang-tang testOom AllocationFailure.TheFirstAllocationFailingIsOutOfMemoryAndChangesNothing the allocation-failure sweep cannot reach this platform's allocations (RLIMIT_AS)
+lang-tang testOom AllocationFailure.TheScannersOwnBufferGrowthIsReportedAsOutOfMemoryNotASyntaxError the allocation-failure sweep cannot reach this platform's allocations (RLIMIT_AS)
+lang-tang testTang_dap TangDap.NeedsTheDescriptorTransportAndSoIsNotRunOnWindows fork, pipes and poll; --dap is unsupported on Windows
+lang-tang testJudge Driver.ABrokenRunnerThrowsRatherThanPassingAsAVerdict the child-process driver (fork, poll, /bin/sh) is POSIX-only
+lang-tang testJudge Driver.ACrashDisagreesWithARejection the child-process driver (fork, poll, /bin/sh) is POSIX-only
+lang-tang testJudge Driver.ACrashingChildIsAVerdictToo the child-process driver (fork, poll, /bin/sh) is POSIX-only
+lang-tang testJudge Driver.AHungChildIsKilledAtTheWallClockAndIsAVerdict the child-process driver (fork, poll, /bin/sh) is POSIX-only
+lang-tang testJudge Driver.ARunReplyThatIsNotExactlyTheFormatIsAHarnessFailure the child-process driver (fork, poll, /bin/sh) is POSIX-only
+lang-tang testJudge Driver.ARunnerThatIsKilledOrCrashesIsAVerdictInRunModeToo the child-process driver (fork, poll, /bin/sh) is POSIX-only
+lang-tang testJudge Driver.ParsesBothVerdictLines the child-process driver (fork, poll, /bin/sh) is POSIX-only
+lang-tang testJudge Driver.ParsesTheRunReplies the child-process driver (fork, poll, /bin/sh) is POSIX-only
+lang-tang testJudge Driver.ReadsAChildsOutputAndExit the child-process driver (fork, poll, /bin/sh) is POSIX-only
