@@ -307,3 +307,30 @@ read and 3 it counted as unsupported. The count the script requires is in
 `certificate-win.sh` (161: Linux's 162 less the two tests that read a
 Unix bundle, plus the Windows one); change it with a test.
 
+
+## The runtime stack, calls (story 7b of the calls spec, 2026-10-08)
+
+`m1-run.sh` now also holds the runtime stack to what story 7b of the calls spec
+asks of Win64:
+
+- **Skips are named and counted.** `m1-lib.sh` lists each skipped test by name
+  (gtest's summary lists them) and compares the list with `m1-skips.txt` in both
+  directions: a skip that is not in the file fails the run, and so does a listed
+  test that ran. Nothing is skipped for want of `fork`: the abort cases of
+  `runtime-core` and the forked one of `runtime-jit` run the test binary again
+  as a child (`run_in_child` in each `tests/test_helpers.h`).
+- **`runtime-heap` is built a second time with `RELOCATE=yes`** in a prefix of
+  its own (`/w/prefix-reloc`); every test program runs with `GRHEAP_RELOCATE=1`
+  and `check-relocation-present` and `check-relocation-gates` run, and the
+  SUMMARY line says how many programs, tests and gate checks.
+- **`m1-controls.sh` reads runtime-jit's `tools/win64-plants.txt`** for the
+  planted defects of the Windows backend (5 to 7 and 30 to 37): each is built
+  into a scratch copy of the cross-built tree, its named test must pass on the
+  real executable and fail by an assertion on the planted one. `CONTROLS_ONLY="30
+  33"` runs only those (and none of the Windows-fix controls above them).
+- `runtime-jit/tools/check-planted-calls.py --target=win64` (run in the
+  container, `--prefix=$WPREFIX`) plants edits in the Windows paths of the
+  emitter and the unwind table and requires a test to fail on each.
+
+Wine's `ntdll` is wine's own: none of this says what a real Windows kernel's
+exception dispatch or guard-page growth does.

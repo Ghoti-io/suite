@@ -14,15 +14,18 @@
 #   crlf    tang.exe without the _setmode calls: stdout is a text stream, a
 #           printed newline is CR LF, and the byte checks of cli-test.sh must
 #           fail.
-#   win64-5, win64-6, win64-7   runtime-jit's Windows backend with one of its
-#           three planted defects built into a scratch copy
-#           (GRJIT_TEST_PLANT_BUG): a callee-saved register used, no outgoing
-#           area (shadow space), the unwind table never registered. The test
-#           that RUNS the code (sentinels in rbx, rsi, rdi and r12-r15; a
-#           six-argument call whose helper scribbles on its shadow space; a
-#           stack walk with RtlVirtualUnwind) must fail on the planted
-#           executable and pass on the real one: the structural catch of the
-#           same defects is Linux's (check-planted), this is the executing one.
+#   win64-5, win64-6, win64-7, win64-30 to win64-37   runtime-jit's Windows
+#           backend with one of its planted defects built into a scratch copy
+#           (GRJIT_TEST_PLANT_BUG; the list is runtime-jit's tools/win64-plants.txt):
+#           a callee-saved register used, no outgoing area (shadow space), the
+#           unwind table never registered (5 to 7), and the calls, tail calls and
+#           natives of story 7b: a pair read from rax:rdx, a native's area without
+#           shadow space, a tail copy through rdi, an adapter whose unwind
+#           information has a frame register, a callee that does not pop, only
+#           one of the two RUNTIME_FUNCTIONs registered, the walk start stored
+#           after a native call, a callable frame without its outgoing area. The
+#           test that RUNS the code must fail on the planted executable and pass
+#           on the real one (CONTROLS_ONLY="30 33" runs only those).
 #
 # Prints one CONTROL line each, then `CONTROLS ok` only if every control FAILED
 # the suite as it must.  A control that passes is the bad outcome.
@@ -37,6 +40,7 @@ verdict() { # verdict <name> <expected: fail> <rc> <detail>
   else echo "CONTROL $1: NOT CAUGHT, the suite passed with the fix reverted"; bad=1; fi
 }
 
+if [ -z "${CONTROLS_ONLY:-}" ]; then
 # ---- clock ---------------------------------------------------------------
 cp -a /w/runtime-core $C/runtime-core && cd $C/runtime-core || exit 2
 python3 - <<'E'
@@ -91,26 +95,35 @@ make $A/tang.exe PREFIX=$P > $C/crlf.build.log 2>&1 || { echo "CONTROL crlf: the
 if grep -q 'CLI check(s) failed' $C/crlf.cli.txt; then r=1; else r=0; fi
 verdict crlf fail $r "tang.exe in text mode: $(grep -c '^  FAIL' $C/crlf.cli.txt) CLI checks failed, e.g. $(grep -m1 '^  FAIL' $C/crlf.cli.txt | cut -c1-70)"
 
+fi
+
 # ---- the Windows backend's planted defects --------------------------------------
+# The list is runtime-jit's own, tools/win64-plants.txt: id | GRJIT_TEST_PLANT_BUG | test program | gtest filter |
+# what is planted.  Each runs on the real executable first (the control), then on a tree of its own built with
+# the macro, and must fail by an assertion that names what it saw.
 cp -a /w/runtime-jit $C/runtime-jit && cd $C/runtime-jit || exit 2
 CA=build/win64/release/apps
-planted() { # planted <n> <what> <gtest filter that runs the code>
-  local n=$1 what=$2 filter=$3 tree=build/win64/release-plant-$1
-  (cd $CA && ./testWin64.exe --gtest_brief=1 --gtest_filter="$filter" 2>&1 | tr -d '\r' > $C/win64-$n.control.txt; exit ${PIPESTATUS[0]}); local crc=$?
+planted() { # planted <id> <macro> <exe> <filter> <what>
+  local n=$1 macro=$2 exe=$3 filter=$4 what=$5 tree=build/win64/release-plant-$1
+  (cd $CA && ./$exe.exe --gtest_brief=1 --gtest_filter="$filter" 2>&1 | tr -d '\r' > $C/win64-$n.control.txt; exit ${PIPESTATUS[0]}); local crc=$?
   local ran; ran=$(grep -c '^\[       OK \]\|^\[  PASSED  \]' $C/win64-$n.control.txt)
   if [ $crc -ne 0 ] || [ "$ran" -eq 0 ]; then
-    echo "CONTROL win64-$n: the control (the real executable, $filter) did not pass: rc=$crc"; bad=1; return
+    echo "CONTROL win64-$n: the control (the real executable, $exe $filter) did not pass: rc=$crc"; bad=1; return
   fi
-  if ! make $tree/apps/testWin64.exe BUILD_DIR=$tree EXTRA_CFLAGS="-DGRJIT_TEST_PLANT_BUG=$n" PREFIX=$P > $C/win64-$n.build.log 2>&1; then
+  if ! make $tree/apps/$exe.exe BUILD_DIR=$tree EXTRA_CFLAGS="-DGRJIT_TEST_PLANT_BUG=$macro" PREFIX=$P > $C/win64-$n.build.log 2>&1; then
     echo "CONTROL win64-$n: the planted build did not build"; bad=1; return
   fi
-  (cd $tree/apps && ./testWin64.exe --gtest_brief=1 --gtest_filter="$filter" 2>&1 | tr -d '\r' > $C/win64-$n.txt; exit ${PIPESTATUS[0]}); local rc=$?
+  (cd $tree/apps && ./$exe.exe --gtest_brief=1 --gtest_filter="$filter" 2>&1 | tr -d '\r' > $C/win64-$n.txt; exit ${PIPESTATUS[0]}); local rc=$?
   if ! grep -q 'FAILED' $C/win64-$n.txt; then rc=0; fi    # a crash that reports no failure is not a verdict
   verdict win64-$n fail $rc "$what: $(grep -m1 -E '^(\[  FAILED  \]|.*Failure)' $C/win64-$n.txt | cut -c1-90)"
+  rm -rf $tree
 }
-planted 5 "rsi used for the parameter loads, sentinels changed" 'CalleeSaved.*'
-planted 6 "no outgoing area, a callee's shadow space on the live slots" 'Win64Run.ASixArgumentCall*'
-planted 7 "unwind table never registered, the walk finds no frame" 'Win64Run.AHelperCalledFromCompiledCode*:Win64Run.DestroyDeletes*'
+ONLY=${CONTROLS_ONLY:-}
+while IFS='|' read -r id macro exe filter what; do
+  case "$id" in ''|'#'*) continue ;; esac
+  [ -n "$ONLY" ] && case " $ONLY " in *" $id "*) ;; *) continue ;; esac
+  planted "$id" "$macro" "$exe" "$filter" "$what"
+done < tools/win64-plants.txt
 
 rm -rf $C
 [ $bad -eq 0 ] && echo "CONTROLS ok" || echo "CONTROLS NOT ok"

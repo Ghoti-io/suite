@@ -8,7 +8,12 @@
 #   m1-lib.sh lib <name>    all, install, test, examples, then the counts
 #
 # Logs are /w/logs/<name>.<target>.log.  Exit status is 0 only when `make test`
-# passed, every test program passed on its own, and no example failed.
+# passed, every test program passed on its own, no example failed, and the
+# tests that were skipped are exactly the ones m1-skips.txt names for the
+# library (an unlisted skip fails; so does a listed test that no longer skips,
+# because the count is asserted both ways).  runtime-heap also gets a second
+# build with RELOCATE=yes in a prefix of its own: every test program run with
+# GRHEAP_RELOCATE=1 (what `make test-relocate` runs) and the relocation gates.
 set -u
 mkdir -p /w/logs
 P=$WPREFIX
@@ -56,15 +61,19 @@ APPS=/w/$l/build/win64/release/apps
 # program and not as a truncated `make test`.  Counts come from gtest's own
 # summary; SKIPPED is reported separately from PASSED.
 tot=0; pass=0; skip=0; bad=0; progs=0
+: > /w/logs/$l.skipped.actual
 for t in $APPS/test*.exe; do
   [ -e "$t" ] || continue
   progs=$((progs + 1))
-  (cd $APPS && timeout 1200 ./$(basename $t) --gtest_brief=1 > /w/logs/$l.$(basename $t .exe).out 2>&1); rc=$?
+  (cd $APPS && timeout 1200 ./$(basename $t) > /w/logs/$l.$(basename $t .exe).out 2>&1); rc=$?
   out=$(tr -d '\r' < /w/logs/$l.$(basename $t .exe).out)
   n=$(echo "$out" | sed -n 's/^\[==========\] \([0-9]*\) tests\? from.*/\1/p' | tail -1)
   p=$(echo "$out" | sed -n 's/^\[  PASSED  \] \([0-9]*\) tests\?\..*/\1/p' | tail -1)
   s=$(echo "$out" | sed -n 's/^\[  SKIPPED \] \([0-9]*\) tests\?\..*/\1/p' | tail -1)
   tot=$((tot + ${n:-0})); pass=$((pass + ${p:-0})); skip=$((skip + ${s:-0}))
+  # The tests this program skipped, by name (the summary at the end of gtest's output lists them).
+  echo "$out" | grep -E '^\[  SKIPPED \] [A-Za-z0-9_/]+\.[A-Za-z0-9_/]+$' | sed 's/^\[  SKIPPED \] //' \
+    | sed "s|^|$(basename $t .exe) |" >> /w/logs/$l.skipped.actual
   if [ $rc -ne 0 ] || [ -z "$n" ]; then
     bad=$((bad + 1)); echo "TEST PROGRAM FAILED: $(basename $t) rc=$rc"; echo "$out" | grep -vi fontconfig | tail -n 12
   fi
@@ -80,8 +89,46 @@ for e in $APPS/examples/*.exe $APPS/bench/*.exe; do
     *) ex_bad=$((ex_bad + 1)); echo "EXAMPLE FAILED: $(basename $e) rc=$rc" ;; esac
 done
 
+# Every skip is named and counted.  m1-skips.txt: "<library> <program> <Suite.Name> <reason...>".
+skip_bad=0
+grep -E "^$l " /tools/xwin/m1-skips.txt | awk '{print $2, $3}' | sort > /w/logs/$l.skipped.expected
+sort /w/logs/$l.skipped.actual > /w/logs/$l.skipped.sorted
+while read -r line; do
+  [ -n "$line" ] || continue
+  echo "SKIPPED NOT LISTED in m1-skips.txt: $l $line"; skip_bad=1
+done < <(comm -13 /w/logs/$l.skipped.expected /w/logs/$l.skipped.sorted)
+while read -r line; do
+  [ -n "$line" ] || continue
+  echo "LISTED AS SKIPPED but it ran (or its program is gone): $l $line"; skip_bad=1
+done < <(comm -23 /w/logs/$l.skipped.expected /w/logs/$l.skipped.sorted)
+skip_named=$(wc -l < /w/logs/$l.skipped.sorted)
+[ "$skip_named" -eq "$skip" ] || { echo "the skips counted ($skip) are not the skips named ($skip_named)"; skip_bad=1; }
+
+# runtime-heap again with RELOCATE=yes, in a prefix of its own.
+reloc_bad=0; reloc_progs=0; reloc_tests=0; reloc_gates=skipped
+if [ "$l" = runtime-heap ]; then
+  RP=/w/prefix-reloc
+  rm -rf $RP; mkdir -p $RP; cp -a $P/. $RP/
+  sed -i "s#$P#$RP#g" $RP/share/pkgconfig/*.pc
+  ( export PKG_CONFIG_PATH=$RP/share/pkgconfig
+    MK="make -j4 PREFIX=$RP RELOCATE=yes"
+    $MK all install > /w/logs/$l.reloc.build.log 2>&1 && $MK test-relocate > /w/logs/$l.reloc.test.log 2>&1 ) \
+    && echo "runtime-heap RELOCATE=yes: built, test-relocate passed" \
+    || { echo "runtime-heap RELOCATE=yes: build or test-relocate FAILED (see /w/logs/$l.reloc.*.log)"; tail -n 12 /w/logs/$l.reloc.test.log 2>/dev/null; reloc_bad=1; }
+  reloc_tests=$(tr -d '\r' < /w/logs/$l.reloc.test.log | sed -n 's/^\[  PASSED  \] \([0-9]*\) tests\?\..*/\1/p' | awk '{s+=$1} END {print s+0}')
+  reloc_progs=$(grep -c '^### Relocating ' /w/logs/$l.reloc.test.log)
+  [ "$reloc_progs" -gt 0 ] || { echo "no test program ran relocating"; reloc_bad=1; }
+  ( export PKG_CONFIG_PATH=$RP/share/pkgconfig
+    make -j4 PREFIX=$RP RELOCATE=yes check-relocation-present check-relocation-gates > /w/logs/$l.reloc.gates.log 2>&1 )
+  if grep -q 'check-relocation-gates: all [0-9]* checks behaved' /w/logs/$l.reloc.gates.log; then
+    reloc_gates=$(grep -o 'all [0-9]* checks behaved' /w/logs/$l.reloc.gates.log | head -1 | tr ' ' '_')
+  else
+    echo "check-relocation-gates did not report that every check behaved"; tail -n 12 /w/logs/$l.reloc.gates.log; reloc_bad=1; reloc_gates=FAILED
+  fi
+fi
+
 warn=$(cat /w/logs/$l.all.log /w/logs/$l.test.log 2>/dev/null | grep -c 'warning:')
 status=OK
-{ [ $rc_all -ne 0 ] || [ $rc_install -ne 0 ] || [ $rc_test -ne 0 ] || [ $rc_examples -ne 0 ] || [ $bad -ne 0 ] || [ $ex_bad -ne 0 ] || [ $progs -eq 0 ] || [ $warn -ne 0 ]; } && status=FAIL
-echo "SUMMARY $l status=$status warnings=$warn make(all=$rc_all install=$rc_install test=$rc_test examples=$rc_examples) programs=$progs tests=$tot passed=$pass skipped=$skip bad_programs=$bad examples(ran=$ex_ran skipped=$ex_skip failed=$ex_bad)"
+{ [ $rc_all -ne 0 ] || [ $rc_install -ne 0 ] || [ $rc_test -ne 0 ] || [ $rc_examples -ne 0 ] || [ $bad -ne 0 ] || [ $ex_bad -ne 0 ] || [ $progs -eq 0 ] || [ $warn -ne 0 ] || [ $skip_bad -ne 0 ] || [ $reloc_bad -ne 0 ]; } && status=FAIL
+echo "SUMMARY $l status=$status warnings=$warn make(all=$rc_all install=$rc_install test=$rc_test examples=$rc_examples) programs=$progs tests=$tot passed=$pass skipped=$skip(named=$skip_named) bad_programs=$bad examples(ran=$ex_ran skipped=$ex_skip failed=$ex_bad)$([ "$l" = runtime-heap ] && echo " relocating(programs=$reloc_progs tests=$reloc_tests gates=$reloc_gates)")"
 [ $status = OK ]

@@ -1,0 +1,14 @@
+# The tests that are skipped under wine, by name, each with the reason that makes it impossible by nature.
+# m1-lib.sh asserts the list both ways: a skip that is not here fails the run, and so does a test that is
+# here and ran.  "<library> <test program> <Suite.Name> <reason>"
+#
+# Nothing is skipped for want of fork: the walk-abort cases of runtime-core and the forked case of runtime-jit
+# run the test binary again as a child (tests/test_helpers.h, `run_in_child`).
+runtime-jit testArm64_emit Arm64Memory.ACompileOnArm64SyncsTheCacheOncePerCode the native backend is not arm64
+runtime-jit testAsm Asm.TheSystemDisassemblerReadsTheSameInstructions needs POSIX mkstemp/popen and a host objdump
+runtime-jit testAsm_arm64 AsmArm64.TheRecordedDisassemblyAgreesWithObjdumpWhenTheToolIsPresent GRJIT_AARCH64_OBJDUMP is a host tool
+runtime-jit testWin64 Win64Shape.TheProbeLoopDisassemblesAsTheSequenceItIsMeantToBe needs POSIX mkstemp/popen and a host objdump
+runtime-jit testWin64 Win64Registers.TheDisassemblerAgreesThatNoCalleeSavedRegisterAppears needs POSIX mkstemp/popen and a host objdump
+runtime-jit testWin64 Win64Memory.WithNothingToRegisterWithTheMappingIsMadeAndTheTableIsNotClaimed this target registers with the operating system
+runtime-debug testDap_session DapSession.OverASocketPairItIsTheSameTranscript descriptor transports do not exist on Windows (create_fd is a stub)
+runtime-debug testDap_session DapSession.OverLoopbackTcpTheTestBindsAndAcceptsItIsTheSameTranscript descriptor transports do not exist on Windows (create_fd is a stub)
