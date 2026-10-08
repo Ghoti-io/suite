@@ -18,7 +18,10 @@ trap 'rm -rf "$WORKDIR"' EXIT
 mkdir -p "$WORKDIR/bin"
 cat > "$WORKDIR/bin/podman" << 'EOF'
 #!/bin/sh
-printf '%s\n' "$*" >> "$FAKE_LOG"
+# The invoked name is the engine images.sh selected. This PATH has no
+# basename, so the name comes from $0.
+engine_name=${0##*/}
+printf '%s %s\n' "$engine_name" "$*" >> "$FAKE_LOG"
 case "$1" in
   images)
     if [ "${FAKE_RMI_FAIL:-0}" -eq 1 ]; then
@@ -57,7 +60,12 @@ case "$1" in
 esac
 EOF
 chmod +x "$WORKDIR/bin/podman"
+cp "$WORKDIR/bin/podman" "$WORKDIR/bin/docker"
+chmod +x "$WORKDIR/bin/docker"
 ln -s /usr/bin/grep "$WORKDIR/bin/grep"
+mkdir -p "$WORKDIR/docker-only"
+ln -s "$WORKDIR/bin/docker" "$WORKDIR/docker-only/docker"
+ln -s /usr/bin/grep "$WORKDIR/docker-only/grep"
 export FAKE_LOG=$LOG
 unset FAKE_RMI_FAIL || true
 
@@ -73,10 +81,14 @@ run() {
 
 echo "list"
 out=$(run)
-printf '%s\n' "$out" | grep -F 'localhost/ghoti-build:gcc16' >/dev/null
+printf '%s\n' "$out" | grep -F -x 'localhost/ghoti-build:gcc16' >/dev/null
+printf '%s\n' "$out" | grep -F -x 'docker.io/library/ghoti-build:gcc16' >/dev/null
 printf '%s\n' "$out" | grep -F 'ghoti-docs:doxygen-1.9.8' >/dev/null
 printf '%s\n' "$out" | grep -F 'ghoti-xarch:deb13' >/dev/null
 printf '%s\n' "$out" | grep -F 'ghoti-cap6-decoy:probe' >/dev/null
+if grep -q ' rmi ' "$LOG"; then
+  fail "list called rmi"
+fi
 printf '%s\n' "$out" | while IFS= read -r line; do
   [ -n "$line" ] || fail "blank list line"
   tag=${line##*:}
@@ -95,15 +107,29 @@ fi
 echo "narrow misses"
 for word in gotool python debian; do
   run --apply "$word" >/dev/null
-  if grep -q '^rmi ' "$LOG"; then
+  if grep -q ' rmi ' "$LOG"; then
     fail "--apply $word called rmi"
   fi
 done
 
+echo "apply all"
+run --apply >/dev/null
+rmi_lines=$(grep ' rmi ' "$LOG" || true)
+want=$(printf '%s\n' \
+  'podman rmi localhost/ghoti-build:gcc16' \
+  'podman rmi localhost/ghoti-docs:doxygen-1.9.8' \
+  'podman rmi docker.io/library/ghoti-build:gcc16' \
+  'podman rmi localhost:5000/team/ghoti-xarch:deb13' \
+  'podman rmi localhost/ghoti-cap6-decoy:probe')
+[ "$rmi_lines" = "$want" ] || fail "apply-all rmi was: $rmi_lines"
+if printf '%s\n' "$rmi_lines" | grep -E 'debian|python|gotool|gcc:14|<none>' >/dev/null; then
+  fail "apply-all removed a stock name or an untagged image"
+fi
+
 echo "decoy"
 run --apply ghoti-cap6-decoy >/dev/null
-rmi_lines=$(grep '^rmi ' "$LOG" || true)
-[ "$rmi_lines" = "rmi localhost/ghoti-cap6-decoy:probe" ] || fail "decoy rmi was: $rmi_lines"
+rmi_lines=$(grep ' rmi ' "$LOG" || true)
+[ "$rmi_lines" = "podman rmi localhost/ghoti-cap6-decoy:probe" ] || fail "decoy rmi was: $rmi_lines"
 if grep -q -- '--force' "$LOG"; then
   fail "decoy rmi used --force"
 fi
@@ -117,7 +143,7 @@ rc=$?
 set -e
 [ "$rc" -eq 1 ] || fail "newline narrow exited $rc"
 grep -F 'newline' "$WORKDIR/err" >/dev/null || fail "newline narrow did not say why"
-if grep -q '^rmi ' "$LOG"; then
+if grep -q ' rmi ' "$LOG"; then
   fail "newline narrow called rmi"
 fi
 
@@ -153,9 +179,27 @@ FAKE_RMI_FAIL=1 PATH="$WORKDIR/bin" /bin/sh "$SCRIPT" --apply ghoti-rmi-fail >/d
 rc=$?
 set -e
 [ "$rc" -eq 1 ] || fail "refused rmi exited $rc"
-[ "$(grep -c '^rmi ' "$LOG")" -eq 1 ] || fail "refused rmi was retried"
+[ "$(grep -c ' rmi ' "$LOG")" -eq 1 ] || fail "refused rmi was retried"
 if grep -q -- '--force' "$LOG"; then
   fail "refused rmi used --force"
+fi
+
+echo "docker only"
+: > "$LOG"
+PATH="$WORKDIR/docker-only" /bin/sh "$SCRIPT" --apply ghoti-cap6-decoy >/dev/null
+grep -q '^docker images ' "$LOG" || fail "docker-only listed with another engine"
+grep -q '^docker rmi localhost/ghoti-cap6-decoy:probe$' "$LOG" || fail "docker-only rmi was not docker"
+if grep -q '^podman ' "$LOG"; then
+  fail "docker-only called podman"
+fi
+
+echo "both engines"
+: > "$LOG"
+PATH="$WORKDIR/bin" /bin/sh "$SCRIPT" --apply ghoti-cap6-decoy >/dev/null
+grep -q '^podman images ' "$LOG" || fail "both engines listed with another engine"
+grep -q '^podman rmi localhost/ghoti-cap6-decoy:probe$' "$LOG" || fail "both engines rmi was not podman"
+if grep -q '^docker ' "$LOG"; then
+  fail "both engines called docker"
 fi
 
 echo "check-images: ok"
