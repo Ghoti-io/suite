@@ -35,3 +35,4 @@ vendor-sqlite https://github.com/Ghoti-io/vendor-sqlite.git master -
 defiant-storage https://github.com/Ghoti-io/defiant-storage.git master cutil,text,archive
 defiant-storage-memory https://github.com/Ghoti-io/defiant-storage-memory.git master defiant-storage
 defiant-storage-sqlite https://github.com/Ghoti-io/defiant-storage-sqlite.git master defiant-storage,vendor-sqlite
+defiant-core https://github.com/Ghoti-io/defiant-core.git master cutil,defiant-storage
