@@ -12,7 +12,11 @@
  * sizes; checks RFC 8448's resumed handshake (the PSK a ticket stands for, the
  * binder, and every secret after them), rebuilds the RFC's NewSessionTicket and
  * ServerHello with its PSK, and runs a real client and server through a full
- * handshake, a ticket and a resumption. It prints one line per check. The output is the same on every target
+ * handshake, a ticket and a resumption; and RFC 8448's 0-RTT trace (the early
+ * secret, key and IV, and the sealed early record and EndOfEarlyData) and a real
+ * client and server resuming with early data: delivered once and read apart
+ * from ordinary data, or, after a HelloRetryRequest, refused and handed back.
+ * It prints one line per check. The output is the same on every target
  * or something is wrong with that target, which is what the script compares;
  * the exit status is non-zero if any check failed.
  *
@@ -781,7 +785,62 @@ static void resumption_known_answers(const char * dir) {
   gtls_schedule_wipe(&s);
 }
 
-static void resume_loopback(const char * dir, GTLS_Suite suite, GTLS_Group group, size_t chunk, int retry) {
+static void early_known_answers(const char * dir) {
+  Vec v;
+  GTLS_Schedule s;
+  GTLS_RecordKeys k;
+  unsigned char th[32], key[GTLS_KEY_MAX], iv[GTLS_IV_LEN];
+  const unsigned char * hello;
+  const unsigned char * ikm;
+  size_t hn, n;
+
+  if (!load(&v, dir, "resumed")) {
+    failures++;
+    return;
+  }
+  hello = get(&v, "client.send-handshake-record.payload", &hn);
+  check(gsec_sha256(hello, hn, th) == GSEC_OK && same(&v, "client.derive-secret-tls13-c-e-traffic.hash", th, 32),
+      "early data: the transcript hash is the whole ClientHello");
+  ikm = get(&v, "client.extract-secret-early.ikm", &n);
+  check(gtls_schedule_early_psk(&s, GTLS_HASH_SHA256, ikm, 32) == GTLS_OK &&
+      gtls_schedule_early_traffic(&s, th) == GTLS_OK &&
+      same(&v, "client.derive-secret-tls13-c-e-traffic.expanded", s.c_e, 32), "early data: client_early_traffic_secret");
+  check(gtls_traffic_keys(GTLS_SUITE_AES_128_GCM_SHA256, s.c_e, key, iv) == GTLS_OK &&
+      same(&v, "client.derive-write-traffic-keys-for-early-application-data.key-expanded", key, 16) &&
+      same(&v, "client.derive-write-traffic-keys-for-early-application-data.iv-expanded", iv, GTLS_IV_LEN),
+      "early data: the key and IV of the early records");
+  check(gtls_record_keys_from_secret(&k, GTLS_SUITE_AES_128_GCM_SHA256, s.c_e, 0) == GTLS_OK &&
+      seal_expect(&k, &v, "client.send-application-data-record.complete-record",
+          "client.send-application-data-record.payload", GTLS_CT_APPLICATION_DATA) &&
+      seal_expect(&k, &v, "client.send-handshake-record@2.complete-record", "client.send-handshake-record@2.payload",
+          GTLS_CT_HANDSHAKE), "early data: the early record and EndOfEarlyData, sealed, the second under one key");
+  check(gtls_record_keys_from_secret(&k, GTLS_SUITE_AES_128_GCM_SHA256, s.c_e, 0) == GTLS_OK &&
+      open_expect(&k, &v, "client.send-application-data-record.complete-record",
+          "client.send-application-data-record.payload", GTLS_CT_APPLICATION_DATA) &&
+      open_expect(&k, &v, "client.send-handshake-record@2.complete-record", "client.send-handshake-record@2.payload",
+          GTLS_CT_HANDSHAKE), "early data: and opened in order");
+  {
+    GTLS_Buf b;
+    const unsigned char * eoed = get(&v, "client.construct-an-endofearlydata-handshake-message.endofearlydata", &n);
+
+    gtls_buf_init(&b, NULL, 64);
+    check(gtls_msg_build_end_of_early_data(&b) == GTLS_OK && b.len == n && memcmp(b.data, eoed, n) == 0,
+        "early data: EndOfEarlyData is the RFC's four bytes");
+    gtls_buf_free(&b);
+  }
+  gtls_schedule_wipe(&s);
+}
+
+static int probe_replay(void * user, const unsigned char id[32], int64_t issued, uint32_t age_ms) {
+  (void)user;
+  (void)id;
+  (void)issued;
+  (void)age_ms;
+  return 1;
+}
+
+static void resume_loopback(const char * dir, GTLS_Suite suite, GTLS_Group group, size_t chunk, int retry,
+    int early) {
   size_t leaf_len = 0, ca_len = 0, key_len = 0, i, round;
   unsigned char * leaf = slurp(dir, "ed-leaf.der", &leaf_len);
   unsigned char * ca = slurp(dir, "ed-ca.der", &ca_len);
@@ -843,6 +902,11 @@ static void resume_loopback(const char * dir, GTLS_Suite suite, GTLS_Group group
   tk.not_after = 1700100000;
   sc.ticket_keys = &tk;
   sc.ticket_key_count = 1;
+  if (early) {
+    cc.max_early_data = 1000;
+    sc.max_early_data = 1000;
+    sc.anti_replay = probe_replay;
+  }
   gtls_context_new(NULL, &cc, &cctx);
   gtls_context_new(NULL, &sc, &sctx);
   for (round = 0; round < 2; round++) {
@@ -854,6 +918,14 @@ static void resume_loopback(const char * dir, GTLS_Suite suite, GTLS_Group group
     }
     gtls_conn_start(c);
     gtls_conn_start(s);
+    if (early && round == 1) {
+      unsigned char eb[300];
+
+      for (i = 0; i < sizeof eb; i++) {
+        eb[i] = (unsigned char)(i * 13 + 5);
+      }
+      check(gtls_conn_write_early(c, eb, sizeof eb, &w) == GTLS_OK && w == sizeof eb, "early data is written");
+    }
     for (i = 0; i < 100; i++) {
       int a = carry(c, s, chunk, NULL, NULL);
       int b = carry(s, c, chunk, NULL, NULL);
@@ -863,6 +935,29 @@ static void resume_loopback(const char * dir, GTLS_Suite suite, GTLS_Group group
       }
     }
     check(gtls_conn_is_connected(c) && gtls_conn_is_connected(s), round == 0 ? "a full handshake with a ticket" : "a resumed handshake");
+    if (early && round == 1) {
+      unsigned char eb[300], got[400];
+      size_t gn = 0, rn = 0;
+      GTLS_EarlyStatus cs = GTLS_EARLY_NONE, ss = GTLS_EARLY_NONE;
+      GTLS_Result cr = gtls_conn_early_status(c, &cs);
+
+      for (i = 0; i < sizeof eb; i++) {
+        eb[i] = (unsigned char)(i * 13 + 5);
+      }
+      (void)gtls_conn_early_status(s, &ss);
+      if (retry) {
+        check(cr == GTLS_ERR_EARLY_REJECTED && cs == GTLS_EARLY_REJECTED && ss == GTLS_EARLY_REJECTED,
+            "early data after a retry: refused, and the client is told");
+        check(gtls_conn_early_resend(c, got, sizeof got, &rn) == GTLS_OK && rn == sizeof eb && memcmp(got, eb, rn) == 0,
+            "early data after a retry: handed back");
+        check(gtls_conn_read_early(s, got, sizeof got, &gn) == GTLS_OK && gn == 0, "early data after a retry: none delivered");
+      } else {
+        check(cr == GTLS_OK && cs == GTLS_EARLY_ACCEPTED && ss == GTLS_EARLY_ACCEPTED, "early data: accepted by both");
+        check(gtls_conn_read_early(s, got, sizeof got, &gn) == GTLS_OK && gn == sizeof eb && memcmp(got, eb, gn) == 0,
+            "early data: delivered through the early read");
+        check(gtls_conn_read_early(s, got, sizeof got, &gn) == GTLS_OK && gn == 0, "early data: once");
+      }
+    }
     check(gtls_conn_resumed(c) == (int)round && gtls_conn_resumed(s) == (int)round, round == 0 ? "is not resumed" : "is resumed on both ends");
     check(gtls_conn_retried(c) == retry, "with or without a retry");
     check(gtls_conn_session_count(c) == 1, "and a ticket arrives");
@@ -946,12 +1041,26 @@ int main(int argc, char ** argv) {
     for (i = 0; i < 3; i++) {
       for (j = 0; j < 3; j++) {
         printf("-- resumption, suite %zu, group %zu, feed size 5\n", i, j);
-        resume_loopback(dir, suites[i], groups[j], 5, 0);
+        resume_loopback(dir, suites[i], groups[j], 5, 0, 0);
       }
     }
     printf("-- resumption after a HelloRetryRequest, whole and one byte at a time\n");
-    resume_loopback(dir, GTLS_SUITE_AES_256_GCM_SHA384, GTLS_GROUP_X25519, 0, 1);
-    resume_loopback(dir, GTLS_SUITE_CHACHA20_POLY1305_SHA256, GTLS_GROUP_X25519, 1, 1);
+    resume_loopback(dir, GTLS_SUITE_AES_256_GCM_SHA384, GTLS_GROUP_X25519, 0, 1, 0);
+    resume_loopback(dir, GTLS_SUITE_CHACHA20_POLY1305_SHA256, GTLS_GROUP_X25519, 1, 1, 0);
+    printf("-- RFC 8448's 0-RTT trace\n");
+    early_known_answers(dir);
+    for (i = 0; i < 3; i++) {
+      for (j = 0; j < 3; j++) {
+        printf("-- early data, suite %zu, group %zu, feed size 5\n", i, j);
+        resume_loopback(dir, suites[i], groups[j], 5, 0, 1);
+      }
+    }
+    printf("-- early data, whole and one byte at a time\n");
+    resume_loopback(dir, GTLS_SUITE_AES_128_GCM_SHA256, GTLS_GROUP_X25519, 0, 0, 1);
+    resume_loopback(dir, GTLS_SUITE_CHACHA20_POLY1305_SHA256, GTLS_GROUP_SECP256R1, 1, 0, 1);
+    printf("-- early data refused after a HelloRetryRequest, whole and one byte at a time\n");
+    resume_loopback(dir, GTLS_SUITE_AES_256_GCM_SHA384, GTLS_GROUP_X25519, 0, 1, 1);
+    resume_loopback(dir, GTLS_SUITE_CHACHA20_POLY1305_SHA256, GTLS_GROUP_X25519, 1, 1, 1);
   }
   printf("%d checks failed\n", failures);
   return failures == 0 ? 0 : 1;

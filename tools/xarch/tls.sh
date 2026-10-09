@@ -31,7 +31,10 @@
 #      binder, every secret after them, the NewSessionTicket and the ServerHello
 #      with its PSK, rebuilt byte for byte) and a real client and server through
 #      a full handshake, a ticket and a resumption, for each suite and group and
-#      after a retry.
+#      after a retry; then RFC 8448's 0-RTT trace (the early secret, key and IV,
+#      the sealed early record and EndOfEarlyData) and the same resumptions with
+#      early data, delivered once through the early read, or refused after a retry
+#      and handed back.
 #   3. Runs it under qemu-user (the host's directly) and requires every
 #      target's output to be IDENTICAL to the host's, byte for byte, apart from
 #      the size_t line, and every check on it to hold. That is the key schedule,
@@ -179,7 +182,7 @@ build_deps x86_64-linux-gnu gcc && build x86_64-linux-gnu gcc || { echo "FAIL: c
 run x86_64-linux-gnu x86_64-linux-gnu "" || { fail "the host's own run failed"; tail -n 5 "$B/x86_64-linux-gnu/probe.out"; tail -n 5 "$B/x86_64-linux-gnu/probe.err"; exit 1; }
 checks=$(grep -c '^ok' "$B/x86_64-linux-gnu/probe.out")
 echo "   $checks checks hold on the host; $(tail -1 "$B/x86_64-linux-gnu/probe.out")"
-[ "$checks" -ge 390 ] || { fail "only $checks checks ran on the host: the probe measured less than it says"; exit 1; }
+[ "$checks" -ge 650 ] || { fail "only $checks checks ran on the host: the probe measured less than it says"; exit 1; }
 grep -q '^FAIL' "$B/x86_64-linux-gnu/probe.out" && { fail "a check failed on the host"; exit 1; }
 
 one() {
@@ -239,6 +242,9 @@ plant planted-nonce "no sequence in the nonce" src/record/record.c 'nonce[GTLS_I
 echo
 echo "== the control: a PSK binder derived under the wrong label, on aarch64"
 plant planted-binder "wrong binder label" src/schedule/schedule.c '"res binder"' '"res binderx"'
+
+echo "== the control: the early traffic secret derived under another label, on aarch64"
+plant planted-early "wrong early label" src/schedule/schedule.c '"c e traffic"' '"c e traffiq"'
 
 echo
 [ $status -eq 0 ] && echo "PASS: every target answers the RFC 8448 traces as the host does, and the planted defects are caught" || echo "FAIL"

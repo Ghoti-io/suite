@@ -61,7 +61,7 @@ run_tests() {          # $1 = library, $2 = the count it must be
 
 echo
 echo "=== tls's unit tests, under wine (make test, the gates cleared: they are Linux's)"
-run_tests tls 543
+run_tests tls 607
 
 echo
 echo "=== the control: a client handshake traffic secret derived under the server's label"
@@ -112,5 +112,21 @@ if [ $? -eq 0 ]; then
 fi
 grep -E '^\[  FAILED  \] [A-Za-z]' /w/logs/tls-planted-binder.test.log | head -3
 echo "caught: RFC 8448's resumed trace and the resumption loopbacks fail over the planted copy"
+echo
+echo "=== the control: the early traffic secret derived under another label"
+d=/w/tls-planted-early
+rm -rf $d; mkdir -p $d && (cd /w/tls && tar cf - --exclude=./build .) | (cd $d && tar xf -) || die "cannot copy the tree"
+f=$d/src/schedule/schedule.c
+grep -q '"c e traffic"' $f || die "the anchor for the planted early defect is not in schedule.c (stale patch)"
+sed -i 's|"c e traffic"|"c e traffiq"|' $f
+cmp -s $f /w/tls/src/schedule/schedule.c && die "the planted copy equals the original"
+( cd $d && make -j4 PREFIX=$P all > /w/logs/tls-planted-early.build.log 2>&1 ) \
+  || { tail -20 /w/logs/tls-planted-early.build.log >&2; die "the planted early copy did not build"; }
+( cd $d && make PREFIX=$P test TEST_GATES= > /w/logs/tls-planted-early.test.log 2>&1 )
+if [ $? -eq 0 ]; then
+  die "the planted early defect was NOT caught: the tests pass over an early secret derived under the wrong label"
+fi
+grep -E '^\[  FAILED  \] [A-Za-z]' /w/logs/tls-planted-early.test.log | head -3
+echo "caught: RFC 8448's 0-RTT trace and the early-data loopbacks fail over the planted copy"
 echo
 echo "PASS"
