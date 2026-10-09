@@ -297,3 +297,22 @@ Content-Length with Transfer-Encoding and an unmasked-client-frame WebSocket
 server to see the matching suites go red under qemu. The plain `ghoti-xarch`
 image has no C++ cross compiler, which is why the seven-target run is a probe
 and not `make test`.
+
+## `tls`: `tls-host.sh` and `tls.sh` (libs/tls, 2026-10-07)
+
+```bash
+suite/tools/xarch/tls-host.sh [scratch-dir]      # default /tmp/tls-xarch
+```
+
+`tls-host.sh` stages cutil, security, certificate and tls **as committed** (`git
+archive HEAD`, because another session may be mid-edit in one of them) and runs
+`tls.sh` in this image. `tls.sh` compiles all the sources of the four libraries
+for each of the seven targets, with each library's own flags and `-Werror`, and
+links `tls-probe.c`, which drives RFC 8448's traces (the client's handshake,
+HelloRetryRequest, the record layer, the server's flight, the resumed handshake
+and the 0-RTT one), a real client against a real server, tickets, resumption and
+early data, then requires **every target's output to equal the host's byte for
+byte** and every check on it to hold; planted defects on aarch64 must each make
+the comparison fail. It is not `make test`: the probe is a program, not the unit
+tests, because the plain image has no C++ cross compiler.
+

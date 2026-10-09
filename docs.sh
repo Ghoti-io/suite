@@ -122,7 +122,8 @@ names = {
     "color": "Color", "archive": "Archive", "audio": "Audio",
     "runtime-core": "Runtime-core", "runtime-heap": "Runtime-heap",
     "runtime-debug": "Runtime-debug", "runtime-jit": "Runtime-jit",
-    "lang-tang": "Lang-tang",
+    "lang-tang": "Lang-tang", "certificate": "Certificate", "tls": "TLS",
+    "http": "HTTP",
 }
 
 exclude = {}

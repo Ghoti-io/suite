@@ -45,6 +45,16 @@ INPUT                  = suite/suite.md \
                          libs/security/documentation \
                          libs/security/examples \
                          libs/security/CONTRIBUTING.md \
+                         libs/certificate/include \
+                         libs/certificate/src \
+                         libs/certificate/documentation \
+                         libs/certificate/examples \
+                         libs/certificate/CONTRIBUTING.md \
+                         libs/tls/include \
+                         libs/tls/src \
+                         libs/tls/documentation \
+                         libs/tls/examples \
+                         libs/tls/CONTRIBUTING.md \
                          libs/unicode/include \
                          libs/unicode/src \
                          libs/unicode/documentation \

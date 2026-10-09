@@ -13,6 +13,7 @@ Clone the libraries, build them, and build this manual from
 | --- | --- |
 | [Archive](@ref archive) | Tar, read and written: v7, ustar, GNU, and pax, from a file or a pipe, with member names classified rather than rewritten. Zip, read and written, stored and deflate, plus zstd and ZipCrypto on read. |
 | [Audio](@ref audio) | WAV, AIFF, and FLAC, read and written, with tags and cover art; MPEG audio and Vorbis, read; Opus identified. |
+| [Certificate](@ref certificate) | Strict DER, PEM, PKCS#8 and PKCS#12; X.509 with path validation and issuance, a certificate revocation list, and a basic OCSP response; and what a verifier builds on them: a trust store, path building, RFC 9525 name verification and private keys that sign by scheme. |
 | [Chron](@ref chron) | Civil time, calendars, instants, durations, time zones, and the text formats for them. |
 | [CJelly](@ref cjelly) | A Vulkan GUI: native windows, and a renderer for panels, an image, and a Wavefront model. |
 | [Color](@ref color) | A colour engine: a colour described exactly, an ICC profile parsed and written, and samples transformed between two spaces, including CMYK LUT profiles and PQ/HLG. |
@@ -30,6 +31,7 @@ Clone the libraries, build them, and build this manual from
 | [Runtime-jit](@ref runtime-jit) | The baseline JIT of the language runtime stack: a low-level IR with a builder, a verifier and a printer, an x86-64 backend (System V, and Microsoft x64 with its unwind information registered) and an arm64 backend, each with its own assembler, and the stack maps and deoptimization records it emits in runtime-core's format, in pages taken from a context's counting page provider and never writable and executable at once. |
 | [Security](@ref security_library) | SHA-256, SHA-384, SHA-512, SHA-1, and MD5, with HMAC, HKDF, and PBKDF2; AES, ChaCha20-Poly1305, Triple DES, RC2, and RC4; X25519, Ed25519, P-256, P-384, and RSA; Argon2, scrypt, and bcrypt; and DER, PEM, PKCS#8, PKCS#12, X.509, a certificate revocation list, and a basic OCSP response. |
 | [Text](@ref text) | JSON, including JSON Schema, and CSV, YAML, TOML, and INI. |
+| [TLS](@ref tls) | TLS 1.3 as a state machine over buffers, for both roles, with no I/O and no clock: the record layer over a byte stream, or handshake messages by epoch with the traffic secrets for QUIC; session tickets and resumption, and early data. Built on Certificate and Security. |
 | [Unicode](@ref unicode) | Character properties, the four normalisation forms, segmentation, the bidirectional algorithm, case mapping, and character names. |
 
 The size of each library, the tests its build lists, and the versions its

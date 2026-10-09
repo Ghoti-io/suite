@@ -334,3 +334,21 @@ asks of Win64:
 
 Wine's `ntdll` is wine's own: none of this says what a real Windows kernel's
 exception dispatch or guard-page growth does.
+
+
+## `tls`: `tls.sh` (libs/tls, 2026-10-07)
+
+```bash
+suite/tools/xwin/tls.sh [scratch-dir]            # default /tmp/xwin-tls
+```
+
+Cross-builds cutil, security, certificate and tls for win64 **with their own
+Makefiles** (each taken as committed, `git archive HEAD`) and runs tls's unit
+tests under wine through `m1-win.sh`; `tls-win.sh` is the part that runs inside
+`ghoti-cross-mingw64:deb13`. It requires the DLL to carry the `dllexport` arm of
+`GTLS_API`, every unit test to pass (the count is in `tls-win.sh`, which this run
+holds to the host's), and each of a handful of planted defects (the key schedule,
+the record nonce, the PSK binder, the early secret's label) to be caught by the
+same run. Wine's `bcrypt.dll` and sockets are wine's own: none of it says what a
+real Windows machine does.
+
