@@ -79,7 +79,7 @@ SUITE_LIBS="runtime-core runtime-heap runtime-debug runtime-jit"
 # lang-tang's JIT arm: testJit on its own, then these with
 # GLTANG_TEST_JIT_THRESHOLD=1 (the Makefile's TORTURE_BOUNDED, the list its
 # `make test` runs in the JIT arm; it includes the execution corpus).
-LANG_TANG_THRESHOLD_TESTS="testExecute_simple testExecute_complex testEngine testCompile testLibrary testRandom testErrors testTemplate testGen testObserver testNative_gate testExec_corpus testJit_calls"
+LANG_TANG_THRESHOLD_TESTS="testExecute_simple testExecute_complex testEngine testCompile testLibrary testRandom testErrors testTemplate testGen testObserver testNative_gate testExec_corpus testJit_calls testNative_calls"
 
 fail() { printf '\njit-arm64: FAIL: %s\n' "$*" >&2; exit 1; }
 say() { printf '%s\n' "$*"; }
@@ -515,9 +515,10 @@ run_suites() { # <arch>
 
   heading "lang-tang: the JIT arm ($arch)"
   # shellcheck disable=SC2086
-  build_tests lang-tang testJit testJit_calls $LANG_TANG_THRESHOLD_TESTS
+  build_tests lang-tang testJit testJit_calls testNative_calls $LANG_TANG_THRESHOLD_TESTS
   run_binary "$arch" lang-tang testJit
   run_binary "$arch" lang-tang testJit_calls
+  run_binary "$arch" lang-tang testNative_calls
   for n in $LANG_TANG_THRESHOLD_TESTS; do
     run_binary "$arch" lang-tang "$n" GLTANG_TEST_JIT_THRESHOLD=1
   done
