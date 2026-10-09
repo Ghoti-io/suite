@@ -29,3 +29,5 @@ runtime-heap https://github.com/Ghoti-io/runtime-heap.git master cutil,runtime-c
 runtime-debug https://github.com/Ghoti-io/runtime-debug.git master cutil,text,runtime-core
 runtime-jit https://github.com/Ghoti-io/runtime-jit.git master cutil,runtime-core
 lang-tang https://github.com/Ghoti-io/lang-tang.git master cutil,unicode,runtime-core,runtime-heap,runtime-jit,runtime-debug,text,ctang
+defiant-storage https://github.com/Ghoti-io/defiant-storage.git master cutil,text,archive
+defiant-storage-memory https://github.com/Ghoti-io/defiant-storage-memory.git master defiant-storage
