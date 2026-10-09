@@ -61,7 +61,7 @@ run_tests() {          # $1 = library, $2 = the count it must be
 
 echo
 echo "=== tls's unit tests, under wine (make test, the gates cleared: they are Linux's)"
-run_tests tls 526
+run_tests tls 543
 
 echo
 echo "=== the control: a client handshake traffic secret derived under the server's label"
