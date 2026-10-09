@@ -4,7 +4,9 @@
 # must appear on an earlier line.
 #
 # Remotes are https so a clone does not need an ssh key. The remote inside
-# a checkout is named upstream.
+# a checkout is named upstream. The workspace's clone-all.sh, pull-all.sh and
+# push-all.sh rewrite a Ghoti-io https upstream to git@github.com, because a
+# push from this tree uses an ssh key. The URL on this line stays https.
 
 cutil      https://github.com/Ghoti-io/cutil.git      master -
 security   https://github.com/Ghoti-io/security.git   master cutil
