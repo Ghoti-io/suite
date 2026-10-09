@@ -32,3 +32,4 @@ lang-tang https://github.com/Ghoti-io/lang-tang.git master cutil,unicode,runtime
 vendor-sqlite https://github.com/Ghoti-io/vendor-sqlite.git master -
 defiant-storage https://github.com/Ghoti-io/defiant-storage.git master cutil,text,archive
 defiant-storage-memory https://github.com/Ghoti-io/defiant-storage-memory.git master defiant-storage
+defiant-storage-sqlite https://github.com/Ghoti-io/defiant-storage-sqlite.git master defiant-storage,vendor-sqlite
