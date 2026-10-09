@@ -105,6 +105,7 @@ SKIPPED_BY_FILTER_AARCH64_RELOC=(
 SKIPPED_BY_TEST_AARCH64=(
   "runtime-jit|testWin64|Win64Shape.TheProbeLoopDisassemblesAsTheSequenceItIsMeantToBe|reads the Win64 prologue back through an x86-64 objdump run by popen(), which a guest under qemu-user has none of; the x86-64 control build runs it"
   "runtime-jit|testWin64|Win64Registers.TheDisassemblerAgreesThatNoCalleeSavedRegisterAppears|the same objdump, over the bytes of 200 generated functions; the x86-64 control build runs it"
+  "runtime-jit|testWin64_calls|Win64Calls.TheDisassemblerAgreesThatNoCalleeSavedRegisterAppearsInAnyGeneratedCallableFunction|the same objdump, over the bytes of every generated callable function; the x86-64 control build runs it"
   "runtime-jit|testAsm_arm64|AsmArm64.TheRecordedDisassemblyAgreesWithObjdumpWhenTheToolIsPresent|needs the cross objdump through popen(), which qemu-user cannot run; the x86-64 control build (GRJIT_AARCH64_OBJDUMP set) re-checks every recorded encoding with it"
 )
 SKIPPED_BY_TEST_X86_64=(
