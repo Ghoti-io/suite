@@ -718,6 +718,7 @@ static void resumption_known_answers(const char * dir) {
   Vec simple, resumed;
   unsigned char psk[GTLS_HASH_MAX], out[GTLS_HASH_MAX], key[GTLS_HASH_MAX], th[GTLS_HASH_MAX];
   GTLS_Schedule s;
+  GTLS_MacScratch mac;
   static const unsigned char nonce[2] = {0, 0};
   size_t n;
   const unsigned char * p;
@@ -726,6 +727,7 @@ static void resumption_known_answers(const char * dir) {
     failures++;
     return;
   }
+  memset(&mac, 0, sizeof mac);
   p = get(&simple, "client.derive-secret-tls13-res-master.expanded", &n);
   check(gtls_resumption_psk(GTLS_HASH_SHA256, p, nonce, sizeof nonce, psk) == GTLS_OK &&
       same(&resumed, "client.extract-secret-early.ikm", psk, 32), "resumption: the PSK a ticket stands for");
@@ -735,11 +737,11 @@ static void resumption_known_answers(const char * dir) {
       "resumption: the binder key");
   p = get(&resumed, "client.calculate-psk-binder.binder-hash", &n);
   memcpy(th, p, n);
-  check(gtls_binder_compute(GTLS_HASH_SHA256, psk, 32, th, out) == GTLS_OK &&
+  check(gtls_binder_compute(GTLS_HASH_SHA256, psk, 32, th, out, &mac) == GTLS_OK &&
       same(&resumed, "client.calculate-psk-binder.finished", out, 32), "resumption: the binder");
-  check(gtls_binder_check(GTLS_HASH_SHA256, psk, 32, th, out, 32) == GTLS_OK, "resumption: the binder checks");
+  check(gtls_binder_check(GTLS_HASH_SHA256, psk, 32, th, out, 32, &mac) == GTLS_OK, "resumption: the binder checks");
   out[31] ^= 1;
-  check(gtls_binder_check(GTLS_HASH_SHA256, psk, 32, th, out, 32) == GTLS_ERR_MISMATCH, "resumption: a changed binder does not");
+  check(gtls_binder_check(GTLS_HASH_SHA256, psk, 32, th, out, 32, &mac) == GTLS_ERR_MISMATCH, "resumption: a changed binder does not");
   p = get(&resumed, "server.derive-secret-tls13-c-hs-traffic.hash", &n);
   memcpy(th, p, n);
   check(gtls_schedule_handshake(&s, get(&resumed, "server.extract-secret-handshake.ikm", &n), 32, th) == GTLS_OK &&
