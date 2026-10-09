@@ -317,6 +317,12 @@ run_binary() { # <arch> <lib> <name> [VAR=value ...]
   local passed
   passed=$(printf '%s\n' "$out" | sed -n 's/^\[  PASSED  \] \([0-9]*\) test.*/\1/p' | tail -1)
   passed=${passed:-0}
+  # runtime-core/testChild holds Windows-only tests (the child-process helper), so
+  # on Linux it is a binary with no tests by design; every other empty one is a failure.
+  if [ "$lib/$name" = "runtime-core/testChild" ] && printf '%s\n' "$out" | grep -q 'Running 0 tests'; then
+    printf '  %-36s Windows-only, no tests on Linux\n' "$shown/$name"
+    return 0
+  fi
   [ "$passed" -gt 0 ] || fail "$lib/$name exited 0 having passed no tests: a binary that ran nothing is not a pass"
   PASSED_TESTS=$((PASSED_TESTS + passed))
   RAN=$((RAN + 1))
