@@ -12,6 +12,20 @@ runtime-jit testWin64 Win64Shape.TheProbeLoopDisassemblesAsTheSequenceItIsMeantT
 runtime-jit testWin64 Win64Registers.TheDisassemblerAgreesThatNoCalleeSavedRegisterAppears needs POSIX mkstemp/popen and a host objdump
 runtime-jit testWin64_calls Win64Calls.TheDisassemblerAgreesThatNoCalleeSavedRegisterAppearsInAnyGeneratedCallableFunction needs POSIX mkstemp/popen and a host objdump
 runtime-jit testWin64 Win64Memory.WithNothingToRegisterWithTheMappingIsMadeAndTheTableIsNotClaimed this target registers with the operating system
+runtime-jit testInt_ir IntRun.EveryOperationGivesTheWorkedAnswerAndAnI32ResultIsZeroExtended the integer IR's compiled path is Linux x86-64 only until story 5 of the float spec (the test skips itself elsewhere)
+runtime-jit testInt_ir IntRun.EveryOperationAtEveryWidthAgreesWithTheEvaluatorOnTheBoundaryValues the integer IR's compiled path is Linux x86-64 only until story 5 of the float spec (the test skips itself elsewhere)
+runtime-jit testInt_ir IntRun.DivideByZeroAndSignedOverflowFireTheirGuardsAndMinRemMinusOneIsZero the integer IR's compiled path is Linux x86-64 only until story 5 of the float spec (the test skips itself elsewhere)
+runtime-jit testInt_ir IntRun.AnI32EntersAndLeavesAsItsLow32BitsWhateverTheCallerLeftAbove the integer IR's compiled path is Linux x86-64 only until story 5 of the float spec (the test skips itself elsewhere)
+runtime-jit testInt_ir IntRun.AnI32LoadedFromMemoryAndStoredToItIsItsLow32Bits the integer IR's compiled path is Linux x86-64 only until story 5 of the float spec (the test skips itself elsewhere)
+runtime-jit testInt_ir IntRun.AHelperResultReceivedAsAnI32IsItsLow32Bits the integer IR's compiled path is Linux x86-64 only until story 5 of the float spec (the test skips itself elsewhere)
+runtime-jit testInt_ir IntRun.AnI32InAFrameStateIsRecordedWithTheRepresentationI32AndAnI64WithBits the integer IR's compiled path is Linux x86-64 only until story 5 of the float spec (the test skips itself elsewhere)
+runtime-jit testInt_ir IntRun.ABranchOnAnI32AndAGuardOnOneReadTheWholeWord the integer IR's compiled path is Linux x86-64 only until story 5 of the float spec (the test skips itself elsewhere)
+runtime-jit testInt_ir IntCalls.AnI32GoesThroughACallInARegisterAndOnTheStackAndComesBackZeroExtended the integer IR's compiled path is Linux x86-64 only until story 5 of the float spec (the test skips itself elsewhere)
+runtime-jit testInt_ir IntCalls.AnI32GoesThroughATailCallInARegisterAndOnTheStack the integer IR's compiled path is Linux x86-64 only until story 5 of the float spec (the test skips itself elsewhere)
+runtime-jit testInt_ir IntCalls.AnI32GoesThroughACallPtrAndATailCallPtrInARegisterAndOnTheStack the integer IR's compiled path is Linux x86-64 only until story 5 of the float spec (the test skips itself elsewhere)
+runtime-jit testInt_ir IntRun.AnI32LiveAcrossAPollACallAndANativeIsRawInTheFrameStateAndNeverInTheStackMap the integer IR's compiled path is Linux x86-64 only until story 5 of the float spec (the test skips itself elsewhere)
+runtime-jit testDifferential Differential.GeneratedIntegerProgramsRunTheSameCompiledAndEvaluated the integer IR's compiled path is Linux x86-64 only until story 5 of the float spec (the test skips itself elsewhere)
+runtime-jit testWast Wast.TheComparisonIsOfTheWholeWordNotOfTheLowHalf the integer IR's compiled path is Linux x86-64 only until story 5 of the float spec (the test skips itself elsewhere)
 runtime-debug testDap_session DapSession.OverASocketPairItIsTheSameTranscript descriptor transports do not exist on Windows (create_fd is a stub)
 runtime-debug testDap_session DapSession.OverLoopbackTcpTheTestBindsAndAcceptsItIsTheSameTranscript descriptor transports do not exist on Windows (create_fd is a stub)
 # lang-tang: what needs fork, a descriptor transport or an RLIMIT_AS-style cap stays skipped and named.
