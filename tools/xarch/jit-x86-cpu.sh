@@ -327,7 +327,10 @@ plant_defects() {
   while IFS= read -r line; do
     case "$line" in ''|'#'*) continue ;; esac
     IFS='|' read -r id bug test filter defs model what <<<"$line"
-    local entry m_stamp bits ln tn pc rs m_crossed=0
+    # Locals are declared once per call of the function, not per iteration: reset every one that the lookup below
+    # fills, or a model absent from the table would pass on the previous iteration's values.
+    local entry m_stamp bits ln tn pc rs
+    entry=""; m_stamp=""; bits=""; ln=""; tn=""; pc=""; rs=""
     for entry in "${MODELS[@]}"; do
       [ "${entry%%|*}" = "$model" ] && IFS='|' read -r _ m_stamp bits ln tn pc rs <<<"$entry"
     done
