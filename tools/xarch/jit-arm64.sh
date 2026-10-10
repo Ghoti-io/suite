@@ -146,6 +146,19 @@ SKIPPED_BY_TEST_AARCH64=(
 )
 SKIPPED_BY_TEST_X86_64=(
   "runtime-jit|testArm64_emit|Arm64Memory.ACompileOnArm64SyncsTheCacheOncePerCode|the native backend of this build is x86-64; the AArch64 build runs it"
+  "runtime-jit|testCpu_features|CpuDetect.TheDetectedSetIsTheCpuinfoFlagsOfTheHostWhenThatFileIsTheHostsOwn|the CPU-feature arms are x86-64 only (the test skips itself where the native backend has no feature arm); the x86-64 control build runs it"
+  "runtime-jit|testCpu_features|CpuRecord.TheRecordedSetIsExactlyTheArmsEmittedUnderEverySubsetOfTheHostsFeatures|the CPU-feature arms are x86-64 only (the test skips itself where the native backend has no feature arm); the x86-64 control build runs it"
+  "runtime-jit|testCpu_features|CpuRecord.AMaskOfReservedBitsChangesNothingAndAFullMaskIsV1|the CPU-feature arms are x86-64 only (the test skips itself where the native backend has no feature arm); the x86-64 control build runs it"
+  "runtime-jit|testCpu_features|CpuReuse.CodeRunsWhereItsRecordedSetIsASubsetOfTheRunningOneAndNowhereElse|the CPU-feature arms are x86-64 only (the test skips itself where the native backend has no feature arm); the x86-64 control build runs it"
+  "runtime-jit|testCpu_features|CpuRun.TheWorkedAnswersOfTheIntegerOperationsAreTheSameUnderEverySubsetOfTheHostsFeatures|the CPU-feature arms are x86-64 only (the test skips itself where the native backend has no feature arm); the x86-64 control build runs it"
+  "runtime-jit|testCpu_features|CpuRun.TheWorkedAnswersOfTheRoundingsAreTheSameUnderEverySubsetOfTheHostsFeatures|the CPU-feature arms are x86-64 only (the test skips itself where the native backend has no feature arm); the x86-64 control build runs it"
+  "runtime-jit|testCpu_features|CpuRun.TheV1ArmGivesTheWorkedAnswersOnAHostThatHasTheFeaturesBecauseItsMaskedOff|the CPU-feature arms are x86-64 only (the test skips itself where the native backend has no feature arm); the x86-64 control build runs it"
+  "runtime-jit|testCpu_features|CpuRun.EveryFeatureDependentOperationGivesTheEvaluatorsAnswersUnderEverySubsetAndEveryMaskAgrees|the CPU-feature arms are x86-64 only (the test skips itself where the native backend has no feature arm); the x86-64 control build runs it"
+  "runtime-jit|testCpu_features|CpuModel.TheDetectedSetIsTheOneTheRunExpectsAndTheNativeRunExpectsTheHostsOwn|the CPU-feature arms are x86-64 only (the test skips itself where the native backend has no feature arm); the x86-64 control build runs it"
+  "runtime-jit|testCpu_features|CpuModel.CodeCompiledForTheDetectedSetIsRightWhereTheModelsInstructionsBehaveAsItsBitsSay|the CPU-feature arms are x86-64 only (the test skips itself where the native backend has no feature arm); the x86-64 control build runs it"
+  "runtime-jit|testCpu_features|CpuModel.AnArmForcedOntoACpuRunsAsTheInstructionTheCpuHasAndALackingOneRunsAsTheBitScan|the CPU-feature arms are x86-64 only (the test skips itself where the native backend has no feature arm); the x86-64 control build runs it"
+  "runtime-jit|testCpu_features|CpuModel.AForcedArmOfAFeatureTheHostHasRunsItsInstruction|the CPU-feature arms are x86-64 only (the test skips itself where the native backend has no feature arm); the x86-64 control build runs it"
+  "runtime-jit|testCpu_features|CpuSkips.OnAHostWithEveryFeatureNothingWasSkippedForAMissingOne|the CPU-feature arms are x86-64 only (the test skips itself where the native backend has no feature arm); the x86-64 control build runs it"
 )
 
 # ---- Helpers ------------------------------------------------------------------
