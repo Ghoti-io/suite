@@ -316,3 +316,36 @@ byte** and every check on it to hold; planted defects on aarch64 must each make
 the comparison fail. It is not `make test`: the probe is a program, not the unit
 tests, because the plain image has no C++ cross compiler.
 
+
+## CPU features under qemu CPU models: `jit-x86-cpu.sh` (runtime-jit, 2026-10-10)
+
+`libs/runtime-jit` uses SSE4.1 (`roundsd`), POPCNT, LZCNT and BMI1 (`tzcnt`) where it detects them. On a CPU
+without LZCNT or BMI1 the instructions do not fault: they run as `bsr` and `bsf`, with other answers, so a wrong
+detection gives wrong results and only a CPU that lacks the feature can show it. This runs the library's
+`testCpu_features` under `qemu-x86_64 -cpu <model>` in the same image as `jit-arm64.sh`, which already has
+`qemu-x86_64`, `g++`, `pkg-config` and googletest for x86-64.
+
+```bash
+mkdir -p /tmp/xarch-x86-cpu
+podman run --rm -v "$PWD:/work:ro,z" -v /tmp/xarch-x86-cpu:/scratch:z \
+  ghoti-xarch-arm64-jit:deb13-gxx14-gtest bash /work/suite/tools/xarch/jit-x86-cpu.sh
+```
+
+Seven models: `qemu64` (none of the four), `Nehalem` (SSE4.1 and POPCNT), `Haswell,-sse4.1`, `Haswell,-popcnt`,
+`Haswell,-bmi1,-bmi2` (not plain `Haswell,-bmi1` or `Haswell,-abm`: under those the image's glibc, whose AVX2 string functions use BMI1 instructions, dies at startup or silently misbehaves, and gtest registers no tests), `Haswell,-abm,-bmi2` and `max` (the control, all four). In order it: (1) builds `x86-cpu-probe.c`, which reads CPUID
+and runs the four instructions by hand and shares nothing with the library, and requires what it reads under each model
+to equal the `MODELS` table in the script (**data about qemu, not about us**: when qemu changes, this stage fails and says which
+cell moved, before any claim about the library); (2) builds cutil, runtime-core and runtime-jit natively and runs
+`testCpu_features` once (the control); (3) runs it under each model with the expected set in
+`GRJIT_TEST_EXPECT_FEATURES`, requiring the detected set to equal it, code compiled for it to be right, and a forced `lzcnt` arm to
+give `clz(0x10)` of 4 (the CPU ran it as `bsr`) where the model lacks LZCNT; (4) plants, one tree each, the defects in
+`libs/runtime-jit/tools/x86-cpu-plants.txt` and requires the model test to fail by an assertion with its control passing;
+(5) asserts, per model, which tests were skipped by name and how many passed.
+
+`Haswell,-bmi1,-bmi2` and `Haswell,-abm,-bmi2` are **crossed** in qemu 10.0.13: removing BMI1 makes `lzcnt` run as `bsr`
+while its CPUID bit stays set, and removing ABM makes `tzcnt` run as `bsf` while the BMI1 bit stays set. Detection is
+asserted against the bits there, and the forced-arm control against the measured behaviour, but the compiled-code assertions
+are skipped by name (`GRJIT_TEST_CPU_CROSSED=1`) and counted. The script derives which models are crossed from the probe and requires
+the derivation to equal its table. `JIT_X86_CPU_MODELS="qemu64 Haswell,-bmi1,-bmi2"` runs a subset as a trial of the pieces; the
+result then says `TRIAL` and never prints `jit-x86-cpu: OK`. It does not show a real CPU of any model (qemu's models are its
+own idea of them) or an operating system's gating of features.
