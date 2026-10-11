@@ -25,7 +25,8 @@
 #      (native: the control, which must pass too).
 #   3. Runs every test binary of runtime-jit (its calls, tail calls and natives
 #      among them, which emit and run arm64 code), of runtime-core, runtime-heap
-#      and runtime-debug, and lang-tang's JIT arm (testJit, and the bounded
+#      and runtime-debug, and lang-tang's JIT arm (testJit, testJit_calls, testNative_calls,
+#      testJit_floats and testJit_arith, and the bounded
 #      suites, which include the execution-corpus sweep, with
 #      GLTANG_TEST_JIT_THRESHOLD=1: every function tiers up at its first poll,
 #      which is the interpreter-against-JIT frame differential). A non-zero
@@ -547,10 +548,15 @@ run_suites() { # <arch>
 
   heading "lang-tang: the JIT arm ($arch)"
   # shellcheck disable=SC2086
-  build_tests lang-tang testJit testJit_calls testNative_calls $LANG_TANG_THRESHOLD_TESTS
+  build_tests lang-tang testJit testJit_calls testNative_calls testJit_floats testJit_arith $LANG_TANG_THRESHOLD_TESTS
   run_binary "$arch" lang-tang testJit
   run_binary "$arch" lang-tang testJit_calls
   run_binary "$arch" lang-tang testNative_calls
+  # The float suites set their own thresholds (they were never run here before spec-runtime-float
+  # story 7 added them to this list: story 6's carried floats and story 7's float and division
+  # operations are what puts lang-tang's float IR under qemu).
+  run_binary "$arch" lang-tang testJit_floats
+  run_binary "$arch" lang-tang testJit_arith
   for n in $LANG_TANG_THRESHOLD_TESTS; do
     run_binary "$arch" lang-tang "$n" GLTANG_TEST_JIT_THRESHOLD=1
   done
