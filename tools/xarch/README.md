@@ -349,3 +349,50 @@ are skipped by name (`GRJIT_TEST_CPU_CROSSED=1`) and counted. The script derives
 the derivation to equal its table. `JIT_X86_CPU_MODELS="qemu64 Haswell,-bmi1,-bmi2"` runs a subset as a trial of the pieces; the
 result then says `TRIAL` and never prints `jit-x86-cpu: OK`. It does not show a real CPU of any model (qemu's models are its
 own idea of them) or an operating system's gating of features.
+
+## Running the cross-architecture gates on the EVO-X2 (2026-10-10)
+
+`jit-arm64.sh`, `jit-x86-cpu.sh` and `../xwin/m1-run.sh` do not need this machine. Each can run as a job of its
+own on the EVO-X2 through `tools/evo`, in parallel, instead of one after another on the laptop. The workspace the
+gates read is shipped as `ws/libs/<lib>` (the eleven libraries of the runtime stack) and `ws/suite`, each the working
+tree minus `build/`, `docs/`, `.git` and `__pycache__` (about 0.9 GB; ignored third-party and tzdata files go along,
+as they do in the local copy). The box has docker and no qemu, wine, podman or bison; everything the gates need is in
+three images, built on the box from Containerfiles in this repository:
+
+| image (on the box) | Containerfile | used by |
+| --- | --- | --- |
+| `localhost/ghoti-xarch:deb13` | `xarch/Containerfile` | parent of the next |
+| `localhost/ghoti-xarch-arm64-jit:deb13-gxx14-gtest` | `xarch/Containerfile.arm64-jit` | `jit-arm64.sh`, `jit-x86-cpu.sh` |
+| `localhost/ghoti-xwin-wine:deb13-mingw-win32-wine10` | `xwin/Containerfile.wine` | `m1-run.sh` |
+
+They were built, not copied, so they hold the Debian trixie packages of the day (the local images are older);
+`jit-x86-cpu.sh` stage 1 would say if qemu's models had moved.
+To build or remove (`tools/evo image ls` lists them):
+
+```bash
+tools/evo image build localhost/ghoti-xarch:deb13 suite/tools/xarch suite/tools/xarch/Containerfile
+tools/evo image build localhost/ghoti-xarch-arm64-jit:deb13-gxx14-gtest suite/tools/xarch suite/tools/xarch/Containerfile.arm64-jit
+tools/evo image build localhost/ghoti-xwin-wine:deb13-mingw-win32-wine10 suite/tools/xwin suite/tools/xwin/Containerfile.wine
+tools/evo image rm localhost/ghoti-xwin-wine:deb13-mingw-win32-wine10     # likewise the other two, the child first
+```
+
+One job per gate (the cap is the job's; with 20G each the three fit under the box's 64G total; `--cpus=8` and
+`JOBS=8` keep each to a quarter of the threads, and the gates peak at about 6 GB, 1 GB and 8 GB):
+
+```bash
+P='; rc=$?; cp -r /w/logs $RESULTS/ 2>/dev/null; cat /sys/fs/cgroup/memory.peak > $RESULTS/mem-peak.txt; date +%s > $RESULTS/ended; exit $rc'
+A=localhost/ghoti-xarch-arm64-jit:deb13-gxx14-gtest
+J=$(tools/evo new --xgates arm64);  tools/evo run $J -m 20G -t 4h --image $A --mount ws:/work:ro --mount scratch:/scratch --docker-arg --cpus=8 -- "JOBS=8 bash /work/suite/tools/xarch/jit-arm64.sh$P"
+J=$(tools/evo new --xgates x86cpu); tools/evo run $J -m 20G -t 2h --image $A --mount ws:/work:ro --mount scratch:/scratch --docker-arg --cpus=8 -- "JOBS=8 bash /work/suite/tools/xarch/jit-x86-cpu.sh$P"
+J=$(tools/evo new --xgates win);    tools/evo run $J -m 20G -t 4h --image localhost/ghoti-xwin-wine:deb13-mingw-win32-wine10 \
+    --mount ws:/work:ro --mount scratch:/w --mount ws/suite/tools:/tools:ro --docker-arg --security-opt=seccomp=unconfined --docker-arg --cpus=8 \
+    -- "M1_IN_IMAGE=1 bash /work/suite/tools/xwin/m1-run.sh /w$P"
+tools/evo status; tools/evo logs JOB; tools/evo fetch JOB     # the gate's output is the log; results/ has mem-peak.txt and (win) logs/
+tools/evo clean JOB
+```
+
+`$J` is the job to name in `logs`, `fetch` and `clean`. The first two exit with the gate's status; the log is the same
+text the local run prints. The win gate runs `m1-run.sh` inside the image (`M1_IN_IMAGE=1`): `m1-win.sh` then starts no
+container, and uses `unshare --user --map-root-user` so that the binfmt_misc entry for wine is private to the gate (it
+needs `seccomp=unconfined` for `unshare`, and no capability, and it changes nothing on the box). It unsets `TMPDIR`,
+because wine 10.0 frees what `getenv("TMPDIR")` returns and aborts with `free(): invalid pointer` when it makes a prefix.

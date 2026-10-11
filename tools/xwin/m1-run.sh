@@ -2,6 +2,7 @@
 # Cross-builds the runtime stack for win64 and runs it under the host's wine.
 #
 #   suite/tools/xwin/m1-run.sh [scratch-dir]       (default /tmp/xwin-m1)
+#   M1_IN_IMAGE=1 suite/tools/xwin/m1-run.sh /w     inside Containerfile.wine's image (EVO-X2)
 #   M1_SRC=<dir> suite/tools/xwin/m1-run.sh ...    take libs/ from <dir> instead of
 #                                            this workspace: a fresh clone made
 #                                            the way suite/clone.sh lays it out
@@ -27,11 +28,17 @@ W=${1:-/tmp/xwin-m1}
 LIBS="runtime-core runtime-heap runtime-jit runtime-debug lang-tang"
 DEPS="cutil unicode chron regex text ctang"
 
-for need in podman rsync bison flex m4 python3; do
-  command -v $need >/dev/null || { echo "m1-run: $need is needed on the host" >&2; exit 2; }
-done
-[ -d /usr/lib/wine ] || { echo "m1-run: the host needs wine in /usr/lib/wine" >&2; exit 2; }
-[ -d /usr/src/googletest ] || { echo "m1-run: the host needs googletest sources in /usr/src/googletest" >&2; exit 2; }
+if [ -n "${M1_IN_IMAGE:-}" ]; then
+  # Inside ghoti-xwin-wine (Containerfile.wine); the scratch tree must be /w and suite/tools /tools.
+  [ "$W" = /w ] || { echo "m1-run: with M1_IN_IMAGE the scratch directory is /w" >&2; exit 2; }
+  command -v rsync >/dev/null || { echo "m1-run: rsync is needed" >&2; exit 2; }
+else
+  for need in podman rsync bison flex m4 python3; do
+    command -v $need >/dev/null || { echo "m1-run: $need is needed on the host" >&2; exit 2; }
+  done
+  [ -d /usr/lib/wine ] || { echo "m1-run: the host needs wine in /usr/lib/wine" >&2; exit 2; }
+  [ -d /usr/src/googletest ] || { echo "m1-run: the host needs googletest sources in /usr/src/googletest" >&2; exit 2; }
+fi
 mkdir -p "$W/logs"
 for l in $DEPS $LIBS; do
   rsync -a --exclude build --exclude .git "$SRC/libs/$l/" "$W/$l/" || exit 2
