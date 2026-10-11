@@ -37,7 +37,7 @@
 #      (GRHEAP_GATE_RUNNER).
 #   5. Plants, one at a time and each in a tree of its own, the defects the
 #      library lists in tools/arm64-plants.txt (4, the SHR/SAR swap, 20 to 29,
-#      the calls, tail calls and natives, and 69 to 87, the integer and float
+#      the calls, tail calls and natives, and 69 to 87 and 92 to 100, the integer and float
 #      operations), and requires the test named for each,
 #      run alone under qemu, to FAIL by an assertion (a crash or a hang is not
 #      one) while the unplanted control passes. Then runs the planted-mutation
@@ -570,7 +570,7 @@ run_suites() { # <arch>
 
 # ---- The planted defect ------------------------------------------------------------
 
-# The defects the library lists in tools/arm64-plants.txt (4, 20 to 29 and the numeric ones, 69 to 87): each is planted in a tree
+# The defects the library lists in tools/arm64-plants.txt (4, 20 to 29 and the numeric ones, 69 to 87 and 92 to 100): each is planted in a tree
 # of its own (BUILD_DIR), the test named for it is run alone, and it must FAIL BY AN ASSERTION: the
 # output says FAILED and names a failure, and the program was not killed by a signal (a crash says a
 # defect was reached, not that a test noticed it). Its control, the same test in the ordinary tree,
@@ -617,8 +617,8 @@ plant_arm64_defects() {
     grep -m3 -A3 'Failure' <<<"$out" | sed 's/^/         /'
     say "       its control passes"
   done 3< "$list"
-  [ "$count" -ge 31 ] || [ -n "${ARM64_PLANTS_FILE:-}" ] ||
-    fail "only $count planted defects were run: $list should name 4, 20 to 29, the second form of 27 and 69 to 87"
+  [ "$count" -ge 41 ] || [ -n "${ARM64_PLANTS_FILE:-}" ] ||
+    fail "only $count planted defects were run: $list should name 4, 20 to 29, the second form of 27, 69 to 87 with 87 in two forms, and 92 to 100"
   PLANTED_COUNT=$count
 }
 
@@ -709,7 +709,7 @@ ELAPSED=$(( $(date +%s) - STARTED ))
 heading "Result"
 say "AArch64 build, under qemu-aarch64: $AARCH64_BINARIES test binaries, $AARCH64_TESTS tests passed, $AARCH64_SKIPS skipped (listed above, by name)."
 say "x86-64 control build, native:     $X86_BINARIES test binaries, $X86_TESTS tests passed, $X86_SKIPS skipped."
-say "The planted arm64 defects ($PLANTED_COUNT: 4, 20 to 29, the second form of 27 and 69 to 87) each failed their test under qemu by an assertion while its control passed."
+say "The planted arm64 defects ($PLANTED_COUNT: 4, 20 to 29, the second form of 27, 69 to 87 with 87 in two forms, and 92 to 100) each failed their test under qemu by an assertion while its control passed."
 say "The arm64 mutation harness: $MUTATION_SUMMARY."
 say "Time: ${ELAPSED}s."
 say ""
