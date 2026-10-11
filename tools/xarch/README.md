@@ -174,19 +174,20 @@ What the script does:
    fail on it while the same test passes without it. A build failure or a crash
    is not a catch.
 
-**Skips are listed by name, with the reason, and counted.** There are four on the
-AArch64 build: `Asm.TheSystemDisassemblerReadsTheSameInstructions` (it runs the
-host's x86-64 `objdump` through `popen`, which qemu-user cannot exec from an
-AArch64 guest; excluded by the script with a filter that names exactly it);
-`Win64Shape.TheProbeLoopDisassemblesAsTheSequenceItIsMeantToBe` and
-`Win64Registers.TheDisassemblerAgreesThatNoCalleeSavedRegisterAppears` (the same
-x86-64 `objdump`, over Win64 prologues and generated functions; the tests skip
-themselves); and `AsmArm64.TheRecordedDisassemblyAgreesWithObjdumpWhenTheToolIsPresent`
-(it needs the cross `objdump` the same way; the test skips itself). The x86-64
-control runs the last of those with `GRJIT_AARCH64_OBJDUMP` set, so every
-recorded encoding is re-checked against the real disassembler, and skips one test
-that is about the arm64 native backend. The script asserts the number and the
-names of the skips on each build; a skip that appears or vanishes fails it.
+**Skips are listed by name, with the reason, and counted.** The AArch64 build has one that the script
+excludes with a filter that names exactly it, `Asm.TheSystemDisassemblerReadsTheSameInstructions` (it runs the
+host's x86-64 `objdump` through `popen`, which qemu-user cannot exec from an AArch64 guest), and 26 that the tests
+skip themselves, each with its reason in `SKIPPED_BY_TEST_AARCH64`: six that need an `objdump` through `popen`
+(the Win64 prologue and register reads, the cross `objdump` over the recorded encodings and over the bytes of every
+float function); the three probes in x86-64 SysV assembly (`FloatHelpers.*`); the four that run Microsoft x64 code
+under wine (`Win64Helpers.*`, `Win64Sentinels.*`); and the 13 `testCpu_features` tests that need a feature arm, which
+arm64 does not have (it needs none). The x86-64 control build skips 10: `Arm64Memory...`, the three AAPCS64 probes,
+the `fpcr` read and the `d8`-`d15` sentinel caller (arm64 Linux only), and the four Microsoft x64 ones. It runs with
+`GRJIT_AARCH64_OBJDUMP` set, so every recorded encoding is re-checked against the real disassembler and the bytes of
+every float instruction are read for a callee-saved vector register. The script asserts the number and the names of
+the skips on each build; a skip that appears or vanishes fails it. (Story 5 of the float spec removed 36 entries that
+said the integer and float code was x86-64 only: `testInt_ir`, `testFloat_ir`, `testDifferential` and `testWast` now
+run on arm64.)
 
 First run (2026-10-04, a 12-thread Intel Core 7 150U, qemu 10.0): **193 s** with
 a warm `/scratch`, 29 test binaries and 538 tests passed under qemu-aarch64

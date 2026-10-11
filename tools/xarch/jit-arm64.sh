@@ -36,8 +36,9 @@
 #      fixtures and planted libraries are run through the same qemu command
 #      (GRHEAP_GATE_RUNNER).
 #   5. Plants, one at a time and each in a tree of its own, the defects the
-#      library lists in tools/arm64-plants.txt (4, the SHR/SAR swap, and 20 to 29,
-#      the calls, tail calls and natives), and requires the test named for each,
+#      library lists in tools/arm64-plants.txt (4, the SHR/SAR swap, 20 to 29,
+#      the calls, tail calls and natives, and 69 to 87, the integer and float
+#      operations), and requires the test named for each,
 #      run alone under qemu, to FAIL by an assertion (a crash or a hang is not
 #      one) while the unplanted control passes. Then runs the planted-mutation
 #      harness for arm64 (tools/check-planted-calls.py --target=arm64): its
@@ -104,61 +105,43 @@ SKIPPED_BY_FILTER_AARCH64_RELOC=(
 # Skips the tests themselves report (GTEST_SKIP), per build:
 SKIPPED_BY_TEST_AARCH64=(
   "runtime-jit|testWin64|Win64Shape.TheProbeLoopDisassemblesAsTheSequenceItIsMeantToBe|reads the Win64 prologue back through an x86-64 objdump run by popen(), which a guest under qemu-user has none of; the x86-64 control build runs it"
-  "runtime-jit|testWin64|Win64Registers.TheDisassemblerAgreesThatNoCalleeSavedRegisterAppears|the same objdump, over the bytes of 200 generated functions; the x86-64 control build runs it"
+  "runtime-jit|testWin64|Win64Registers.TheDisassemblerAgreesThatNoCalleeSavedRegisterAppears|the same objdump, over the bytes of 200 generated functions and of every float instruction; the x86-64 control build runs it"
+  "runtime-jit|testWin64|Win64Registers.TheDisassemblerSeesXmm6InTheSysVV1RoundingSoTheScanAboveCanFail|the same objdump, over the SysV v1 rounding (the control that shows the scan can fail); the x86-64 control build runs it"
   "runtime-jit|testWin64_calls|Win64Calls.TheDisassemblerAgreesThatNoCalleeSavedRegisterAppearsInAnyGeneratedCallableFunction|the same objdump, over the bytes of every generated callable function; the x86-64 control build runs it"
   "runtime-jit|testAsm_arm64|AsmArm64.TheRecordedDisassemblyAgreesWithObjdumpWhenTheToolIsPresent|needs the cross objdump through popen(), which qemu-user cannot run; the x86-64 control build (GRJIT_AARCH64_OBJDUMP set) re-checks every recorded encoding with it"
-  "runtime-jit|testInt_ir|IntRun.EveryOperationGivesTheWorkedAnswerAndAnI32ResultIsZeroExtended|the integer IR's code path is x86-64 only until story 5 of the float spec (the test skips itself where the native backend is not x86-64); the x86-64 control build runs it"
-  "runtime-jit|testInt_ir|IntRun.EveryOperationAtEveryWidthAgreesWithTheEvaluatorOnTheBoundaryValues|the integer IR's code path is x86-64 only until story 5 of the float spec (the test skips itself where the native backend is not x86-64); the x86-64 control build runs it"
-  "runtime-jit|testInt_ir|IntRun.DivideByZeroAndSignedOverflowFireTheirGuardsAndMinRemMinusOneIsZero|the integer IR's code path is x86-64 only until story 5 of the float spec (the test skips itself where the native backend is not x86-64); the x86-64 control build runs it"
-  "runtime-jit|testInt_ir|IntRun.AnI32EntersAndLeavesAsItsLow32BitsWhateverTheCallerLeftAbove|the integer IR's code path is x86-64 only until story 5 of the float spec (the test skips itself where the native backend is not x86-64); the x86-64 control build runs it"
-  "runtime-jit|testInt_ir|IntRun.AnI32LoadedFromMemoryAndStoredToItIsItsLow32Bits|the integer IR's code path is x86-64 only until story 5 of the float spec (the test skips itself where the native backend is not x86-64); the x86-64 control build runs it"
-  "runtime-jit|testInt_ir|IntRun.AHelperResultReceivedAsAnI32IsItsLow32Bits|the integer IR's code path is x86-64 only until story 5 of the float spec (the test skips itself where the native backend is not x86-64); the x86-64 control build runs it"
-  "runtime-jit|testInt_ir|IntRun.AnI32InAFrameStateIsRecordedWithTheRepresentationI32AndAnI64WithBits|the integer IR's code path is x86-64 only until story 5 of the float spec (the test skips itself where the native backend is not x86-64); the x86-64 control build runs it"
-  "runtime-jit|testInt_ir|IntRun.ABranchOnAnI32AndAGuardOnOneReadTheWholeWord|the integer IR's code path is x86-64 only until story 5 of the float spec (the test skips itself where the native backend is not x86-64); the x86-64 control build runs it"
-  "runtime-jit|testInt_ir|IntCalls.AnI32GoesThroughACallInARegisterAndOnTheStackAndComesBackZeroExtended|the integer IR's code path is x86-64 only until story 5 of the float spec (the test skips itself where the native backend is not x86-64); the x86-64 control build runs it"
-  "runtime-jit|testInt_ir|IntCalls.AnI32GoesThroughATailCallInARegisterAndOnTheStack|the integer IR's code path is x86-64 only until story 5 of the float spec (the test skips itself where the native backend is not x86-64); the x86-64 control build runs it"
-  "runtime-jit|testInt_ir|IntCalls.AnI32GoesThroughACallPtrAndATailCallPtrInARegisterAndOnTheStack|the integer IR's code path is x86-64 only until story 5 of the float spec (the test skips itself where the native backend is not x86-64); the x86-64 control build runs it"
-  "runtime-jit|testInt_ir|IntRun.AnI32LiveAcrossAPollACallAndANativeIsRawInTheFrameStateAndNeverInTheStackMap|the integer IR's code path is x86-64 only until story 5 of the float spec (the test skips itself where the native backend is not x86-64); the x86-64 control build runs it"
-  "runtime-jit|testDifferential|Differential.GeneratedIntegerProgramsRunTheSameCompiledAndEvaluated|the integer IR's code path is x86-64 only until story 5 of the float spec (the test skips itself where the native backend is not x86-64); the x86-64 control build runs it"
-  "runtime-jit|testWast|Wast.TheComparisonIsOfTheWholeWordNotOfTheLowHalf|the integer IR's code path is x86-64 only until story 5 of the float spec (the test skips itself where the native backend is not x86-64); the x86-64 control build runs it"
-  "runtime-jit|testFloat_ir|FloatRun.EveryOperationGivesTheWorkedAnswerFromTheCodeAndFromTheEvaluator|the float IR's code path is x86-64 only until story 5 of the float spec (the test skips itself where the native backend is not x86-64); the x86-64 control build runs it"
-  "runtime-jit|testFloat_ir|FloatRun.EveryOperationAtEveryWidthAgreesWithTheEvaluatorOnTheBoundaryValues|the float IR's code path is x86-64 only until story 5 of the float spec (the test skips itself where the native backend is not x86-64); the x86-64 control build runs it"
-  "runtime-jit|testFloat_ir|FloatRun.ATruncationNamesTheNanGuardTheRangeGuardOrReturnsTheTruncatedValue|the float IR's code path is x86-64 only until story 5 of the float spec (the test skips itself where the native backend is not x86-64); the x86-64 control build runs it"
-  "runtime-jit|testFloat_ir|FloatRun.AnF32EntersAndLeavesAsItsLow32BitsWhateverTheCallerLeftAbove|the float IR's code path is x86-64 only until story 5 of the float spec (the test skips itself where the native backend is not x86-64); the x86-64 control build runs it"
-  "runtime-jit|testFloat_ir|FloatRun.AFloatLoadedFromMemoryAndStoredToItIsItsBitsAtItsOwnWidth|the float IR's code path is x86-64 only until story 5 of the float spec (the test skips itself where the native backend is not x86-64); the x86-64 control build runs it"
-  "runtime-jit|testFloat_ir|FloatRun.AConstantAndAMoveOfAnF32AreZeroExtendedAndAnF64ConstantIsAnyPattern|the float IR's code path is x86-64 only until story 5 of the float spec (the test skips itself where the native backend is not x86-64); the x86-64 control build runs it"
-  "runtime-jit|testFloat_ir|FloatRun.TheOperationsAreRoundedOneAtATimeAndSubnormalsSurviveUnderTheDefaultMxcsr|the float IR's code path is x86-64 only until story 5 of the float spec (the test skips itself where the native backend is not x86-64); the x86-64 control build runs it"
-  "runtime-jit|testFloat_ir|FloatHelpers.EveryMixOfIntegerAndFloatArgumentsArrivesInItsRegisterBySysVClassification|the float IR's code path is x86-64 only until story 5 of the float spec (the test skips itself where the native backend is not x86-64); the x86-64 control build runs it"
-  "runtime-jit|testFloat_ir|FloatHelpers.TheNamedClassificationFromTheStoryComesOutAsStated|the float IR's code path is x86-64 only until story 5 of the float spec (the test skips itself where the native backend is not x86-64); the x86-64 control build runs it"
-  "runtime-jit|testFloat_ir|FloatHelpers.AFloatResultIsTakenFromXmm0ByItsOwnWidthWhateverIsAboveBit31|the float IR's code path is x86-64 only until story 5 of the float spec (the test skips itself where the native backend is not x86-64); the x86-64 control build runs it"
-  "runtime-jit|testFloat_ir|FloatHelpers.ACompiledCallOfARealCppHelperGetsItsArgumentsAndGivesItsResultExactly|the float IR's code path is x86-64 only until story 5 of the float spec (the test skips itself where the native backend is not x86-64); the x86-64 control build runs it"
-  "runtime-jit|testFloat_ir|FloatHelpers.ACallOverTheLimitIsRefusedAsBeforeAndANativeTakesNoFloat|the float IR's code path is x86-64 only until story 5 of the float spec (the test skips itself where the native backend is not x86-64); the x86-64 control build runs it"
-  "runtime-jit|testFloat_ir|FloatHelpers.ACallThatCanReachAGcPointTakesAndReturnsFloatsAndKeepsThemOutOfTheStackMap|the float IR's code path is x86-64 only until story 5 of the float spec (the test skips itself where the native backend is not x86-64); the x86-64 control build runs it"
-  "runtime-jit|testFloat_ir|FloatRun.AFloatInAFrameStateIsRecordedWithItsRepresentationAndRawNeverAReference|the float IR's code path is x86-64 only until story 5 of the float spec (the test skips itself where the native backend is not x86-64); the x86-64 control build runs it"
-  "runtime-jit|testFloat_ir|FloatRun.AFloatLiveAcrossAPollACallAndANativeIsRawInTheFrameStateAndNeverInTheStackMap|the float IR's code path is x86-64 only until story 5 of the float spec (the test skips itself where the native backend is not x86-64); the x86-64 control build runs it"
-  "runtime-jit|testFloat_ir|FloatCalls.AFloatGoesThroughACallInARegisterAndOnTheStackAndComesBackExact|the float IR's code path is x86-64 only until story 5 of the float spec (the test skips itself where the native backend is not x86-64); the x86-64 control build runs it"
-  "runtime-jit|testFloat_ir|FloatCalls.FloatArithmeticInTheCallerFeedsTheCalleeAndTheResultComesBack|the float IR's code path is x86-64 only until story 5 of the float spec (the test skips itself where the native backend is not x86-64); the x86-64 control build runs it"
-  "runtime-jit|testFloat_ir|FloatCalls.AFloatGoesThroughATailCallInARegisterAndOnTheStack|the float IR's code path is x86-64 only until story 5 of the float spec (the test skips itself where the native backend is not x86-64); the x86-64 control build runs it"
-  "runtime-jit|testFloat_ir|FloatCalls.AFloatGoesThroughACallPtrAndATailCallPtrInARegisterAndOnTheStack|the float IR's code path is x86-64 only until story 5 of the float spec (the test skips itself where the native backend is not x86-64); the x86-64 control build runs it"
-  "runtime-jit|testFloat_ir|FloatRun.ATypedFloatImmediateWorksOnEitherSideOfAnOperationAMoveAndATruncationGuard|the float IR's code path is x86-64 only until story 5 of the float spec (the test skips itself where the native backend is not x86-64); the x86-64 control build runs it"
-  "runtime-jit|testWast|Wast.AnF32WithBitsAboveThirtyOneIsNotWhatTheSuiteExpects|the float IR's code path is x86-64 only until story 5 of the float spec (the test skips itself where the native backend is not x86-64); the x86-64 control build runs it"
-  "runtime-jit|testDifferential|Differential.GeneratedFloatProgramsRunTheSameCompiledAndEvaluatedWithNansEqual|the float IR's code path is x86-64 only until story 5 of the float spec (the test skips itself where the native backend is not x86-64); the x86-64 control build runs it"
-  "runtime-jit|testCpu_features|CpuDetect.TheDetectedSetIsTheCpuinfoFlagsOfTheHostWhenThatFileIsTheHostsOwn|the CPU-feature arms are x86-64 only (the test skips itself where the native backend has no feature arm); the x86-64 control build runs it"
-  "runtime-jit|testCpu_features|CpuRecord.TheRecordedSetIsExactlyTheArmsEmittedUnderEverySubsetOfTheHostsFeatures|the CPU-feature arms are x86-64 only (the test skips itself where the native backend has no feature arm); the x86-64 control build runs it"
-  "runtime-jit|testCpu_features|CpuRecord.AMaskOfReservedBitsChangesNothingAndAFullMaskIsV1|the CPU-feature arms are x86-64 only (the test skips itself where the native backend has no feature arm); the x86-64 control build runs it"
-  "runtime-jit|testCpu_features|CpuReuse.CodeRunsWhereItsRecordedSetIsASubsetOfTheRunningOneAndNowhereElse|the CPU-feature arms are x86-64 only (the test skips itself where the native backend has no feature arm); the x86-64 control build runs it"
-  "runtime-jit|testCpu_features|CpuRun.TheWorkedAnswersOfTheIntegerOperationsAreTheSameUnderEverySubsetOfTheHostsFeatures|the CPU-feature arms are x86-64 only (the test skips itself where the native backend has no feature arm); the x86-64 control build runs it"
-  "runtime-jit|testCpu_features|CpuRun.TheWorkedAnswersOfTheRoundingsAreTheSameUnderEverySubsetOfTheHostsFeatures|the CPU-feature arms are x86-64 only (the test skips itself where the native backend has no feature arm); the x86-64 control build runs it"
-  "runtime-jit|testCpu_features|CpuRun.TheV1ArmGivesTheWorkedAnswersOnAHostThatHasTheFeaturesBecauseItsMaskedOff|the CPU-feature arms are x86-64 only (the test skips itself where the native backend has no feature arm); the x86-64 control build runs it"
-  "runtime-jit|testCpu_features|CpuRun.EveryFeatureDependentOperationGivesTheEvaluatorsAnswersUnderEverySubsetAndEveryMaskAgrees|the CPU-feature arms are x86-64 only (the test skips itself where the native backend has no feature arm); the x86-64 control build runs it"
-  "runtime-jit|testCpu_features|CpuModel.TheDetectedSetIsTheOneTheRunExpectsAndTheNativeRunExpectsTheHostsOwn|the CPU-feature arms are x86-64 only (the test skips itself where the native backend has no feature arm); the x86-64 control build runs it"
-  "runtime-jit|testCpu_features|CpuModel.CodeCompiledForTheDetectedSetIsRightWhereTheModelsInstructionsBehaveAsItsBitsSay|the CPU-feature arms are x86-64 only (the test skips itself where the native backend has no feature arm); the x86-64 control build runs it"
-  "runtime-jit|testCpu_features|CpuModel.AnArmForcedOntoACpuRunsAsTheInstructionTheCpuHasAndALackingOneRunsAsTheBitScan|the CPU-feature arms are x86-64 only (the test skips itself where the native backend has no feature arm); the x86-64 control build runs it"
-  "runtime-jit|testCpu_features|CpuModel.AForcedArmOfAFeatureTheHostHasRunsItsInstruction|the CPU-feature arms are x86-64 only (the test skips itself where the native backend has no feature arm); the x86-64 control build runs it"
-  "runtime-jit|testCpu_features|CpuSkips.OnAHostWithEveryFeatureNothingWasSkippedForAMissingOne|the CPU-feature arms are x86-64 only (the test skips itself where the native backend has no feature arm); the x86-64 control build runs it"
+  "runtime-jit|testArm64_numeric|Arm64Registers.TheDisassemblerAgreesThatNoCalleeSavedVectorRegisterAppearsInAnyFloatFunction|needs the cross objdump through popen(), which qemu-user cannot run; the x86-64 control build (GRJIT_AARCH64_OBJDUMP set) reads the bytes of every float instruction with it and requires no v8-v15"
+  "runtime-jit|testFloat_ir|FloatHelpers.EveryMixOfIntegerAndFloatArgumentsArrivesInItsRegisterBySysVClassification|a probe in x86-64 SysV assembly (the test skips itself where the native backend is not x86-64 Linux); the AAPCS64 probe is Arm64Helpers.* and runs here; the x86-64 control build runs this one"
+  "runtime-jit|testFloat_ir|FloatHelpers.TheNamedClassificationFromTheStoryComesOutAsStated|a probe in x86-64 SysV assembly (the test skips itself where the native backend is not x86-64 Linux); the AAPCS64 probe is Arm64Helpers.* and runs here; the x86-64 control build runs this one"
+  "runtime-jit|testFloat_ir|FloatHelpers.AFloatResultIsTakenFromXmm0ByItsOwnWidthWhateverIsAboveBit31|a probe in x86-64 SysV assembly (the test skips itself where the native backend is not x86-64 Linux); the AAPCS64 probe is Arm64Helpers.* and runs here; the x86-64 control build runs this one"
+  "runtime-jit|testWin64_numeric|Win64Helpers.EveryMixOfIntegerAndFloatArgumentsArrivesInTheRegisterOfItsPositionAndTheFifthAndSixthOnTheStack|runs Microsoft x64 code under wine (a MinGW assembly probe, or the xmm6-xmm15 sentinel caller): Windows x86-64 only; m1-run.sh runs it"
+  "runtime-jit|testWin64_numeric|Win64Helpers.TheNamedPositionFromTheStoryComesOutAsStated|runs Microsoft x64 code under wine (a MinGW assembly probe, or the xmm6-xmm15 sentinel caller): Windows x86-64 only; m1-run.sh runs it"
+  "runtime-jit|testWin64_numeric|Win64Helpers.AFloatResultIsTakenFromXmm0ByItsOwnWidthWhateverIsAboveBit31|runs Microsoft x64 code under wine (a MinGW assembly probe, or the xmm6-xmm15 sentinel caller): Windows x86-64 only; m1-run.sh runs it"
+  "runtime-jit|testWin64_numeric|Win64Sentinels.FloatCodeLeavesEveryCalleeSavedRegisterAloneOnAReturnAGuardExitAPollAndATrashingHelper|runs Microsoft x64 code under wine (a MinGW assembly probe, or the xmm6-xmm15 sentinel caller): Windows x86-64 only; m1-run.sh runs it"
+  "runtime-jit|testCpu_features|CpuDetect.TheDetectedSetIsTheCpuinfoFlagsOfTheHostWhenThatFileIsTheHostsOwn|the CPU-feature arms are x86-64 only: arm64 needs none (clz, rbit, frint* and cnt are baseline ARMv8-A) and the test skips itself where the native backend has no feature arm; the x86-64 control build runs it"
+  "runtime-jit|testCpu_features|CpuRecord.TheRecordedSetIsExactlyTheArmsEmittedUnderEverySubsetOfTheHostsFeatures|the CPU-feature arms are x86-64 only: arm64 needs none (clz, rbit, frint* and cnt are baseline ARMv8-A) and the test skips itself where the native backend has no feature arm; the x86-64 control build runs it"
+  "runtime-jit|testCpu_features|CpuRecord.AMaskOfReservedBitsChangesNothingAndAFullMaskIsV1|the CPU-feature arms are x86-64 only: arm64 needs none (clz, rbit, frint* and cnt are baseline ARMv8-A) and the test skips itself where the native backend has no feature arm; the x86-64 control build runs it"
+  "runtime-jit|testCpu_features|CpuReuse.CodeRunsWhereItsRecordedSetIsASubsetOfTheRunningOneAndNowhereElse|the CPU-feature arms are x86-64 only: arm64 needs none (clz, rbit, frint* and cnt are baseline ARMv8-A) and the test skips itself where the native backend has no feature arm; the x86-64 control build runs it"
+  "runtime-jit|testCpu_features|CpuRun.TheWorkedAnswersOfTheIntegerOperationsAreTheSameUnderEverySubsetOfTheHostsFeatures|the CPU-feature arms are x86-64 only: arm64 needs none (clz, rbit, frint* and cnt are baseline ARMv8-A) and the test skips itself where the native backend has no feature arm; the x86-64 control build runs it"
+  "runtime-jit|testCpu_features|CpuRun.TheWorkedAnswersOfTheRoundingsAreTheSameUnderEverySubsetOfTheHostsFeatures|the CPU-feature arms are x86-64 only: arm64 needs none (clz, rbit, frint* and cnt are baseline ARMv8-A) and the test skips itself where the native backend has no feature arm; the x86-64 control build runs it"
+  "runtime-jit|testCpu_features|CpuRun.TheV1ArmGivesTheWorkedAnswersOnAHostThatHasTheFeaturesBecauseItsMaskedOff|the CPU-feature arms are x86-64 only: arm64 needs none (clz, rbit, frint* and cnt are baseline ARMv8-A) and the test skips itself where the native backend has no feature arm; the x86-64 control build runs it"
+  "runtime-jit|testCpu_features|CpuRun.EveryFeatureDependentOperationGivesTheEvaluatorsAnswersUnderEverySubsetAndEveryMaskAgrees|the CPU-feature arms are x86-64 only: arm64 needs none (clz, rbit, frint* and cnt are baseline ARMv8-A) and the test skips itself where the native backend has no feature arm; the x86-64 control build runs it"
+  "runtime-jit|testCpu_features|CpuModel.TheDetectedSetIsTheOneTheRunExpectsAndTheNativeRunExpectsTheHostsOwn|the CPU-feature arms are x86-64 only: arm64 needs none (clz, rbit, frint* and cnt are baseline ARMv8-A) and the test skips itself where the native backend has no feature arm; the x86-64 control build runs it"
+  "runtime-jit|testCpu_features|CpuModel.CodeCompiledForTheDetectedSetIsRightWhereTheModelsInstructionsBehaveAsItsBitsSay|the CPU-feature arms are x86-64 only: arm64 needs none (clz, rbit, frint* and cnt are baseline ARMv8-A) and the test skips itself where the native backend has no feature arm; the x86-64 control build runs it"
+  "runtime-jit|testCpu_features|CpuModel.AnArmForcedOntoACpuRunsAsTheInstructionTheCpuHasAndALackingOneRunsAsTheBitScan|the CPU-feature arms are x86-64 only: arm64 needs none (clz, rbit, frint* and cnt are baseline ARMv8-A) and the test skips itself where the native backend has no feature arm; the x86-64 control build runs it"
+  "runtime-jit|testCpu_features|CpuModel.AForcedArmOfAFeatureTheHostHasRunsItsInstruction|the CPU-feature arms are x86-64 only: arm64 needs none (clz, rbit, frint* and cnt are baseline ARMv8-A) and the test skips itself where the native backend has no feature arm; the x86-64 control build runs it"
+  "runtime-jit|testCpu_features|CpuSkips.OnAHostWithEveryFeatureNothingWasSkippedForAMissingOne|the CPU-feature arms are x86-64 only: arm64 needs none (clz, rbit, frint* and cnt are baseline ARMv8-A) and the test skips itself where the native backend has no feature arm; the x86-64 control build runs it"
 )
 SKIPPED_BY_TEST_X86_64=(
   "runtime-jit|testArm64_emit|Arm64Memory.ACompileOnArm64SyncsTheCacheOncePerCode|the native backend of this build is x86-64; the AArch64 build runs it"
+  "runtime-jit|testArm64_numeric|Arm64Helpers.EveryMixOfIntegerAndFloatArgumentsArrivesInItsRegisterByAapcs64Classification|a probe in AArch64 assembly: the native backend of this build is x86-64; the AArch64 build runs it"
+  "runtime-jit|testArm64_numeric|Arm64Helpers.TheNamedClassificationFromTheStoryComesOutAsStated|a probe in AArch64 assembly: the native backend of this build is x86-64; the AArch64 build runs it"
+  "runtime-jit|testArm64_numeric|Arm64Helpers.AFloatResultIsTakenFromD0ByItsOwnWidthWhateverIsAboveBit31|a probe in AArch64 assembly: the native backend of this build is x86-64; the AArch64 build runs it"
+  "runtime-jit|testArm64_numeric|Arm64Fpcr.TheHostRunsWithTheDefaultFpcrAndCompiledFloatCodeLeavesItAlone|FPCR is read on an arm64 host only; the AArch64 build runs it"
+  "runtime-jit|testArm64_numeric|Arm64Sentinels.FloatCodeLeavesEveryCalleeSavedRegisterAloneOnAReturnAGuardExitAPollAndATrashingHelper|the sentinel caller loads d8-d15 and x19-x29: arm64 Linux only; the AArch64 build runs it"
+  "runtime-jit|testWin64_numeric|Win64Helpers.EveryMixOfIntegerAndFloatArgumentsArrivesInTheRegisterOfItsPositionAndTheFifthAndSixthOnTheStack|runs Microsoft x64 code under wine: Windows x86-64 only; m1-run.sh runs it"
+  "runtime-jit|testWin64_numeric|Win64Helpers.TheNamedPositionFromTheStoryComesOutAsStated|runs Microsoft x64 code under wine: Windows x86-64 only; m1-run.sh runs it"
+  "runtime-jit|testWin64_numeric|Win64Helpers.AFloatResultIsTakenFromXmm0ByItsOwnWidthWhateverIsAboveBit31|runs Microsoft x64 code under wine: Windows x86-64 only; m1-run.sh runs it"
+  "runtime-jit|testWin64_numeric|Win64Sentinels.FloatCodeLeavesEveryCalleeSavedRegisterAloneOnAReturnAGuardExitAPollAndATrashingHelper|runs Microsoft x64 code under wine: Windows x86-64 only; m1-run.sh runs it"
 )
 
 # ---- Helpers ------------------------------------------------------------------
@@ -587,7 +570,7 @@ run_suites() { # <arch>
 
 # ---- The planted defect ------------------------------------------------------------
 
-# The defects the library lists in tools/arm64-plants.txt (4, and 20 to 29): each is planted in a tree
+# The defects the library lists in tools/arm64-plants.txt (4, 20 to 29 and the numeric ones, 69 to 87): each is planted in a tree
 # of its own (BUILD_DIR), the test named for it is run alone, and it must FAIL BY AN ASSERTION: the
 # output says FAILED and names a failure, and the program was not killed by a signal (a crash says a
 # defect was reached, not that a test noticed it). Its control, the same test in the ordinary tree,
@@ -634,8 +617,8 @@ plant_arm64_defects() {
     grep -m3 -A3 'Failure' <<<"$out" | sed 's/^/         /'
     say "       its control passes"
   done 3< "$list"
-  [ "$count" -ge 11 ] || [ -n "${ARM64_PLANTS_FILE:-}" ] ||
-    fail "only $count planted defects were run: $list should name 4, 20 to 29 and the second form of 27"
+  [ "$count" -ge 31 ] || [ -n "${ARM64_PLANTS_FILE:-}" ] ||
+    fail "only $count planted defects were run: $list should name 4, 20 to 29, the second form of 27 and 69 to 87"
   PLANTED_COUNT=$count
 }
 
@@ -726,7 +709,7 @@ ELAPSED=$(( $(date +%s) - STARTED ))
 heading "Result"
 say "AArch64 build, under qemu-aarch64: $AARCH64_BINARIES test binaries, $AARCH64_TESTS tests passed, $AARCH64_SKIPS skipped (listed above, by name)."
 say "x86-64 control build, native:     $X86_BINARIES test binaries, $X86_TESTS tests passed, $X86_SKIPS skipped."
-say "The planted arm64 defects ($PLANTED_COUNT: 4, 20 to 29 and the second form of 27) each failed their test under qemu by an assertion while its control passed."
+say "The planted arm64 defects ($PLANTED_COUNT: 4, 20 to 29, the second form of 27 and 69 to 87) each failed their test under qemu by an assertion while its control passed."
 say "The arm64 mutation harness: $MUTATION_SUMMARY."
 say "Time: ${ELAPSED}s."
 say ""

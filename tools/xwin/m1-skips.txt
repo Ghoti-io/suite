@@ -6,26 +6,23 @@
 # test binary again as a child (tests/test_helpers.h, `run_in_child`). lang-tang's tests have no such helper, and
 # its fork, poll and descriptor-transport tests stay skipped and named below.
 runtime-jit testArm64_emit Arm64Memory.ACompileOnArm64SyncsTheCacheOncePerCode the native backend is not arm64
+runtime-jit testArm64_numeric Arm64Sim.AHelperWithMixedArgumentsTakesIntegersFromX0AndFloatsFromD0InOrderAmongThemselves the simulator calls a host function with a signature only where the host's C ABI classifies arguments as AAPCS64 does (not Microsoft x64)
+runtime-jit testArm64_numeric Arm64Sim.AFloatResultLeavesNoiseInBitsThirtyTwoToSixtyThreeOfD0AndTheCallerSavedVectorsAreNoise the simulator calls a host function with a signature only where the host's C ABI classifies arguments as AAPCS64 does (not Microsoft x64)
+runtime-jit testArm64_numeric Arm64Sim.AnIntegerHelperThatReturnsThirtyTwoBitsLeavesNoiseAboveAndSixDoublesFillD0ToD5 the simulator calls a host function with a signature only where the host's C ABI classifies arguments as AAPCS64 does (not Microsoft x64)
+runtime-jit testArm64_numeric Arm64Registers.TheDisassemblerAgreesThatNoCalleeSavedVectorRegisterAppearsInAnyFloatFunction GRJIT_AARCH64_OBJDUMP is a host tool
+runtime-jit testArm64_numeric Arm64SimCompiled.AHelperGetsEachFloatAndIntegerArgumentInItsAapcs64RegisterAndAFloatResultIsTakenByItsWidth the simulator calls a host function with a signature only where the host's C ABI classifies arguments as AAPCS64 does (not Microsoft x64)
+runtime-jit testArm64_numeric Arm64Helpers.EveryMixOfIntegerAndFloatArgumentsArrivesInItsRegisterByAapcs64Classification the AAPCS64 helper ABI is checked against an AArch64 assembly probe, on arm64 Linux only
+runtime-jit testArm64_numeric Arm64Helpers.TheNamedClassificationFromTheStoryComesOutAsStated an AAPCS64 probe: arm64 Linux only
+runtime-jit testArm64_numeric Arm64Helpers.AFloatResultIsTakenFromD0ByItsOwnWidthWhateverIsAboveBit31 an AAPCS64 probe: arm64 Linux only
+runtime-jit testArm64_numeric Arm64Fpcr.TheHostRunsWithTheDefaultFpcrAndCompiledFloatCodeLeavesItAlone FPCR is read on an arm64 host only
+runtime-jit testArm64_numeric Arm64Sentinels.FloatCodeLeavesEveryCalleeSavedRegisterAloneOnAReturnAGuardExitAPollAndATrashingHelper the sentinel caller loads d8-d15 and x19-x29: arm64 Linux only
 runtime-jit testAsm Asm.TheSystemDisassemblerReadsTheSameInstructions needs POSIX mkstemp/popen and a host objdump
 runtime-jit testAsm_arm64 AsmArm64.TheRecordedDisassemblyAgreesWithObjdumpWhenTheToolIsPresent GRJIT_AARCH64_OBJDUMP is a host tool
 runtime-jit testWin64 Win64Shape.TheProbeLoopDisassemblesAsTheSequenceItIsMeantToBe needs POSIX mkstemp/popen and a host objdump
 runtime-jit testWin64 Win64Registers.TheDisassemblerAgreesThatNoCalleeSavedRegisterAppears needs POSIX mkstemp/popen and a host objdump
+runtime-jit testWin64 Win64Registers.TheDisassemblerSeesXmm6InTheSysVV1RoundingSoTheScanAboveCanFail needs POSIX mkstemp/popen and a host objdump
 runtime-jit testWin64_calls Win64Calls.TheDisassemblerAgreesThatNoCalleeSavedRegisterAppearsInAnyGeneratedCallableFunction needs POSIX mkstemp/popen and a host objdump
 runtime-jit testWin64 Win64Memory.WithNothingToRegisterWithTheMappingIsMadeAndTheTableIsNotClaimed this target registers with the operating system
-runtime-jit testInt_ir IntRun.EveryOperationGivesTheWorkedAnswerAndAnI32ResultIsZeroExtended the integer IR's compiled path is Linux x86-64 only until story 5 of the float spec (the test skips itself elsewhere)
-runtime-jit testInt_ir IntRun.EveryOperationAtEveryWidthAgreesWithTheEvaluatorOnTheBoundaryValues the integer IR's compiled path is Linux x86-64 only until story 5 of the float spec (the test skips itself elsewhere)
-runtime-jit testInt_ir IntRun.DivideByZeroAndSignedOverflowFireTheirGuardsAndMinRemMinusOneIsZero the integer IR's compiled path is Linux x86-64 only until story 5 of the float spec (the test skips itself elsewhere)
-runtime-jit testInt_ir IntRun.AnI32EntersAndLeavesAsItsLow32BitsWhateverTheCallerLeftAbove the integer IR's compiled path is Linux x86-64 only until story 5 of the float spec (the test skips itself elsewhere)
-runtime-jit testInt_ir IntRun.AnI32LoadedFromMemoryAndStoredToItIsItsLow32Bits the integer IR's compiled path is Linux x86-64 only until story 5 of the float spec (the test skips itself elsewhere)
-runtime-jit testInt_ir IntRun.AHelperResultReceivedAsAnI32IsItsLow32Bits the integer IR's compiled path is Linux x86-64 only until story 5 of the float spec (the test skips itself elsewhere)
-runtime-jit testInt_ir IntRun.AnI32InAFrameStateIsRecordedWithTheRepresentationI32AndAnI64WithBits the integer IR's compiled path is Linux x86-64 only until story 5 of the float spec (the test skips itself elsewhere)
-runtime-jit testInt_ir IntRun.ABranchOnAnI32AndAGuardOnOneReadTheWholeWord the integer IR's compiled path is Linux x86-64 only until story 5 of the float spec (the test skips itself elsewhere)
-runtime-jit testInt_ir IntCalls.AnI32GoesThroughACallInARegisterAndOnTheStackAndComesBackZeroExtended the integer IR's compiled path is Linux x86-64 only until story 5 of the float spec (the test skips itself elsewhere)
-runtime-jit testInt_ir IntCalls.AnI32GoesThroughATailCallInARegisterAndOnTheStack the integer IR's compiled path is Linux x86-64 only until story 5 of the float spec (the test skips itself elsewhere)
-runtime-jit testInt_ir IntCalls.AnI32GoesThroughACallPtrAndATailCallPtrInARegisterAndOnTheStack the integer IR's compiled path is Linux x86-64 only until story 5 of the float spec (the test skips itself elsewhere)
-runtime-jit testInt_ir IntRun.AnI32LiveAcrossAPollACallAndANativeIsRawInTheFrameStateAndNeverInTheStackMap the integer IR's compiled path is Linux x86-64 only until story 5 of the float spec (the test skips itself elsewhere)
-runtime-jit testDifferential Differential.GeneratedIntegerProgramsRunTheSameCompiledAndEvaluated the integer IR's compiled path is Linux x86-64 only until story 5 of the float spec (the test skips itself elsewhere)
-runtime-jit testWast Wast.TheComparisonIsOfTheWholeWordNotOfTheLowHalf the integer IR's compiled path is Linux x86-64 only until story 5 of the float spec (the test skips itself elsewhere)
 runtime-debug testDap_session DapSession.OverASocketPairItIsTheSameTranscript descriptor transports do not exist on Windows (create_fd is a stub)
 runtime-debug testDap_session DapSession.OverLoopbackTcpTheTestBindsAndAcceptsItIsTheSameTranscript descriptor transports do not exist on Windows (create_fd is a stub)
 # lang-tang: what needs fork, a descriptor transport or an RLIMIT_AS-style cap stays skipped and named.
@@ -43,38 +40,7 @@ lang-tang testJudge Driver.ARunnerThatIsKilledOrCrashesIsAVerdictInRunModeToo th
 lang-tang testJudge Driver.ParsesBothVerdictLines the child-process driver (fork, poll, /bin/sh) is POSIX-only
 lang-tang testJudge Driver.ParsesTheRunReplies the child-process driver (fork, poll, /bin/sh) is POSIX-only
 lang-tang testJudge Driver.ReadsAChildsOutputAndExit the child-process driver (fork, poll, /bin/sh) is POSIX-only
-runtime-jit testFloat_ir FloatRun.EveryOperationGivesTheWorkedAnswerFromTheCodeAndFromTheEvaluator the float IR's compiled path is Linux x86-64 only until story 5 of the float spec (the test skips itself elsewhere)
-runtime-jit testFloat_ir FloatRun.EveryOperationAtEveryWidthAgreesWithTheEvaluatorOnTheBoundaryValues the float IR's compiled path is Linux x86-64 only until story 5 of the float spec (the test skips itself elsewhere)
-runtime-jit testFloat_ir FloatRun.ATruncationNamesTheNanGuardTheRangeGuardOrReturnsTheTruncatedValue the float IR's compiled path is Linux x86-64 only until story 5 of the float spec (the test skips itself elsewhere)
-runtime-jit testFloat_ir FloatRun.AnF32EntersAndLeavesAsItsLow32BitsWhateverTheCallerLeftAbove the float IR's compiled path is Linux x86-64 only until story 5 of the float spec (the test skips itself elsewhere)
-runtime-jit testFloat_ir FloatRun.AFloatLoadedFromMemoryAndStoredToItIsItsBitsAtItsOwnWidth the float IR's compiled path is Linux x86-64 only until story 5 of the float spec (the test skips itself elsewhere)
-runtime-jit testFloat_ir FloatRun.AConstantAndAMoveOfAnF32AreZeroExtendedAndAnF64ConstantIsAnyPattern the float IR's compiled path is Linux x86-64 only until story 5 of the float spec (the test skips itself elsewhere)
-runtime-jit testFloat_ir FloatRun.TheOperationsAreRoundedOneAtATimeAndSubnormalsSurviveUnderTheDefaultMxcsr the float IR's compiled path is Linux x86-64 only until story 5 of the float spec (the test skips itself elsewhere)
-runtime-jit testFloat_ir FloatHelpers.EveryMixOfIntegerAndFloatArgumentsArrivesInItsRegisterBySysVClassification the float IR's compiled path is Linux x86-64 only until story 5 of the float spec (the test skips itself elsewhere)
-runtime-jit testFloat_ir FloatHelpers.TheNamedClassificationFromTheStoryComesOutAsStated the float IR's compiled path is Linux x86-64 only until story 5 of the float spec (the test skips itself elsewhere)
-runtime-jit testFloat_ir FloatHelpers.AFloatResultIsTakenFromXmm0ByItsOwnWidthWhateverIsAboveBit31 the float IR's compiled path is Linux x86-64 only until story 5 of the float spec (the test skips itself elsewhere)
-runtime-jit testFloat_ir FloatHelpers.ACompiledCallOfARealCppHelperGetsItsArgumentsAndGivesItsResultExactly the float IR's compiled path is Linux x86-64 only until story 5 of the float spec (the test skips itself elsewhere)
-runtime-jit testFloat_ir FloatHelpers.ACallOverTheLimitIsRefusedAsBeforeAndANativeTakesNoFloat the float IR's compiled path is Linux x86-64 only until story 5 of the float spec (the test skips itself elsewhere)
-runtime-jit testFloat_ir FloatHelpers.ACallThatCanReachAGcPointTakesAndReturnsFloatsAndKeepsThemOutOfTheStackMap the float IR's compiled path is Linux x86-64 only until story 5 of the float spec (the test skips itself elsewhere)
-runtime-jit testFloat_ir FloatRun.AFloatInAFrameStateIsRecordedWithItsRepresentationAndRawNeverAReference the float IR's compiled path is Linux x86-64 only until story 5 of the float spec (the test skips itself elsewhere)
-runtime-jit testFloat_ir FloatRun.AFloatLiveAcrossAPollACallAndANativeIsRawInTheFrameStateAndNeverInTheStackMap the float IR's compiled path is Linux x86-64 only until story 5 of the float spec (the test skips itself elsewhere)
-runtime-jit testFloat_ir FloatCalls.AFloatGoesThroughACallInARegisterAndOnTheStackAndComesBackExact the float IR's compiled path is Linux x86-64 only until story 5 of the float spec (the test skips itself elsewhere)
-runtime-jit testFloat_ir FloatCalls.FloatArithmeticInTheCallerFeedsTheCalleeAndTheResultComesBack the float IR's compiled path is Linux x86-64 only until story 5 of the float spec (the test skips itself elsewhere)
-runtime-jit testFloat_ir FloatCalls.AFloatGoesThroughATailCallInARegisterAndOnTheStack the float IR's compiled path is Linux x86-64 only until story 5 of the float spec (the test skips itself elsewhere)
-runtime-jit testFloat_ir FloatCalls.AFloatGoesThroughACallPtrAndATailCallPtrInARegisterAndOnTheStack the float IR's compiled path is Linux x86-64 only until story 5 of the float spec (the test skips itself elsewhere)
-runtime-jit testFloat_ir FloatRun.ATypedFloatImmediateWorksOnEitherSideOfAnOperationAMoveAndATruncationGuard the float IR's compiled path is Linux x86-64 only until story 5 of the float spec (the test skips itself elsewhere)
-runtime-jit testWast Wast.AnF32WithBitsAboveThirtyOneIsNotWhatTheSuiteExpects the float IR's compiled path is Linux x86-64 only until story 5 of the float spec (the test skips itself elsewhere)
-runtime-jit testDifferential Differential.GeneratedFloatProgramsRunTheSameCompiledAndEvaluatedWithNansEqual the float IR's compiled path is Linux x86-64 only until story 5 of the float spec (the test skips itself elsewhere)
-runtime-jit testCpu_features CpuDetect.TheDetectedSetIsTheCpuinfoFlagsOfTheHostWhenThatFileIsTheHostsOwn the CPU-feature arms are Linux x86-64 only (the test skips itself elsewhere)
-runtime-jit testCpu_features CpuRecord.TheRecordedSetIsExactlyTheArmsEmittedUnderEverySubsetOfTheHostsFeatures the CPU-feature arms are Linux x86-64 only (the test skips itself elsewhere)
-runtime-jit testCpu_features CpuRecord.AMaskOfReservedBitsChangesNothingAndAFullMaskIsV1 the CPU-feature arms are Linux x86-64 only (the test skips itself elsewhere)
-runtime-jit testCpu_features CpuReuse.CodeRunsWhereItsRecordedSetIsASubsetOfTheRunningOneAndNowhereElse the CPU-feature arms are Linux x86-64 only (the test skips itself elsewhere)
-runtime-jit testCpu_features CpuRun.TheWorkedAnswersOfTheIntegerOperationsAreTheSameUnderEverySubsetOfTheHostsFeatures the CPU-feature arms are Linux x86-64 only (the test skips itself elsewhere)
-runtime-jit testCpu_features CpuRun.TheWorkedAnswersOfTheRoundingsAreTheSameUnderEverySubsetOfTheHostsFeatures the CPU-feature arms are Linux x86-64 only (the test skips itself elsewhere)
-runtime-jit testCpu_features CpuRun.TheV1ArmGivesTheWorkedAnswersOnAHostThatHasTheFeaturesBecauseItsMaskedOff the CPU-feature arms are Linux x86-64 only (the test skips itself elsewhere)
-runtime-jit testCpu_features CpuRun.EveryFeatureDependentOperationGivesTheEvaluatorsAnswersUnderEverySubsetAndEveryMaskAgrees the CPU-feature arms are Linux x86-64 only (the test skips itself elsewhere)
-runtime-jit testCpu_features CpuModel.TheDetectedSetIsTheOneTheRunExpectsAndTheNativeRunExpectsTheHostsOwn the CPU-feature arms are Linux x86-64 only (the test skips itself elsewhere)
-runtime-jit testCpu_features CpuModel.CodeCompiledForTheDetectedSetIsRightWhereTheModelsInstructionsBehaveAsItsBitsSay the CPU-feature arms are Linux x86-64 only (the test skips itself elsewhere)
-runtime-jit testCpu_features CpuModel.AnArmForcedOntoACpuRunsAsTheInstructionTheCpuHasAndALackingOneRunsAsTheBitScan the CPU-feature arms are Linux x86-64 only (the test skips itself elsewhere)
-runtime-jit testCpu_features CpuModel.AForcedArmOfAFeatureTheHostHasRunsItsInstruction the CPU-feature arms are Linux x86-64 only (the test skips itself elsewhere)
-runtime-jit testCpu_features CpuSkips.OnAHostWithEveryFeatureNothingWasSkippedForAMissingOne the CPU-feature arms are Linux x86-64 only (the test skips itself elsewhere)
+runtime-jit testFloat_ir FloatHelpers.EveryMixOfIntegerAndFloatArgumentsArrivesInItsRegisterBySysVClassification the SysV classification is checked against an x86-64 Linux assembly probe; the Microsoft x64 convention has its own probe (Win64Helpers.*), which runs
+runtime-jit testFloat_ir FloatHelpers.TheNamedClassificationFromTheStoryComesOutAsStated the SysV classification is checked against an x86-64 Linux assembly probe; the Microsoft x64 convention has its own probe (Win64Helpers.*), which runs
+runtime-jit testFloat_ir FloatHelpers.AFloatResultIsTakenFromXmm0ByItsOwnWidthWhateverIsAboveBit31 the SysV classification is checked against an x86-64 Linux assembly probe; the Microsoft x64 convention has its own probe (Win64Helpers.*), which runs
+runtime-jit testCpu_features CpuDetect.TheDetectedSetIsTheCpuinfoFlagsOfTheHostWhenThatFileIsTheHostsOwn the oracle is /proc/cpuinfo of a native Linux x86-64 host (the CPU-feature arms themselves run under wine)
