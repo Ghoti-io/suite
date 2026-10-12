@@ -378,6 +378,13 @@ fi
 
 for repo in $walk; do
   if [ ! -f "$LIBS/$repo/Makefile" ]; then
+    # A library the manifest names and the tree lacks is a failed clone, not
+    # something to build around: a skipped library lets every later one build
+    # against an older copy in the prefix and the run still ends in Done.
+    if [ "$ACTION" = install ]; then
+      echo "install.sh: $repo is in libraries.txt and has no checkout under $LIBS; run clone.sh" >&2
+      exit 1
+    fi
     echo "  $repo: not present, skipping"
     continue
   fi
