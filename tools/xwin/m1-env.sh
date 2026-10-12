@@ -55,9 +55,11 @@ chmod +x $SHIM/python3; ln -sf python3 $SHIM/python
 # In MSYS2 gtest lives in /mingw64/{include,lib}, a default search path; here it
 # is in the prefix, so say so to the compiler.
 export CPATH=$WPREFIX/include LIBRARY_PATH=$WPREFIX/lib
+# gtest is a system header on Linux, so a warning inside it is not an error
+# there; -isystem gives the imitation the same view.
 # pkg-config drops -I/-L it believes are system paths (CPATH/LIBRARY_PATH are
 # read as such), so name them to the Makefiles directly as well.
-export EXTRA_CXXFLAGS="-I$WPREFIX/include" EXTRA_LDFLAGS="-L$WPREFIX/lib"
+export EXTRA_CXXFLAGS="-isystem $WPREFIX/include" EXTRA_LDFLAGS="-L$WPREFIX/lib"
 unset CPATH LIBRARY_PATH
 
 # The runtime DLLs MSYS2 has in /mingw64/bin, next to the libraries' own DLLs in

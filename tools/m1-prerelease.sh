@@ -13,7 +13,9 @@
 #          `make test` and fails only this.
 # windows  suite/tools/xwin/m1-run.sh: the five libraries cross-built for win64 and
 #          run under wine, then the probe and the controls that put each
-#          Windows fix back to its old self.
+#          Windows fix back to its old self. Then xwin/defiant-run.sh: the six
+#          Defiant libraries and the defiant program built for win64, tested and
+#          started under wine, with controls for the library-level fixes.
 #
 # Run it before a release and after a change to a backend, the page provider
 # or anything under a _WIN32 or an architecture branch. It exits 0 only if
@@ -43,6 +45,8 @@ fi
 if [ "$want" != arm64 ]; then
   echo "=== Windows x86-64 under wine ==="
   "$HERE/xwin/m1-run.sh" || failed=1
+  echo "=== Defiant libraries and the defiant program under wine ==="
+  "$HERE/xwin/defiant-run.sh" || failed=1
 fi
 
 if [ $failed -eq 0 ]; then

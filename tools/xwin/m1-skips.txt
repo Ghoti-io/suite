@@ -44,3 +44,7 @@ runtime-jit testFloat_ir FloatHelpers.EveryMixOfIntegerAndFloatArgumentsArrivesI
 runtime-jit testFloat_ir FloatHelpers.TheNamedClassificationFromTheStoryComesOutAsStated the SysV classification is checked against an x86-64 Linux assembly probe; the Microsoft x64 convention has its own probe (Win64Helpers.*), which runs
 runtime-jit testFloat_ir FloatHelpers.AFloatResultIsTakenFromXmm0ByItsOwnWidthWhateverIsAboveBit31 the SysV classification is checked against an x86-64 Linux assembly probe; the Microsoft x64 convention has its own probe (Win64Helpers.*), which runs
 runtime-jit testCpu_features CpuDetect.TheDetectedSetIsTheCpuinfoFlagsOfTheHostWhenThatFileIsTheHostsOwn the oracle is /proc/cpuinfo of a native Linux x86-64 host (the CPU-feature arms themselves run under wine)
+# defiant-storage-sqlite, defiant-test: what needs a directory that refuses writes, fork or an ELF reader stays skipped and named.
+defiant-storage-sqlite testPlacement Io.DiskFailureOnPutIsNotCommitted a read-only directory does not stop a Windows process creating files in it
+defiant-test testHarness Site.Readable the reader is a separate ELF program started with fork and checked with readelf
+defiant-core testInst Inst.Effective the effective-config example is run with a chosen environment through fork and execve
