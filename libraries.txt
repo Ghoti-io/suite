@@ -38,4 +38,4 @@ defiant-storage-memory https://github.com/Ghoti-io/defiant-storage-memory.git ma
 defiant-storage-sqlite https://github.com/Ghoti-io/defiant-storage-sqlite.git master defiant-storage,vendor-sqlite
 defiant-core https://github.com/Ghoti-io/defiant-core.git master cutil,defiant-storage,security,text,regex,lang-tang,archive
 defiant-test https://github.com/Ghoti-io/defiant-test.git master defiant-core,defiant-storage
-defiant-web https://github.com/Ghoti-io/defiant-web.git master defiant-core,http,cutil,security
+defiant-web https://github.com/Ghoti-io/defiant-web.git master defiant-core,http,cutil,security,defiant-storage-memory,defiant-storage-sqlite
