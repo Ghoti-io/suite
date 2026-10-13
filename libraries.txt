@@ -9,6 +9,7 @@
 # push from this tree uses an ssh key. The URL on this line stays https.
 
 cutil      https://github.com/Ghoti-io/cutil.git      master -
+lang-wasm  https://github.com/Ghoti-io/lang-wasm.git  master cutil
 security   https://github.com/Ghoti-io/security.git   master cutil
 certificate https://github.com/Ghoti-io/certificate.git master cutil,security
 tls         https://github.com/Ghoti-io/tls.git         master cutil,security,certificate
