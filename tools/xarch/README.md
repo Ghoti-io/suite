@@ -9,6 +9,33 @@ foreign binaries and `qemu-<arch>` runs them explicitly, in userspace, so it
 works under rootless podman. `docker` on this host is a podman shim; either
 name works.
 
+## Which image: `sid-gcc16`, and `deb13` for what has not moved
+
+The suite's compiler is GCC 16.2.0 (`ghoti-build:gcc16`, see CLAUDE.md), and a
+32-bit or big-endian result from a different compiler under the same `-Werror`
+answers a different question. Debian 13's cross compilers are GCC 14.
+**`ghoti-xarch:sid-gcc16`** (`Containerfile.gcc16`) has GCC 16.2.0 for all six
+cross targets, from a digest-pinned Debian sid base and a dated
+`snapshot.debian.org` archive, so a rebuild gets the same packages. The
+compilers are installed as `gcc-16-<triple>` and linked to the `<triple>-gcc`
+names every script here calls; `smoke.sh` prints each version.
+
+```bash
+podman build -t ghoti-xarch:sid-gcc16 -f suite/tools/xarch/Containerfile.gcc16 suite/tools/xarch
+podman run --rm -v "$PWD:/work:ro,z" ghoti-xarch:sid-gcc16 bash /work/suite/tools/xarch/smoke.sh
+podman run --rm -v "$PWD:/work:ro,z" ghoti-xarch:sid-gcc16 bash /work/suite/tools/xarch/check.sh
+```
+
+Run on `sid-gcc16` on 2026-10-14 and passing: `smoke.sh`, `check.sh`,
+`fiber.sh`, `loop.sh`, `lfs.sh`. **Not yet moved, still `ghoti-xarch:deb13` and
+GCC 14:** `http.sh`, `tls.sh`, `text.sh`, `jit-arm64.sh`, `jit-x86-cpu.sh` and
+the two images built on it (`Containerfile.arm64-jit`, `Containerfile.text`,
+both `FROM` the `deb13` image). Moving them means rebuilding those two on the
+new base and rerunning each script; a GCC 16 `-Werror` finding is possible and
+would be a real one. Until then their results are GCC 14 results.
+
+The original image, still used by the scripts above that have not moved:
+
 ```bash
 podman build -t ghoti-xarch:deb13 -f suite/tools/xarch/Containerfile suite/tools/xarch
 podman run --rm -v "$PWD:/work:ro,z" ghoti-xarch:deb13 bash /work/suite/tools/xarch/smoke.sh
@@ -229,7 +256,7 @@ finally builds `fiber.c` for every target in the matrix that has no switch
 routine and runs `fiber-unsupported.c` to see that it links and refuses.
 
 ```bash
-podman run --rm -v "$PWD:/work:ro,z" ghoti-xarch:deb13 bash /work/suite/tools/xarch/fiber.sh
+podman run --rm -v "$PWD:/work:ro,z" ghoti-xarch:sid-gcc16 bash /work/suite/tools/xarch/fiber.sh
 ```
 
 It reads the ELF header of the aarch64 binary and requires that it does not
@@ -256,7 +283,7 @@ links and refuses, and builds and runs the harness for the other targets in the
 matrix, which are Linux and so have epoll.
 
 ```bash
-podman run --rm -v "$PWD:/work:ro,z" ghoti-xarch:deb13 bash /work/suite/tools/xarch/loop.sh
+podman run --rm -v "$PWD:/work:ro,z" ghoti-xarch:sid-gcc16 bash /work/suite/tools/xarch/loop.sh
 ```
 
 Nothing in the harness waits without a bound, so a defect that loses a wake-up
@@ -279,7 +306,7 @@ listing is held to the plant only if a probe built without the flag fails with
 cookies (ext4) shows it, and tmpfs does not.
 
 ```bash
-podman run --rm -v "$PWD:/work:ro,z" ghoti-xarch:deb13 bash /work/suite/tools/xarch/lfs.sh
+podman run --rm -v "$PWD:/work:ro,z" ghoti-xarch:sid-gcc16 bash /work/suite/tools/xarch/lfs.sh
 ```
 
 qemu-user is not real 32-bit hardware, and the sanitizers do not run under it.
@@ -382,11 +409,13 @@ three images, built on the box from Containerfiles in this repository:
 
 | image (on the box) | Containerfile | used by |
 | --- | --- | --- |
-| `localhost/ghoti-xarch:deb13` | `xarch/Containerfile` | parent of the next |
+| `localhost/ghoti-xarch:deb13` | `xarch/Containerfile` | parent of the next (GCC 14) |
 | `localhost/ghoti-xarch-arm64-jit:deb13-gxx14-gtest` | `xarch/Containerfile.arm64-jit` | `jit-arm64.sh`, `jit-x86-cpu.sh` |
 | `localhost/ghoti-xwin-wine:deb13-mingw-win32-wine10` | `xwin/Containerfile.wine` | `m1-run.sh` |
 
-They were built, not copied, so they hold the Debian trixie packages of the day (the local images are older);
+`ghoti-xarch:sid-gcc16` (GCC 16, see the top of this file) is **not on the box yet**; build it there with
+`tools/evo image build localhost/ghoti-xarch:sid-gcc16 suite/tools/xarch suite/tools/xarch/Containerfile.gcc16`.
+The images below were built, not copied, so they hold the Debian trixie packages of the day (the local images are older);
 `jit-x86-cpu.sh` stage 1 would say if qemu's models had moved.
 To build or remove (`tools/evo image ls` lists them):
 

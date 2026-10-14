@@ -5,7 +5,7 @@
 #
 # Run it in the ghoti-xarch image, from the workspace root:
 #
-#   podman run --rm -v "$PWD:/work:ro,z" ghoti-xarch:deb13 \
+#   podman run --rm -v "$PWD:/work:ro,z" ghoti-xarch:sid-gcc16 \
 #     bash /work/suite/tools/xarch/fiber.sh
 #
 # What it does, in order:

@@ -6,7 +6,7 @@
 #
 # Run it in the ghoti-xarch image, from the workspace root:
 #
-#   podman run --rm -v "$PWD:/work:ro,z" ghoti-xarch:deb13 \
+#   podman run --rm -v "$PWD:/work:ro,z" ghoti-xarch:sid-gcc16 \
 #     bash /work/suite/tools/xarch/lfs.sh
 #
 # Without -D_FILE_OFFSET_BITS=64 a 32-bit glibc has a 32-bit off_t: readdir()

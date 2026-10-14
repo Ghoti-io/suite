@@ -1,0 +1,56 @@
+# The cross-architecture image on GCC 16.2.0, the compiler of ghoti-build:gcc16
+# (suite/Containerfile.build).  Tag ghoti-xarch:sid-gcc16.
+#
+# ghoti-xarch:deb13 (Containerfile) has Debian 13's cross compilers, which are
+# GCC 14, so a 32-bit or big-endian result there was a different compiler from
+# the one that gates the suite, under the same -Werror.  Debian 13 has no
+# GCC 16 cross compiler.  Debian sid has gcc-16-<triple> 16.2.0, the same
+# release as the pinned build image, for all six targets here.
+#
+# sid moves daily, so nothing here is "the latest": the base is digest-pinned
+# and apt reads a dated snapshot.debian.org archive, so every package, the
+# libc6-dev-*-cross headers and qemu-user included, is the version of that
+# date and a rebuild a year from now gets the same bytes.  Raise the date on
+# purpose, and rerun suite/tools/xarch/smoke.sh and check.sh when you do.
+#
+# The compilers are installed as gcc-16-<triple> and then named
+# <triple>-gcc, <triple>-g++ and <triple>-ar, which is what targets.sh and
+# every script here calls.  Without that the names resolve to sid's default
+# GCC, which is not 16.  smoke.sh checks the version.
+#
+# No binfmt registration and no privileges are needed: the cross compilers make
+# foreign binaries and `qemu-<arch>` runs them in userspace, so this works
+# under rootless podman.  gcc-multilib is absent for the reason given in
+# Containerfile: it conflicts with the powerpc64 cross.
+FROM docker.io/library/debian@sha256:1f11c32b03195c1b28c55e4579755659edae5c76dd76a69b4e4fb34c58fa8744
+
+RUN printf 'Types: deb\nURIs: http://snapshot.debian.org/archive/debian/20261012T000000Z/\nSuites: sid\nComponents: main\nSigned-By: /usr/share/keyrings/debian-archive-keyring.gpg\n' \
+      > /etc/apt/sources.list.d/debian.sources \
+ && rm -f /etc/apt/sources.list \
+ && printf 'Acquire::Check-Valid-Until "false";\n' > /etc/apt/apt.conf.d/99snapshot \
+ && apt-get update \
+ && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+      build-essential \
+      gcc-16-s390x-linux-gnu \
+      gcc-16-powerpc64-linux-gnu \
+      gcc-16-powerpc-linux-gnu \
+      gcc-16-sparc64-linux-gnu \
+      gcc-16-aarch64-linux-gnu \
+      gcc-16-i686-linux-gnu \
+      g++-16-aarch64-linux-gnu \
+      libc6-dev-s390x-cross \
+      libc6-dev-ppc64-cross \
+      libc6-dev-powerpc-cross \
+      libc6-dev-sparc64-cross \
+      libc6-dev-arm64-cross \
+      libc6-dev-i386-cross \
+      file \
+      qemu-user \
+      ca-certificates \
+ && for t in s390x powerpc64 powerpc sparc64 aarch64 i686; do \
+      ln -sf "$t-linux-gnu-gcc-16" "/usr/bin/$t-linux-gnu-gcc"; \
+    done \
+ && ln -sf aarch64-linux-gnu-g++-16 /usr/bin/aarch64-linux-gnu-g++ \
+ && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /work
