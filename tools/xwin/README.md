@@ -352,3 +352,13 @@ the record nonce, the PSK binder, the early secret's label) to be caught by the
 same run. Wine's `bcrypt.dll` and sockets are wine's own: none of it says what a
 real Windows machine does.
 
+
+## text: the XML, HTML, Encoding and markup tests for win64 (`text-run.sh`, 2026-10-14)
+
+`text-run.sh [scratch]` is `m1-run.sh` for text: it builds gtest, cutil, unicode, chron, regex and text for win64 into a
+prefix in the scratch tree (`m1-lib.sh deps` with `M1_DEPS` set), then `text-lib.sh`, run by `m1-win.sh` in the same image,
+builds the test programs whose names start with `Html`, `Xml`, `Xhtml`, `Encoding`, `Markup` or `Quadratic` with text's own
+Makefile and runs each from the library directory under wine. It exits 0 only if every program passed, ran at least one
+test, and the build had no warning; the skips are listed by name, not asserted. Like the rest of this directory it imitates
+MSYS2 and is not Windows. On the EVO-X2: `M1_IN_IMAGE=1 bash /work/suite/tools/xwin/text-run.sh /w` in the image of
+`Containerfile.wine`, the mounts of `m1-run.sh`'s job.

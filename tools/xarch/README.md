@@ -397,3 +397,34 @@ text the local run prints. The win gate runs `m1-run.sh` inside the image (`M1_I
 container, and uses `unshare --user --map-root-user` so that the binfmt_misc entry for wine is private to the gate (it
 needs `seccomp=unconfined` for `unshare`, and no capability, and it changes nothing on the box). It unsets `TMPDIR`,
 because wine 10.0 frees what `getenv("TMPDIR")` returns and aborts with `free(): invalid pointer` when it makes a prefix.
+
+## text: the XML, HTML, Encoding and markup tests for AArch64 and 32-bit x86 (`text.sh`, 2026-10-14)
+
+`text.sh aarch64|i686` cross-builds cutil, unicode, chron, regex and text for the target with their own Makefiles, then
+builds and runs, under `qemu-aarch64` or `qemu-i386`, every test program of text whose name starts with `Html`, `Xml`,
+`Xhtml`, `Encoding`, `Markup` or `Quadratic` (43 programs; `TEXT_XARCH_TESTS` changes the pattern). It is the same kind of
+script as `jit-arm64.sh` and shares its rules: every binary's ELF header is read before it runs, a program that passes no
+tests fails, a failure does not stop the others (the list of failures is the last thing printed), and skips are listed by name.
+On i686 it also requires that `HtmlSourceMapLimit` ran and did not skip (the 32-bit limit of the offset map, 128 MiB: 2^27
+bytes; the test feeds that many bytes and one more), and on AArch64 that it skipped. Its image is
+`Containerfile.text` (the arm64-jit image plus `g++-i686-linux-gnu`, and a googletest with `gtest_main` for both targets):
+
+```bash
+tools/evo image build localhost/ghoti-xarch-text:deb13-gxx14-gtest-main suite/tools/xarch suite/tools/xarch/Containerfile.text
+P='; rc=$?; cp -r /scratch/*/build-*.log $RESULTS/ 2>/dev/null; date +%s > $RESULTS/ended; exit $rc'
+for a in aarch64 i686; do
+  J=$(tools/evo new --ws text-x$a cutil unicode chron regex text)
+  tools/evo run $J -m 10G -t 5h --image localhost/ghoti-xarch-text:deb13-gxx14-gtest-main --mount ws:/work:ro --mount scratch:/scratch \
+      --docker-arg --cpus=6 -- "JOBS=6 bash /work/suite/tools/xarch/text.sh $a$P"
+done
+```
+
+Under qemu the build takes about eight minutes and the tests about half an hour (`testEncodingCjk` alone is seven minutes: it
+sweeps every byte sequence). `GTEXT_TEST_SLOWDOWN` (40 by default here) multiplies the one wall-clock bound in the programs,
+`testEncodingFuzzSeeds`' replay, which qemu-user runs in 74 s against its 60 s; `TEXT_XARCH_FULL=1` also sets `GTEXT_TEST_FULL`.
+
+**What the first i686 run found** (two defects of the tests, one of the library's build): a 32-bit program without
+`_FILE_OFFSET_BITS=64` gets `EOVERFLOW` from `readdir()` and `stat()` on a file system with large inode numbers, which
+the workspace's has, so the tests that list a corpus directory saw no files; text's Makefile now defines it
+(`LFS_FLAGS`); two tests (`(size_t)1 << 40`) did not compile with a 32-bit `size_t` and now use the type's own width.
+cutil's file layer has the same exposure and is for cutil's session.

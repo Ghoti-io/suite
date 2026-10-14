@@ -1,0 +1,40 @@
+# Builds the text library for AArch64 and for 32-bit x86 and runs its test programs
+# under qemu-aarch64 / qemu-i386 (text.sh).
+#
+# It adds to ghoti-xarch-arm64-jit:deb13-gxx14-gtest (a C++ cross compiler for aarch64,
+# pkg-config, make, python3, rsync, and a googletest for aarch64) what text's tests need
+# that the runtime stack's did not: gtest_main (text's test programs have no main of their
+# own), and the same for i686 (g++-i686-linux-gnu and its libstdc++, a googletest and a
+# gtest_main built for i686 from the distribution's source).  Each target has a
+# gtest.pc and a gtest_main.pc in /opt/<target>/lib/pkgconfig, found first by
+# PKG_CONFIG_PATH so that the host's x86-64 archives are never linked.
+#
+# The tag names what is inside (notes/suite/CONTAINERS.md section 6).  Never :latest.
+FROM localhost/ghoti-xarch-arm64-jit:deb13-gxx14-gtest
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+      g++-i686-linux-gnu \
+      libstdc++-14-dev-i386-cross \
+      binutils-i686-linux-gnu \
+ && rm -rf /var/lib/apt/lists/*
+
+RUN set -eux; \
+    for t in aarch64 i686; do \
+      d=/opt/$t; mkdir -p $d/lib/pkgconfig /tmp/gtest-build; cd /tmp/gtest-build; \
+      for f in gtest-all gtest_main; do \
+        $t-linux-gnu-g++ -std=c++17 -O1 -fPIC \
+          -I/usr/src/googletest/googletest \
+          -I/usr/src/googletest/googletest/include \
+          -c /usr/src/googletest/googletest/src/$f.cc -o $f.o; \
+      done; \
+      $t-linux-gnu-ar rcs $d/lib/libgtest.a gtest-all.o; \
+      $t-linux-gnu-ar rcs $d/lib/libgtest_main.a gtest_main.o; \
+      printf "Name: gtest\nDescription: googletest for $t\nVersion: 0\nLibs: -L$d/lib -lgtest -pthread\nCflags: -I/usr/src/googletest/googletest/include\n" \
+        > $d/lib/pkgconfig/gtest.pc; \
+      printf "Name: gtest_main\nDescription: googletest main for $t\nVersion: 0\nRequires: gtest\nLibs: -L$d/lib -lgtest_main\nCflags: -I/usr/src/googletest/googletest/include\n" \
+        > $d/lib/pkgconfig/gtest_main.pc; \
+      rm -rf /tmp/gtest-build; \
+    done
+
+WORKDIR /work

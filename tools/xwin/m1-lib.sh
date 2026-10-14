@@ -29,9 +29,10 @@ build_gtest() {
   mkdir -p $P/lib $P/include $P/share/pkgconfig
   cp libgtest*.a $P/lib/ && cp -r $G/include/gtest $P/include/
   for m in gtest gtest_main; do
-    printf 'Name: %s\nDescription: %s\nVersion: 1.16.0\n%sLibs: -L%s/lib -l%s\nCflags: -I%s/include\n' \
-      $m $m "$([ $m = gtest_main ] && echo 'Requires: gtest
-')" $P $m $P > $P/share/pkgconfig/$m.pc
+    # (The Requires line is its own line: a newline inside $( ) is stripped, which glued "Libs:" onto "gtest" and made a
+    # gtest_main.pc that no Makefile asking for both could read - found by text, the first library whose tests link gtest_main.)
+    printf 'Name: %s\nDescription: %s\nVersion: 1.16.0\n%s\nLibs: -L%s/lib -l%s\nCflags: -I%s/include\n' \
+      $m $m "$([ $m = gtest_main ] && echo 'Requires: gtest')" $P $m $P > $P/share/pkgconfig/$m.pc
   done
 }
 
