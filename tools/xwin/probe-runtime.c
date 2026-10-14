@@ -22,6 +22,7 @@
 #include <windows.h>
 #include <pthread.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <time.h>
 #include <errno.h>
@@ -75,8 +76,11 @@ static void part_a(void) {
   CHECK(grcore_page_protect(pp, p, ps, GRCORE_PAGE_READ_EXECUTE) == GRCORE_OK);
 #endif
   DWORD prot = query_protect(p);
-  CHECK(prot == PAGE_EXECUTE_READ);
-  if (prot == PAGE_EXECUTE_READ) {
+  printf("  VirtualQuery protection = 0x%08lx\n", (unsigned long)prot);
+  /* VirtualQuery may include PAGE_* modifier bits in addition to the base
+   * protection value; test the page's access mode and ignore those flags. */
+  CHECK((prot & 0xffu) == PAGE_EXECUTE_READ);
+  if ((prot & 0xffu) == PAGE_EXECUTE_READ) {
     FlushInstructionCache(GetCurrentProcess(), p, sizeof code);
     int (*fn)(void); memcpy(&fn, &p, sizeof fn);
     CHECK(fn() == 42);
@@ -138,23 +142,38 @@ static void part_b(void) {
   grcore_group_destroy(g);
 }
 
+static uint32_t probe_deopt(void * context, uint64_t cause) {
+  (void)context;
+  (void)cause;
+  return 0;
+}
+
 static void part_c(void) {
   printf("C  runtime-jit (compiled code through the installed DLLs)\n");
   CHECK(grjit_backend_available() == true);   /* Windows x86-64 has a backend */
   GRJIT_Builder * b = NULL;
-  GRJIT_VReg x, y;
+  GRJIT_VReg x, y, environment, spare;
   GRJIT_BlockId blk;
   GRJIT_Function * f = NULL;
   CHECK(grjit_builder_create("probe", 0, NULL, NULL, &b) == GRJIT_OK);
   if (!b) return;
-  /* f(x) = x * 2 + 1 */
+  GRJIT_CallHooks hooks = {0};
+  hooks.deopt = probe_deopt;
+  CHECK(grjit_builder_set_callable(b, &hooks, 2) == GRJIT_OK);
+  /* Twelve arguments cross the Win64 register boundary; the callable also
+   * returns its invocation environment through the second-result buffer. */
   CHECK(grjit_builder_param(b, GRJIT_TYPE_I64, &x) == GRJIT_OK);
+  for (size_t i = 1; i < 12; i++)
+    CHECK(grjit_builder_param(b, GRJIT_TYPE_I64, &spare) == GRJIT_OK);
   CHECK(grjit_builder_vreg(b, GRJIT_TYPE_I64, &y) == GRJIT_OK);
+  CHECK(grjit_builder_vreg(b, GRJIT_TYPE_PTR, &environment) == GRJIT_OK);
   CHECK(grjit_builder_block(b, &blk) == GRJIT_OK);
   CHECK(grjit_builder_set_block(b, blk) == GRJIT_OK);
   CHECK(grjit_builder_binary(b, GRJIT_OP_MUL, y, grjit_operand_vreg(x), grjit_operand_imm(2)) == GRJIT_OK);
   CHECK(grjit_builder_binary(b, GRJIT_OP_ADD, y, grjit_operand_vreg(y), grjit_operand_imm(1)) == GRJIT_OK);
-  CHECK(grjit_builder_ret(b, grjit_operand_vreg(y)) == GRJIT_OK);
+  CHECK(grjit_builder_instance(b, environment) == GRJIT_OK);
+  const GRJIT_Operand results[2] = {grjit_operand_vreg(y), grjit_operand_vreg(environment)};
+  CHECK(grjit_builder_ret_multi(b, results, 2) == GRJIT_OK);
   CHECK(grjit_builder_finish(b, &f) == GRJIT_OK);
   if (!f) return;
   GRJIT_CompileOptions o;
@@ -163,17 +182,44 @@ static void part_c(void) {
   GRJIT_Code * code = NULL;
   CHECK(grjit_compile(&o, f, &code) == GRJIT_OK);
   if (code) {
-    uint64_t args[1] = {20}, out[1] = {0};
-    CHECK(grjit_code_call(code, NULL, args, out) == GRJIT_EXIT_RETURNED && out[0] == 41);
+    GRCORE_Group * group = NULL;
+    GRCORE_Context * context = NULL;
+    int instance = 0;
+    uint64_t args[12] = {20};
+    size_t out_words = grjit_code_out_words(code);
+    CHECK(out_words >= 2);
+    uint64_t * out = calloc(out_words, sizeof *out);
+    CHECK(out != NULL);
+    CHECK(grcore_group_create(NULL, NULL, &group) == GRCORE_OK);
+    if (group) CHECK(grcore_context_create(group, NULL, &context) == GRCORE_OK);
+    if (context && out) {
+      CHECK(grjit_code_call(code, context, &instance, args, out) == GRJIT_EXIT_RETURNED &&
+          out[0] == 41 && out[1] == (uint64_t)(uintptr_t)&instance);
+    }
+    if (context) grcore_context_destroy(context);
+    if (group) grcore_group_destroy(group);
+    free(out);
     /* The code's unwind table is registered with the system: the lookup of an
      * address inside it finds the function, with the mapping as its base. */
-    DWORD64 at = (DWORD64)(uintptr_t)grjit_code_address(code) + 1, image = 0;
+    DWORD64 code_base = (DWORD64)(uintptr_t)grjit_code_address(code), image = 0;
+    DWORD64 internal = (DWORD64)grjit_code_internal_entry(code);
+    DWORD body_begin = internal >= code_base ? (DWORD)(internal - code_base) : 0;
+    DWORD64 at = code_base + 1;
     PRUNTIME_FUNCTION rf = RtlLookupFunctionEntry(at, &image, NULL);
-    CHECK(rf != NULL && image == (DWORD64)(uintptr_t)grjit_code_address(code));
-    CHECK(rf != NULL && rf->BeginAddress == 0 && rf->EndAddress == grjit_code_size(code));
+    CHECK(rf != NULL && image == code_base);
+    /* Callable code registers separate unwind ranges for the entry adapter and
+     * compiled body. Alignment may leave an unregistered gap between them. */
+    CHECK(body_begin > 0 && body_begin < grjit_code_size(code));
+    CHECK(rf != NULL && rf->BeginAddress <= 1 && rf->EndAddress > 1 &&
+        rf->EndAddress <= body_begin);
+    DWORD64 body_image = 0;
+    PRUNTIME_FUNCTION body = RtlLookupFunctionEntry(internal, &body_image, NULL);
+    CHECK(body != NULL && body_image == code_base);
+    CHECK(body != NULL && body->BeginAddress == body_begin && body->EndAddress == grjit_code_size(code));
     grjit_code_destroy(code);
     /* ...and not once the code is gone. */
     CHECK(RtlLookupFunctionEntry(at, &image, NULL) == NULL);
+    CHECK(RtlLookupFunctionEntry(internal, &body_image, NULL) == NULL);
   }
   grjit_function_destroy(f);
 }
