@@ -264,6 +264,26 @@ is a failed check and not a hung run. What it cannot show is the same as for
 fibers: no sanitizer gate under qemu-user, qemu's epoll is a translation of the
 host's, and the harness is C and not `test-loop.cpp`.
 
+## Large files: `lfs.sh` (cutil, 32-bit targets)
+
+Builds cutil's `file.c`, `dir.c`, `mmap.c` and their two dependencies for i686
+and 32-bit PowerPC with the library's own flags and `-Werror`, and runs the
+plain-C harness `lfs-check.c` under qemu-user: list a directory, seek, write
+and tell at 3 GiB, `stat` the size past 2 GiB, read back from the end, and map
+a 5 GiB sparse file, which a 32-bit build must refuse. The x86-64 host is the
+control. Two plants follow: the library built without
+`-D_FILE_OFFSET_BITS=64` must fail to compile, naming the flag, and the same
+build with that refusal switched off must fail the harness. The directory
+listing is held to the plant only if a probe built without the flag fails with
+`EOVERFLOW` on the workspace mount: only a directory whose entries carry 64-bit
+cookies (ext4) shows it, and tmpfs does not.
+
+```bash
+podman run --rm -v "$PWD:/work:ro,z" ghoti-xarch:deb13 bash /work/suite/tools/xarch/lfs.sh
+```
+
+qemu-user is not real 32-bit hardware, and the sanitizers do not run under it.
+
 ## HTTP: `http.sh` and `http-arm64.sh` (http, Defiant milestone 1 story 3, 3c)
 
 ```bash
