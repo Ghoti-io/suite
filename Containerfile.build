@@ -17,6 +17,8 @@
 # AddressSanitizer, UBSan, and ThreadSanitizer are the GCC 16.2.0 runtimes
 # in this base image (/usr/local/lib64), not packages added below. Valgrind
 # is the apt pin already in the list (valgrind=1:3.24.0-3).
+# Locale-number tests generate a private de_DE.UTF-8 with localedef, so install
+# the pinned locale definitions and locale compiler data as well.
 FROM docker.io/library/gcc:16.2.0@sha256:3f73339bf0d3d64081cac3f6d9fdafc6dd4cef2b9c49e0a09f91e97cb0eb139a
 
 RUN apt-get update \
@@ -37,6 +39,7 @@ RUN apt-get update \
       libclang1-19=1:19.1.7-3+b1 \
       libgc1=1:8.2.8-1 \
       libicu-dev=76.1-4 \
+      libc-l10n=2.41-12+deb13u4 \
       libllvm19=1:19.1.7-3+b1 \
       libobjc-14-dev=14.2.0-19 \
       libobjc4=14.2.0-19 \
@@ -46,6 +49,7 @@ RUN apt-get update \
       glslang-tools=15.1.0+1.4.309.0-1 \
       spirv-tools=2025.1~rc1-1 \
       cppcheck=2.17.1-2 \
+      locales=2.41-12+deb13u4 \
       libtinyxml2-11=11.0.0+dfsg-1+b1 \
       python3-pygments=2.18.0+dfsg-2 \
       libz3-4=4.13.3-1 \
