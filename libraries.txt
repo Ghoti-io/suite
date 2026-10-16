@@ -9,7 +9,8 @@
 # push from this tree uses an ssh key. The URL on this line stays https.
 
 cutil      https://github.com/Ghoti-io/cutil.git      master -
-lang-wasm  https://github.com/Ghoti-io/lang-wasm.git  master cutil
+runtime-core https://github.com/Ghoti-io/runtime-core.git master cutil
+lang-wasm  https://github.com/Ghoti-io/lang-wasm.git  master cutil,runtime-core
 security   https://github.com/Ghoti-io/security.git   master cutil
 certificate https://github.com/Ghoti-io/certificate.git master cutil,security
 tls         https://github.com/Ghoti-io/tls.git         master cutil,security,certificate
@@ -27,7 +28,6 @@ audio      https://github.com/Ghoti-io/audio.git      master cutil,security,?com
 ctang      https://github.com/Ghoti-io/ctang.git      master cutil,unicode
 cjelly     https://github.com/Ghoti-io/cjelly.git     master cutil,image,model
 http       https://github.com/Ghoti-io/http.git       master cutil,security,compress
-runtime-core https://github.com/Ghoti-io/runtime-core.git master cutil
 runtime-heap https://github.com/Ghoti-io/runtime-heap.git master cutil,runtime-core
 runtime-debug https://github.com/Ghoti-io/runtime-debug.git master cutil,text,runtime-core
 runtime-jit https://github.com/Ghoti-io/runtime-jit.git master cutil,runtime-core
