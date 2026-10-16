@@ -355,7 +355,7 @@ real Windows machine does.
 
 ## text: the XML, HTML, Encoding and markup tests for win64 (`text-run.sh`, 2026-10-14)
 
-`text-run.sh [scratch]` is `m1-run.sh` for text: it builds gtest, cutil, unicode, chron, regex and text for win64 into a
+`text-run.sh [scratch]` is `m1-run.sh` for text: it builds gtest, cutil, unicode, chron, regex, security and text for win64 into a
 prefix in the scratch tree (`m1-lib.sh deps` with `M1_DEPS` set), then `text-lib.sh`, run by `m1-win.sh` in the same image,
 builds the test programs whose names start with `Html`, `Xml`, `Xhtml`, `Encoding`, `Markup` or `Quadratic` with text's own
 Makefile and runs each from the library directory under wine. It exits 0 only if every program passed, ran at least one

@@ -449,7 +449,7 @@ because wine 10.0 frees what `getenv("TMPDIR")` returns and aborts with `free():
 
 ## text: the XML, HTML, Encoding and markup tests for AArch64 and 32-bit x86 (`text.sh`, 2026-10-14)
 
-`text.sh aarch64|i686` cross-builds cutil, unicode, chron, regex and text for the target with their own Makefiles, then
+`text.sh aarch64|i686` cross-builds cutil, unicode, chron, regex, security and text for the target with their own Makefiles, then
 builds and runs, under `qemu-aarch64` or `qemu-i386`, every test program of text whose name starts with `Html`, `Xml`,
 `Xhtml`, `Encoding`, `Markup` or `Quadratic` (43 programs; `TEXT_XARCH_TESTS` changes the pattern). It is the same kind of
 script as `jit-arm64.sh` and shares its rules: every binary's ELF header is read before it runs, a program that passes no
@@ -462,7 +462,7 @@ bytes; the test feeds that many bytes and one more), and on AArch64 that it skip
 tools/evo image build localhost/ghoti-xarch-text:deb13-gxx14-gtest-main suite/tools/xarch suite/tools/xarch/Containerfile.text
 P='; rc=$?; cp -r /scratch/*/build-*.log $RESULTS/ 2>/dev/null; date +%s > $RESULTS/ended; exit $rc'
 for a in aarch64 i686; do
-  J=$(tools/evo new --ws text-x$a cutil unicode chron regex text)
+  J=$(tools/evo new --ws text-x$a cutil security unicode chron regex text)
   tools/evo run $J -m 10G -t 5h --image localhost/ghoti-xarch-text:deb13-gxx14-gtest-main --mount ws:/work:ro --mount scratch:/scratch \
       --docker-arg --cpus=6 -- "JOBS=6 bash /work/suite/tools/xarch/text.sh $a$P"
 done

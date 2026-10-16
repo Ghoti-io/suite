@@ -18,12 +18,12 @@ if [ -n "${M1_IN_IMAGE:-}" ]; then
   [ "$W" = /w ] || { echo "text-run: with M1_IN_IMAGE the scratch directory is /w" >&2; exit 2; }
 fi
 mkdir -p "$W/logs"
-for l in cutil unicode chron regex text; do
+for l in cutil unicode chron regex security text; do
   rsync -a --exclude build --exclude .git "$SRC/libs/$l/" "$W/$l/" || exit 2
 done
 in_container() { "$HERE/m1-win.sh" "$W" "$@"; }
 echo "== dependencies"
-in_container 'M1_DEPS="cutil:cutil unicode:unicode chron:chron regex:regex text:text" bash /tools/xwin/m1-lib.sh deps' > "$W/logs/deps.log" 2>&1; rc=$?
+in_container 'M1_DEPS="cutil:cutil unicode:unicode chron:chron regex:regex security:security text:text" bash /tools/xwin/m1-lib.sh deps' > "$W/logs/deps.log" 2>&1; rc=$?
 grep -vi fontconfig "$W/logs/deps.log"
 [ $rc -eq 0 ] || { echo "text-run: the dependencies did not build" >&2; exit 2; }
 echo "== text"
