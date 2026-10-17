@@ -129,8 +129,22 @@ if [ "$l" = runtime-heap ]; then
   fi
 fi
 
+# The Win64 Lang-Wasm gate also runs its debugger differential against the
+# RELOCATE=yes heap built in the runtime-heap phase. Keep that prefix first in
+# pkg-config lookup and retain the regular prefix for runtime-jit/lang-wasm.
+debug_relocate=skipped
+if [ "$l" = lang-wasm ]; then
+  RP=/w/prefix-reloc
+  ( export PKG_CONFIG_PATH=$RP/share/pkgconfig:$P/share/pkgconfig
+    export WINEPATH='Z:\w\prefix-reloc\bin;Z:\w\prefix\bin'
+    make -j4 PREFIX=$P RELOCATE=yes test-debug-relocate \
+      > /w/logs/$l.debug-relocate.log 2>&1 ) \
+    && debug_relocate=passed \
+    || { echo "lang-wasm RELOCATE=yes debugger differential FAILED (see /w/logs/$l.debug-relocate.log)"; tail -n 16 /w/logs/$l.debug-relocate.log; reloc_bad=1; debug_relocate=FAILED; }
+fi
+
 warn=$(cat /w/logs/$l.all.log /w/logs/$l.test.log 2>/dev/null | grep -c 'warning:')
 status=OK
 { [ $rc_all -ne 0 ] || [ $rc_install -ne 0 ] || [ $rc_test -ne 0 ] || [ $rc_examples -ne 0 ] || [ $bad -ne 0 ] || [ $ex_bad -ne 0 ] || [ $progs -eq 0 ] || [ $warn -ne 0 ] || [ $skip_bad -ne 0 ] || [ $reloc_bad -ne 0 ]; } && status=FAIL
-echo "SUMMARY $l status=$status warnings=$warn make(all=$rc_all install=$rc_install test=$rc_test examples=$rc_examples) programs=$progs tests=$tot passed=$pass skipped=$skip(named=$skip_named) bad_programs=$bad examples(ran=$ex_ran skipped=$ex_skip failed=$ex_bad)$([ "$l" = runtime-heap ] && echo " relocating(programs=$reloc_progs tests=$reloc_tests gates=$reloc_gates)")"
+echo "SUMMARY $l status=$status warnings=$warn make(all=$rc_all install=$rc_install test=$rc_test examples=$rc_examples) programs=$progs tests=$tot passed=$pass skipped=$skip(named=$skip_named) bad_programs=$bad examples(ran=$ex_ran skipped=$ex_skip failed=$ex_bad)$([ "$l" = runtime-heap ] && echo " relocating(programs=$reloc_progs tests=$reloc_tests gates=$reloc_gates)")$([ "$l" = lang-wasm ] && echo " debugger_relocation=$debug_relocate")"
 [ $status = OK ]

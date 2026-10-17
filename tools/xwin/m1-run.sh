@@ -7,7 +7,7 @@
 #                                            this workspace: a fresh clone made
 #                                            the way suite/clone.sh lays it out
 #
-# runtime-core, runtime-heap, runtime-jit, runtime-debug and lang-tang are built
+# runtime-core, runtime-heap, runtime-debug, runtime-jit, lang-wasm and lang-tang are built
 # with their own Makefiles in ghoti-cross-mingw64:deb13 (m1-env.sh makes the
 # container imitate MSYS2 well enough for the Makefiles to pick their Windows
 # arm; it is not Windows), each library is installed into a prefix inside the
@@ -25,7 +25,8 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 ROOT=$(cd "$HERE/../../.." && pwd)
 SRC=${M1_SRC:-$ROOT}
 W=${1:-/tmp/xwin-m1}
-LIBS="runtime-core runtime-heap runtime-jit runtime-debug lang-tang"
+# Keep this in dependency order: lang-wasm uses runtime-debug and runtime-jit.
+LIBS="runtime-core runtime-heap runtime-debug runtime-jit lang-wasm lang-tang"
 DEPS="cutil unicode chron regex text ctang"
 
 if [ -n "${M1_IN_IMAGE:-}" ]; then

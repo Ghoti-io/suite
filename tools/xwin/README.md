@@ -71,8 +71,8 @@ with it is that it does not build.
 ```
 
 `run-security.sh` links one library against two of cutil's objects. The runtime
-stack is five libraries that depend on each other and on six more
-(`runtime-core`, `runtime-heap`, `runtime-jit`, `runtime-debug`, `lang-tang`;
+stack is six libraries that depend on each other and on six more
+(`runtime-core`, `runtime-heap`, `runtime-debug`, `runtime-jit`, `lang-wasm`, `lang-tang`;
 cutil, unicode, chron, regex, text and ctang underneath), and what is wanted is
 the libraries' own Makefiles, their own tests and their own gates, run for
 win64. So this does not cross-link by hand. It runs each library's real
@@ -99,7 +99,7 @@ real filesystem (case rules, backslash paths, sharing violations), a real
 
 1. **Dependencies**: gtest from `/usr/src/googletest`, then cutil, unicode, chron,
    regex, text and ctang (`m1-lib.sh deps`).
-2. **For each of the five libraries** (`m1-lib.sh lib <name>`): `make all`,
+2. **For each of the six libraries** (`m1-lib.sh lib <name>`): `make all`,
    `install`, `test` and `examples`, each with `-k` so that one failure does not
    hide the rest; then every test program on its own, so that a crash shows as
    a program and not as a truncated `make test`, with gtest's own counts of
@@ -137,7 +137,7 @@ real filesystem (case rules, backslash paths, sharing violations), a real
 
 ## What a green run means
 
-`m1-run: GREEN` is printed, and the exit status is 0, only when, for all five
+`m1-run: GREEN` is printed, and the exit status is 0, only when, for all six
 libraries, every make target returned 0, every test program passed, no example
 failed, and the compile produced no warning; when the probe passed and its
 control failed; and when every control failed. Skips are reported and are not
@@ -148,6 +148,7 @@ because a suite that skips a test has not run it:
 | --- | --- |
 | runtime-jit | 22 tests, none for want of a backend (Windows x86-64 has one, run under wine, and since story 5 of the float spec it runs the integer, float and CPU-feature tests, the ten Wasm files twice and the Microsoft x64 probe and sentinels): six that read a host `objdump` (POSIX `mkstemp`/`popen`), three that are SysV assembly probes (`FloatHelpers.*`, the Microsoft x64 ones are `Win64Helpers.*` and run), the `/proc/cpuinfo` oracle of the CPU features, ten that are arm64's (the AAPCS64 probe, `fpcr`, the `d8`-`d15` sentinel caller, the objdump scan, and the four simulator tests that call a host function with an AAPCS64 signature, which a Microsoft x64 host cannot), one that is arm64's instruction-cache count on an arm64 build, and one that needs a target with no unwinder to register with; and `check-planted`, a Linux target (its Windows defects, 5 to 7, 30 to 37, 88 to 91 and the shared integer, float and CPU-feature ones rerun on Win64, are run by the controls instead). |
 | runtime-debug | the socket-pair and loopback-TCP sessions and the example (the descriptor transport is a documented stub there); the stub's own error return is tested instead. |
+| lang-wasm | none expected; every test program runs and `m1-lib.sh` fails if a new or unexpected skip appears. |
 | lang-tang | the allocation-failure sweeps (cutil allocates through `HeapAlloc` on Windows, which `--wrap` cannot reach), the ctang child-process driver, `--dap` sessions, the web-server example, `test-oracle` and `check-planted`. |
 
 It proves that our code builds with the full warning set, links, and passes its
@@ -323,6 +324,9 @@ asks of Win64:
   its own (`/w/prefix-reloc`); every test program runs with `GRHEAP_RELOCATE=1`
   and `check-relocation-present` and `check-relocation-gates` run, and the
   SUMMARY line says how many programs, tests and gate checks.
+- **`lang-wasm` runs its rooted debugger-frame differential against that
+  relocating heap** with `make test-debug-relocate`; its SUMMARY line reports
+  whether the differential passed.
 - **`m1-controls.sh` reads runtime-jit's `tools/win64-plants.txt`** for the
   planted defects of the Windows backend (5 to 7 and 30 to 37): each is built
   into a scratch copy of the cross-built tree, its named test must pass on the

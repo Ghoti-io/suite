@@ -3,7 +3,8 @@
 # Builds the runtime stack for AArch64 and runs its suites under qemu-aarch64: the baseline
 # JIT's (story 17 of the runtime-stack milestone, CAP-14) and, since the calls spec's story 7,
 # runtime-core's, runtime-heap's and runtime-debug's, the relocation arm of runtime-heap, the
-# calls, tail calls and natives of runtime-jit on arm64, and the planted defects and mutations
+# calls, tail calls and natives of runtime-jit on arm64, the lang-wasm debugger frame
+# differential under a relocating runtime-heap, and the planted defects and mutations
 # that show those tests fail on a defect.
 #
 # Run it in the image Containerfile.arm64-jit builds, from the workspace root:
@@ -18,24 +19,25 @@
 #   1. Checks the machinery: an AArch64 binary is AArch64 by its ELF header, it
 #      does NOT run on this host without qemu, and under qemu it runs.
 #   2. For each of two builds, builds cutil, unicode, chron, regex, text,
-#      runtime-core, runtime-heap, runtime-debug, runtime-jit and lang-tang into a
+#      runtime-core, runtime-heap, runtime-debug, runtime-jit, lang-wasm and lang-tang into a
 #      scratch directory outside every repository and outside .local/,
 #      installing into a prefix of its own there. The builds are AArch64 (cross
 #      compiled, run under `qemu-aarch64 -L /usr/aarch64-linux-gnu`) and x86-64
 #      (native: the control, which must pass too).
 #   3. Runs every test binary of runtime-jit (its calls, tail calls and natives
-#      among them, which emit and run arm64 code), of runtime-core, runtime-heap
-#      and runtime-debug, and lang-tang's JIT arm (testJit, testJit_calls, testNative_calls,
+#      among them, which emit and run arm64 code), runtime-core, runtime-heap,
+#      runtime-debug and lang-wasm, and lang-tang's JIT arm (testJit, testJit_calls, testNative_calls,
 #      testJit_floats and testJit_arith, and the bounded
 #      suites, which include the execution-corpus sweep, with
 #      GLTANG_TEST_JIT_THRESHOLD=1: every function tiers up at its first poll,
 #      which is the interpreter-against-JIT frame differential). A non-zero
 #      exit fails the script.
 #   4. Builds runtime-heap with RELOCATE=yes in a prefix of its own, runs every
-#      test binary with GRHEAP_RELOCATE=1 (what its `make test-relocate` does)
-#      and runs `check-relocation-present` and `check-relocation-gates`, whose
+#      test binary with GRHEAP_RELOCATE=1 (what its `make test-relocate` does),
+#      runs `check-relocation-present` and `check-relocation-gates`, whose
 #      fixtures and planted libraries are run through the same qemu command
-#      (GRHEAP_GATE_RUNNER).
+#      (GRHEAP_GATE_RUNNER), and runs lang-wasm's nested debugger-frame
+#      differential against that relocating heap.
 #   5. Plants, one at a time and each in a tree of its own, the defects the
 #      library lists in tools/arm64-plants.txt (4, the SHR/SAR swap, 20 to 29,
 #      the calls, tail calls and natives, and 69 to 87 and 92 to 100, the integer and float
@@ -74,9 +76,9 @@ STARTED=$(date +%s)
 BINARY_TIMEOUT="${JIT_ARM64_BINARY_TIMEOUT:-1800}"
 
 # The libraries, in dependency order, and the ones whose tests run.
-STACK="cutil unicode chron regex text runtime-core runtime-heap runtime-debug runtime-jit lang-tang"
+STACK="cutil unicode chron regex text runtime-core runtime-heap runtime-debug runtime-jit lang-wasm lang-tang"
 # The libraries whose test programs are all run (lang-tang's are chosen below).
-SUITE_LIBS="runtime-core runtime-heap runtime-debug runtime-jit"
+SUITE_LIBS="runtime-core runtime-heap runtime-debug runtime-jit lang-wasm"
 
 # lang-tang's JIT arm: testJit on its own, then these with
 # GLTANG_TEST_JIT_THRESHOLD=1 (the Makefile's TORTURE_BOUNDED, the list its
@@ -465,6 +467,20 @@ heap_relocation() { # <arch>
   grep -q 'check-relocation-gates: all [0-9]* checks behaved' <<<"$gout" ||
     fail "check-relocation-gates did not report that every check behaved ($arch)"
   printf '%s\n' "$gout" | grep -E 'check-relocation-(present|gates):' | sed 's/^/  /'
+
+  # Lang-Wasm's frame differential runs under the same relocating heap as the
+  # heap's own relocation suite. Keep its normal build tree, but resolve the
+  # runtime-heap dependency from the isolated RELOCATE=yes prefix.
+  heading "lang-wasm: debugger frame differential with RELOCATE=yes ($arch)"
+  APP_SUBDIR=release
+  RUN_PREFIX="$RP"
+  PHASE_LABEL=relocating
+  mk lang-wasm -j"$JOBS" build/linux/release/apps/testDebug_relocate \
+    >"$S/$arch/build-lang-wasm-relocate.log" 2>&1 ||
+    { tail -30 "$S/$arch/build-lang-wasm-relocate.log" >&2; fail "lang-wasm's relocating debugger differential did not build for $arch"; }
+  run_binary "$arch" lang-wasm testDebug_relocate GRHEAP_RELOCATE=1
+  RUN_PREFIX=""
+  PHASE_LABEL=""
   export PKG_CONFIG_PATH="$saved_pkg"
 }
 
@@ -562,7 +578,7 @@ run_suites() { # <arch>
   done
   check_expected_skips "$arch"
   say ""
-  say "$arch: $RAN test binaries, $PASSED_TESTS tests passed, ${#SKIP_SEEN[@]} skipped"
+  say "$arch: $RAN test binaries, $PASSED_TESTS tests passed, ${#SKIP_SEEN[@]} skipped (every skip named and count-checked)"
   if [ "$arch" = aarch64 ]; then
     AARCH64_BINARIES=$RAN
     AARCH64_TESTS=$PASSED_TESTS

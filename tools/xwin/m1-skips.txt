@@ -26,6 +26,7 @@ runtime-jit testWin64 Win64Memory.WithNothingToRegisterWithTheMappingIsMadeAndTh
 runtime-debug testDap_session DapSession.OverASocketPairItIsTheSameTranscript descriptor transports do not exist on Windows (create_fd is a stub)
 runtime-debug testDap_session DapSession.OverLoopbackTcpTheTestBindsAndAcceptsItIsTheSameTranscript descriptor transports do not exist on Windows (create_fd is a stub)
 # lang-tang: what needs fork, a descriptor transport or an RLIMIT_AS-style cap stays skipped and named.
+# lang-wasm has no platform-specific skips; m1-lib.sh requires an empty actual and expected list.
 lang-tang testCompile AllocationFailure.EachAllocationCompileMakesFailedInTurnGivesAnAnswerAndLeaksNothing the allocation-failure sweep cannot reach this platform's allocations (needs an RLIMIT_AS-style cap; lang-tang tests/test_helpers.h)
 lang-tang testOom AllocationFailure.EachAllocationFailedInTurnGivesAnAnswerAndLeaksNothing the allocation-failure sweep cannot reach this platform's allocations (RLIMIT_AS)
 lang-tang testOom AllocationFailure.TheFirstAllocationFailingIsOutOfMemoryAndChangesNothing the allocation-failure sweep cannot reach this platform's allocations (RLIMIT_AS)
