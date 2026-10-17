@@ -16,6 +16,22 @@ xarch_run() {
   if [ -z "$qemu" ]; then "$bin" "$@"; else "$qemu" -L "/usr/$triple" "$bin" "$@"; fi
 }
 
+# The floating-point flags a target must build its `double` stages with, so
+# that one source gives the same bits on every target (AD-17, AD-26).  i686
+# defaults to x87, whose 80-bit registers round a sum twice (once to 64 bits of
+# mantissa, once when it is stored as a double) and so can differ from SSE in
+# the last bit; every other target in the matrix computes a double in a double
+# already.  A script that builds code whose `double` bits are compared across
+# targets adds `$(xarch_fp_cflags "$triple")` to its compile line.
+# fp.sh is the gate that shows these are enough, and shows what happens
+# without them.
+xarch_fp_cflags() {
+  case "$1" in
+    i686-linux-gnu) echo "-msse2 -mfpmath=sse" ;;
+    *) echo "" ;;
+  esac
+}
+
 # Callback gets: triple cc qemu description. It runs in this shell, so a
 # status it sets is still set when this returns. A callback that returns
 # non-zero fails this function after the remaining targets have run.

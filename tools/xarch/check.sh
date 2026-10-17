@@ -62,6 +62,10 @@ for f in *.txt; do
 done
 
 echo
+echo "3. double arithmetic: i686 must build with xarch_fp_cflags (fp.sh)"
+bash "$HERE/fp.sh" || fail=1
+
+echo
 [ $fail -eq 0 ] && echo "PASS: all targets agree and match the published values" \
                 || echo "FAIL"
 exit $fail

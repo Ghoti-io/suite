@@ -67,6 +67,24 @@ a green run mean anything: against the byte-order swap removed it reports 8
 failing checks, against the pointer casts of `6dfce64` 8, and against the
 wrong fmix32 of `1eb60f2` 11.
 
+## Floating point: `xarch_fp_cflags` and `fp.sh`
+
+The i686 target defaults to x87, whose 80-bit registers round a `double` sum
+twice and so can give different bits from every other target. A script that
+builds code whose `double` results are compared across targets adds
+`$(xarch_fp_cflags "$triple")` (in `targets.sh`) to its compile line: it is
+`-msse2 -mfpmath=sse` for i686 and empty for the rest (AD-17 and AD-26 of the
+shape-family architecture).
+
+`fp.sh` is the gate for that, and `check.sh` runs it. `fp-probe.c` computes a
+sum that comes out as `3ff0000000000001` under SSE and `3ff0000000000000`
+under x87 (`FLT_EVAL_METHOD` 2). The gate requires every target built with
+`xarch_fp_cflags` to print the x86-64 bits; requires the unflagged i686 build to
+print different bits and report excess precision (so the probe is known to see
+what it exists to see); and runs the gate a second time with the flags
+withheld, which must fail. It checks the arithmetic, not the instructions: a
+gate that finds no x87 instruction in a build is separate work.
+
 ## The matrix
 
 | target | word | order | note |
