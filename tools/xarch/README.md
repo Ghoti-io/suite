@@ -503,3 +503,39 @@ sweeps every byte sequence). `GTEXT_TEST_SLOWDOWN` (40 by default here) multipli
 the workspace's has, so the tests that list a corpus directory saw no files; text's Makefile now defines it
 (`LFS_FLAGS`); two tests (`(size_t)1 << 40`) did not compile with a 32-bit `size_t` and now use the type's own width.
 cutil's file layer has the same exposure and is for cutil's session.
+
+## The shape family's cross-target gates: `shape.sh` (shape-family milestone 1, story 2)
+
+The shape libraries (`math`, `shape-geometry`, `shape-scene`, `shape-cpu`) must
+produce the same bits on every host (AD-17). The gates that need no cross
+compiler run in each library's own `make test` (`check-fp-contract`,
+`check-edges`, `check-libm`, `check-no-x87`, with `check-gates` planting a
+violation for each). `shape.sh` holds the three that do:
+
+```bash
+podman run --rm -v "$PWD:/work:ro,z" ghoti-xarch:sid-gcc16 bash /work/suite/tools/xarch/shape.sh
+```
+
+1. **The four copies of each gate script are the same text.** CONVENTIONS
+   reuses one script per library; a copy that has drifted is named. Planted: a
+   changed copy.
+2. **The cross-target hash.** `shape-hash-probe.c` computes a few dozen doubles
+   and prints an FNV-1a 64 hash of their little-endian bytes. Every target in
+   `targets.sh` must print x86_64's hash when built with `-ffp-contract=off` and
+   `xarch_fp_cflags`. Controls: i686 without the SSE flags (x87) and aarch64
+   with contraction on (a fused multiply-add) must print other hashes, which
+   is what shows the probe can see what the flags prevent. Planted: one
+   differing bit on each target in turn; the gate must fail naming that target
+   and no other. Windows is `suite/tools/xwin/shape.sh`.
+3. **No x87 in the i686 build.** Each library's sources are built for i686
+   with the SSE flags and read by that library's own `tools/check-no-x87.sh`.
+   The i386 calling convention returns a `double` in `st(0)`, so a function
+   returning one holds an `fld` even when built with SSE; the gate allows
+   those loads and stores (and `fldz`, `fld1`, `fstp %st(0)`) and refuses all
+   x87 arithmetic, `long double`, integer conversions and the control word. A
+   control shows the allowed case is real; the plants are the fixture built with
+   `-mfpmath=387` and a hand-written `faddp`.
+
+Arm64 is qemu-user here, not hardware; the real Pi is `tools/evo --box pi4`. A
+library whose sources include its dependencies' headers needs
+`SHAPE_DEP_INCLUDES` set to their `-I` flags; the scaffolds include none.

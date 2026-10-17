@@ -366,3 +366,14 @@ Makefile and runs each from the library directory under wine. It exits 0 only if
 test, and the build had no warning; the skips are listed by name, not asserted. Like the rest of this directory it imitates
 MSYS2 and is not Windows. On the EVO-X2: `M1_IN_IMAGE=1 bash /work/suite/tools/xwin/text-run.sh /w` in the image of
 `Containerfile.wine`, the mounts of `m1-run.sh`'s job.
+
+## The shape family's hash on win64: `shape.sh` (shape-family milestone 1, story 2)
+
+`suite/tools/xwin/shape.sh` builds `suite/tools/xarch/shape-hash-probe.c`
+natively for the reference hash, then with mingw-w64 (`-ffp-contract=off`) in
+the usual container, and runs the `.exe` under wine through `m1-win.sh`. It
+passes only when the win64 hash equals the native one and the same probe built
+with a planted differing bit does not. This is x86-64 Windows under wine: it
+says the compiler and C runtime agree, not what a Windows machine does, and
+it says nothing about 32-bit or arm64 Windows. The Linux arms of the same gate
+are `suite/tools/xarch/shape.sh`.
