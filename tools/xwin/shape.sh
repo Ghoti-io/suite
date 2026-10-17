@@ -11,6 +11,12 @@
 # Windows hash equals the native one AND the same probe built with one planted
 # differing bit does not (so the comparison can fail).
 #
+# It also runs the math corpus hash (CAP-1): libs/math/tools/corpus-hash.c with
+# src/elementary/trig.c, over libs/math/tests/corpus, must print the hash
+# committed in libs/math/tests/corpus/trig.hash under wine, and with one
+# planted differing bit it must not.  The sources and the corpus are copied
+# into the scratch tree, which is all the container sees.
+#
 # What a green run means: mingw-w64's x86-64 code for this fixture gives the
 # bits the Linux build gives.  It does not mean the same on a Windows machine
 # (wine runs the same instructions on the same CPU, so it shows the compiler
@@ -31,4 +37,19 @@ want=$("$ref/probe" | awk '/^shape.hash/{print $2}')
 rm -rf "$ref"
 [ -n "$want" ] || { echo "shape.sh: the native probe printed no hash" >&2; exit 2; }
 echo "native x86_64 hash: $want"
-"$HERE/m1-win.sh" "$W" "bash /tools/xwin/shape-win.sh $want"
+
+# The math sources, corpus and committed hash, copied beside the scratch tree.
+MATH="$ROOT/libs/math"
+rm -rf "$W/math"
+mkdir -p "$W/math/tools" "$W/math/tests" "$W/math/src" "$W/math/gen"
+cp -r "$MATH/include" "$W/math/include"
+cp -r "$MATH/src/elementary" "$W/math/src/elementary"
+cp "$MATH/tools/corpus-hash.c" "$W/math/tools/"
+cp "$MATH/tests/corpus_hash.h" "$W/math/tests/"
+cp -r "$MATH/tests/corpus" "$W/math/tests/corpus"
+make -s -C "$MATH" libver-gen BUILD_DIR="$W/math/gen" > "$W/logs/math-libver.log" 2>&1 || { echo "shape.sh: libver-gen failed (see $W/logs/math-libver.log)" >&2; exit 2; }
+math_hash=$(awk '$1=="hash"{print $2}' "$MATH/tests/corpus/trig.hash")
+math_count=$(awk '$1=="count"{print $2}' "$MATH/tests/corpus/trig.hash")
+[ -n "$math_hash" ] && [ -n "$math_count" ] || { echo "shape.sh: no committed math hash" >&2; exit 2; }
+echo "committed math hash: $math_hash over $math_count results"
+"$HERE/m1-win.sh" "$W" "bash /tools/xwin/shape-win.sh $want $math_hash $math_count"

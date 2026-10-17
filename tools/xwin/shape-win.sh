@@ -3,7 +3,9 @@
 # m1-env.sh first), with suite/tools at /tools and the scratch tree at /w.
 # Argument: the native x86_64 hash.  See shape.sh.
 set -u
-want=${1:?usage: shape-win.sh NATIVE_HASH}
+want=${1:?usage: shape-win.sh NATIVE_HASH MATH_HASH MATH_COUNT}
+math_hash=${2:?usage: shape-win.sh NATIVE_HASH MATH_HASH MATH_COUNT}
+math_count=${3:?usage: shape-win.sh NATIVE_HASH MATH_HASH MATH_COUNT}
 P=/tools/xarch/shape-hash-probe.c
 cd /w || exit 2
 
@@ -25,6 +27,25 @@ if [ -n "$planted" ] && [ "$planted" != "$want" ]; then
   echo "   ok    planted: one differing bit on win64 is not the native hash, so the gate can fail"
 else
   echo "   FAIL  planted: the win64 probe with a flipped bit still matches (or did not run)"; rc=1
+fi
+
+# The math corpus hash: the committed value, and a planted bit that must differ.
+M=/w/math
+MF="-std=c17 -O2 -pedantic-errors -Wall -Wextra -Werror -ffp-contract=off -DGMATH_STATIC -I$M/include -I$M/gen/generated"
+x86_64-w64-mingw32-gcc $MF "$M/tools/corpus-hash.c" "$M/src/elementary/trig.c" -o math-probe.exe -lm || { echo "shape-win: the math probe did not build" >&2; exit 2; }
+x86_64-w64-mingw32-gcc $MF -DGMATH_PLANT_BIT "$M/tools/corpus-hash.c" "$M/src/elementary/trig.c" -o math-plant.exe -lm || { echo "shape-win: the planted math probe did not build" >&2; exit 2; }
+mgot=$(./math-probe.exe math/tests/corpus 2>/dev/null | tr -d '\r' | awk '/^math.trig.hash/{h=$2} /^math.trig.count/{c=$2} END{if (h != "") print h, c}')
+mplant=$(./math-plant.exe math/tests/corpus 2>/dev/null | tr -d '\r' | awk '/^math.trig.hash/{h=$2} /^math.trig.count/{c=$2} END{if (h != "") print h, c}')
+echo "windows (wine) math hash: ${mgot:-none}   planted: ${mplant:-none}   committed: $math_hash $math_count"
+if [ -n "$mgot" ] && [ "$mgot" = "$math_hash $math_count" ]; then
+  echo "   ok    win64 prints the committed math corpus hash"
+else
+  echo "   FAIL  win64 does not print the committed math corpus hash"; rc=1
+fi
+if [ -n "$mplant" ] && [ "$mplant" != "$math_hash $math_count" ]; then
+  echo "   ok    planted: one differing bit in a math result on win64 is not the committed hash"
+else
+  echo "   FAIL  planted: the win64 math probe with a flipped bit still matches (or did not run)"; rc=1
 fi
 [ $rc -eq 0 ] && echo "shape-win: PASS" || echo "shape-win: FAIL"
 exit $rc

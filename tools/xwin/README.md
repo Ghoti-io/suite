@@ -377,3 +377,8 @@ with a planted differing bit does not. This is x86-64 Windows under wine: it
 says the compiler and C runtime agree, not what a Windows machine does, and
 it says nothing about 32-bit or arm64 Windows. The Linux arms of the same gate
 are `suite/tools/xarch/shape.sh`.
+
+From story 3 it also builds `libs/math/tools/corpus-hash.c` with
+`libs/math/src/elementary/trig.c` (copied into the scratch tree with the corpus)
+and requires the win64 hash over the corpus to equal the one committed in
+`libs/math/tests/corpus/trig.hash`, and a planted differing bit not to.

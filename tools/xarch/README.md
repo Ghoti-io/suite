@@ -536,6 +536,14 @@ podman run --rm -v "$PWD:/work:ro,z" ghoti-xarch:sid-gcc16 bash /work/suite/tool
    control shows the allowed case is real; the plants are the fixture built with
    `-mfpmath=387` and a hand-written `faddp`.
 
+4. **The math corpus hash** (story 3). `libs/math/tools/corpus-hash.c`, built
+   with `libs/math/src/elementary/trig.c`, runs `gmath_sin`, `gmath_cos` and
+   `gmath_tan` over `libs/math/tests/corpus` (46,569 inputs) and must print the
+   hash committed in `libs/math/tests/corpus/trig.hash` on every target. The
+   same two controls (i686 without SSE, aarch64 with contraction on) print other
+   hashes, and the same plant (a bit flipped on each target in turn) is caught.
+   Section 3 also builds `trig.c` for i686 and reads it for x87.
+
 Arm64 is qemu-user here, not hardware; the real Pi is `tools/evo --box pi4`. A
 library whose sources include its dependencies' headers needs
 `SHAPE_DEP_INCLUDES` set to their `-I` flags; the scaffolds include none.

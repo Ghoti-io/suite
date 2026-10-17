@@ -32,6 +32,13 @@
 #      arm64 object must be named as not x86 and refused when --require-x86
 #      is given.
 #
+#   4. The math corpus hash gate (CAP-1, AD-17).  libs/math/tools/corpus-hash.c,
+#      built with libs/math/src/elementary/trig.c for each target (same flags,
+#      xarch_fp_cflags), reads libs/math/tests/corpus and must print the hash
+#      committed in libs/math/tests/corpus/trig.hash on every target.  The
+#      controls are the same two (i686 without SSE, aarch64 with contraction
+#      on) and so is the plant (one differing bit on each target in turn).
+#
 # Arm64 is run under qemu-user, not on an arm64 machine; the real Raspberry Pi
 # 4 is `tools/evo --box pi4`.  A target that cannot be built or run fails the
 # section, naming it.
@@ -303,6 +310,107 @@ if OBJDUMP=aarch64-linux-gnu-objdump "$GATE" --require-x86 "$B/arm.o" > "$B/arm-
 else
   echo "   ok    --require-x86 refuses a population with no x86 file"
 fi
+
+#---------------------------------------------------------------------------
+echo
+echo "4. the math corpus hash gate (libs/math: gmath_sin, gmath_cos, gmath_tan)"
+MATH="$ROOT/libs/math"
+CORPUS="$MATH/tests/corpus"
+mg="$B/gen/math-hash"
+mkdir -p "$mg"
+if ! make -s -C "$MATH" libver-gen BUILD_DIR="$mg" > "$B/gen-math-hash.log" 2>&1; then
+  echo "   FAIL  math: could not write libver_gen.h (see $B/gen-math-hash.log)"
+  status=1
+fi
+committed_hash=$(awk '$1=="hash"{print $2}' "$CORPUS/trig.hash")
+committed_count=$(awk '$1=="count"{print $2}' "$CORPUS/trig.hash")
+if [ -z "$committed_hash" ] || [ -z "$committed_count" ]; then
+  echo "   FAIL  no committed hash in $CORPUS/trig.hash"
+  status=1
+fi
+MFLAGS="-std=c17 -O2 -pedantic-errors -Wall -Wextra -Werror -ffp-contract=off -DGMATH_BUILD -I$MATH/include -I$mg/generated"
+
+# math_run TRIPLE CC QEMU TAG FLAGS... -> prints "HASH COUNT"; binary in $B/math-TAG-TRIPLE
+math_run() {
+  local triple=$1 cc=$2 qemu=$3 tag=$4 out
+  shift 4
+  "$cc" $MFLAGS "$@" "$MATH/tools/corpus-hash.c" "$MATH/src/elementary/trig.c" \
+    -o "$B/math-$tag-$triple" 2> "$B/math-$tag-$triple.err" || return 1
+  xarch_run "$triple" "$qemu" "$B/math-$tag-$triple" "$CORPUS" > "$B/math-$tag-$triple.txt" 2>> "$B/math-$tag-$triple.err" || return 1
+  awk '/^math.trig.hash/{h=$2} /^math.trig.count/{c=$2} END{if (h != "") print h, c}' "$B/math-$tag-$triple.txt"
+}
+
+declare -A MOK MPLANT
+while IFS='|' read -r triple cc qemu desc; do
+  triple=$(echo "$triple" | tr -d ' '); cc=$(echo "$cc" | tr -d ' ')
+  qemu=$(echo "$qemu" | tr -d ' ')
+  [ -z "$triple" ] && continue
+  # shellcheck disable=SC2046
+  MOK[$triple]=$(math_run "$triple" "$cc" "$qemu" ok $(xarch_fp_cflags "$triple")) \
+    || { echo "   FAIL  $triple: cannot build or run the math hash probe (see $B/math-ok-$triple.err)"; status=1; MOK[$triple]=""; }
+  # shellcheck disable=SC2046
+  MPLANT[$triple]=$(math_run "$triple" "$cc" "$qemu" plant -DGMATH_PLANT_BIT $(xarch_fp_cflags "$triple")) \
+    || { echo "   FAIL  $triple: cannot build or run the planted math hash probe"; status=1; MPLANT[$triple]=""; }
+done <<EOT
+$XARCH_TARGETS
+EOT
+
+# math_gate PLANTED_TRIPLE -> 0 if every target prints the committed hash and count.
+math_gate() {
+  local planted=$1 rc=0 triple cc qemu desc got
+  while IFS='|' read -r triple cc qemu desc; do
+    triple=$(echo "$triple" | tr -d ' ')
+    [ -z "$triple" ] && continue
+    if [ "$triple" = "$planted" ]; then got=${MPLANT[$triple]:-}; else got=${MOK[$triple]:-}; fi
+    if [ -n "$got" ] && [ "$got" = "$committed_hash $committed_count" ]; then
+      printf "   ok    %-22s %s\n" "$triple" "$got"
+    else
+      printf "   FAIL  %-22s %s  (want %s %s)\n" "$triple" "${got:-none}" "$committed_hash" "$committed_count"
+      rc=1
+    fi
+  done <<EOT
+$XARCH_TARGETS
+EOT
+  return $rc
+}
+
+echo " a. every target prints the committed hash"
+math_gate "" || status=1
+
+echo " b. the controls: the probe sees what the flags prevent"
+mbare=$(math_run i686-linux-gnu i686-linux-gnu-gcc qemu-i386 bare) || mbare=""
+if [ -n "$mbare" ] && [ "$mbare" != "$committed_hash $committed_count" ]; then
+  echo "   ok    i686 without -msse2 -mfpmath=sse prints $mbare, not the committed hash"
+else
+  echo "   FAIL  i686 without the SSE flags printed '${mbare:-nothing}': the hash cannot see x87"
+  status=1
+fi
+mfused=$(math_run aarch64-linux-gnu aarch64-linux-gnu-gcc qemu-aarch64 fused -ffp-contract=fast) || mfused=""
+if [ -n "$mfused" ] && [ "$mfused" != "$committed_hash $committed_count" ]; then
+  echo "   ok    aarch64 with -ffp-contract=fast prints $mfused, not the committed hash"
+else
+  echo "   FAIL  aarch64 with contraction on printed '${mfused:-nothing}': the hash cannot see a fused multiply-add"
+  status=1
+fi
+
+echo " c. planted: one differing bit on each target in turn must fail the gate, naming it"
+while IFS='|' read -r triple cc qemu desc; do
+  triple=$(echo "$triple" | tr -d ' ')
+  [ -z "$triple" ] && continue
+  if math_gate "$triple" > "$B/math-planted-$triple.txt" 2>&1; then
+    echo "   FAIL  the math gate passed with a bit flipped on $triple: it checks nothing there"
+    status=1
+  elif grep -q "FAIL  $triple " "$B/math-planted-$triple.txt" \
+    && [ "$(grep -c FAIL "$B/math-planted-$triple.txt")" -eq 1 ]; then
+    echo "   ok    $triple: caught, and only $triple named"
+  else
+    sed 's/^/   | /' "$B/math-planted-$triple.txt"
+    echo "   FAIL  the math gate failed, but not on $triple alone"
+    status=1
+  fi
+done <<EOT
+$XARCH_TARGETS
+EOT
 
 echo
 if [ $status -eq 0 ]; then
