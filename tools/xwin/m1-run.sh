@@ -12,7 +12,9 @@
 # container imitate MSYS2 well enough for the Makefiles to pick their Windows
 # arm; it is not Windows), each library is installed into a prefix inside the
 # scratch tree for the next to find through pkg-config, and `make test`, the
-# examples, the gates and every test program are run.  m1-probe.sh then links a
+# examples, the gates and every test program are run.  Lang-Wasm's WAST gate
+# verifies the pinned corpus and receives paths through Wine's Z: mapping for
+# both Makefile and direct-binary runs.  m1-probe.sh then links a
 # consumer against the installed DLLs, and m1-controls.sh puts each Windows fix
 # back to its old self in a scratch copy and requires the suite to notice.
 #
@@ -27,7 +29,7 @@ SRC=${M1_SRC:-$ROOT}
 W=${1:-/tmp/xwin-m1}
 # Keep this in dependency order: lang-wasm uses runtime-debug and runtime-jit.
 LIBS="runtime-core runtime-heap runtime-debug runtime-jit lang-wasm lang-tang"
-DEPS="cutil unicode chron regex text ctang"
+DEPS="cutil security unicode chron regex text ctang"
 
 if [ -n "${M1_IN_IMAGE:-}" ]; then
   # Inside ghoti-xwin-wine (Containerfile.wine); the scratch tree must be /w and suite/tools /tools.

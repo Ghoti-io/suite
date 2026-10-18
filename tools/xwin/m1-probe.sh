@@ -3,7 +3,7 @@
 # in the prefix, run it under wine, then run the planted control, which must fail.
 set -u
 P=$WPREFIX; cd /w
-INC=""; for l in runtime-core runtime-jit runtime-debug cutil; do INC="$INC -I$P/include/ghoti.io/$l-0"; done
+INC="-I$P/include/ghoti.io/runtime-core-0 -I$P/include/ghoti.io/runtime-jit-0 -I$P/include/ghoti.io/runtime-debug-0 -I$P/include/ghoti.io/cutil-0"
 LIBS="-L$P/lib/ghoti.io -lghoti.io-runtime-debug-0 -lghoti.io-runtime-jit-0 -lghoti.io-runtime-core-0 -lghoti.io-cutil-0 -pthread"
 W="-std=c17 -D_GNU_SOURCE -Wall -Wextra -Werror -pedantic-errors -O1 -g"
 gcc $W $INC /tools/xwin/probe-runtime.c -o probe-runtime.exe $LIBS || exit 2

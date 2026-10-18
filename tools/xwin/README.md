@@ -71,9 +71,9 @@ with it is that it does not build.
 ```
 
 `run-security.sh` links one library against two of cutil's objects. The runtime
-stack is six libraries that depend on each other and on six more
+stack is six libraries that depend on each other and on seven more
 (`runtime-core`, `runtime-heap`, `runtime-debug`, `runtime-jit`, `lang-wasm`, `lang-tang`;
-cutil, unicode, chron, regex, text and ctang underneath), and what is wanted is
+cutil, security, unicode, chron, regex, text and ctang underneath), and what is wanted is
 the libraries' own Makefiles, their own tests and their own gates, run for
 win64. So this does not cross-link by hand. It runs each library's real
 `make all install test examples` inside `ghoti-cross-mingw64:deb13`, installs
@@ -97,8 +97,8 @@ real filesystem (case rules, backslash paths, sharing violations), a real
 
 ## What it runs, in order
 
-1. **Dependencies**: gtest from `/usr/src/googletest`, then cutil, unicode, chron,
-   regex, text and ctang (`m1-lib.sh deps`).
+1. **Dependencies**: gtest from `/usr/src/googletest`, then cutil, security,
+   unicode, chron, regex, text and ctang (`m1-lib.sh deps`).
 2. **For each of the six libraries** (`m1-lib.sh lib <name>`): `make all`,
    `install`, `test` and `examples`, each with `-k` so that one failure does not
    hide the rest; then every test program on its own, so that a crash shows as
@@ -161,7 +161,28 @@ that works under wine has not been shown to work under SEH on Windows. A
 `TODO(windows)` marker is discharged by a branch running, and under wine it
 has run; the source says "wine", not "Windows", where it says anything.
 
-Last green run, 2026-10-06 (tests ran / passed / skipped; examples ran /
+The full EVO-X2 Wine gate `xgates-wasm-win64-final-20261018-0211` finished
+green on 2026-10-18, was fetched, and was cleaned. Its six library summaries
+reported no compiler warnings or failed make targets:
+
+| library | tests / passed / named skips | examples run / skipped |
+| --- | --- | --- |
+| runtime-core | 634 / 634 / 0 | 6 / 0 |
+| runtime-heap | 287 / 287 / 0 | 4 / 0 |
+| runtime-debug | 163 / 161 / 2 | 1 / 1 |
+| runtime-jit | 660 / 638 / 22 | 4 / 0 |
+| lang-wasm | 273 / 273 / 0 | 0 / 0 |
+| lang-tang | 857 / 843 / 14 | 13 / 1 |
+
+The relocating heap gate passed. Lang-Wasm's debugger relocation gate and
+PE-aware `check-symbols` gate passed, including the symbol gate's planted
+controls. The installed-DLL probe passed 66 checks; its deliberately writable
+code-page control failed as required. Every Win64 planted control completed
+with `CONTROLS ok`. The later benchmark recorder source change passed its
+separate focused Wine-image regression suite, 31/31, in
+`xgates-wasm-win64-recorder-final-20261018-0219`.
+
+Earlier green run, 2026-10-06 (tests ran / passed / skipped; examples ran /
 skipped; every library built with no compiler warning). It ran against the
 working trees, all clean, at cutil `81ffede`, unicode `d9c40b1`, runtime-core
 `40624b8`, runtime-heap `4bcfc9f`, runtime-jit `5dd07f9`, runtime-debug
@@ -185,9 +206,10 @@ as wine-server flakes of this host, not as defects found. They were not
 investigated further. The previous green run (2026-10-04, after story 18) was
 456, 269, 178, 144 and 547 tests.
 
-The examples column includes the benchmark. `check-symbols` is Linux-only and
-is reported skipped by every library's Makefile; it is the one gate this does
-not run.
+The earlier examples column includes the benchmark. At that date,
+`check-symbols` was Linux-only and every library's Makefile reported it
+skipped. The current Lang-Wasm PE gate is included in the 2026-10-18 result
+above.
 
 Backend skips are zero for runtime-jit and lang-tang: the JIT tests, the
 JIT arm of the frame differential and `jit_hot_loop` run compiled code (the

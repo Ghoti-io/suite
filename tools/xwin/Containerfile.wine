@@ -18,7 +18,7 @@ RUN apt-get update \
       gcc-mingw-w64-x86-64-win32 \
       g++-mingw-w64-x86-64-win32 \
       binutils-mingw-w64-x86-64 \
-      make pkgconf file ca-certificates \
+      make pkgconf file ca-certificates curl \
       bison flex m4 python3 googletest rsync util-linux \
  && apt-get install -y wine64 libwine \
  && rm -rf /var/lib/apt/lists/* \

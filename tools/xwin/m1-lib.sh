@@ -4,7 +4,7 @@
 # of the runtime stack's libraries for win64 with its real Makefile, and prints
 # one SUMMARY line the driver (m1-run.sh) reads.
 #
-#   m1-lib.sh deps          gtest, then cutil unicode chron regex text ctang, or
+#   m1-lib.sh deps          gtest, then cutil security unicode chron regex text ctang, or
 #                           the space-separated source:dll pairs in $M1_DEPS
 #   m1-lib.sh lib <name>    all, install, test, examples, then the counts
 #
@@ -39,7 +39,7 @@ build_gtest() {
 if [ "${1:-}" = deps ]; then
   build_gtest || { echo "m1-lib: gtest did not build" >&2; exit 2; }
   # source directory:installed DLL (ctang installs as "tang")
-  for d in ${M1_DEPS:-cutil:cutil unicode:unicode chron:chron regex:regex text:text ctang:tang}; do
+  for d in ${M1_DEPS:-cutil:cutil security:security unicode:unicode chron:chron regex:regex text:text ctang:tang}; do
     src=${d%%:*}; dll=$P/bin/libghoti.io-${d##*:}-0.dll
     [ -f $dll ] && { echo "dep $src: present"; continue; }
     ( cd /w/$src && make -j4 PREFIX=$P > /w/logs/$src.build.log 2>&1 && make install PREFIX=$P > /w/logs/$src.install.log 2>&1 ) \
@@ -50,9 +50,53 @@ fi
 
 [ "${1:-}" = lib ] && l=${2:?library} || { echo "usage: m1-lib.sh deps | lib <name>" >&2; exit 2; }
 cd /w/$l || exit 2
+
+# The WAST gate is also run directly below, outside its Makefile. Keep both
+# invocations on the same pinned corpus and pass paths through Wine's Z: mapping
+# of the container filesystem, which the Windows binary can open.
+wast_env=()
+if [ "$l" = lang-wasm ]; then
+  spec_commit=$(cat /w/runtime-jit/tools/wasm/WASM_SPEC_COMMIT) || exit 2
+  spec_dir="/w/runtime-jit/third_party/wasm-spec/$spec_commit"
+  sh /w/runtime-jit/tools/wasm/fetch.sh > /w/logs/lang-wasm.wast-fetch.log 2>&1 || {
+    tail -n 30 /w/logs/lang-wasm.wast-fetch.log >&2
+    echo "m1-lib: pinned WebAssembly spec fetch failed" >&2
+    exit 2
+  }
+  (cd "$spec_dir" && sha256sum -c /w/runtime-jit/tools/wasm/SHA256SUMS) \
+    > /w/logs/lang-wasm.wast-verify.log 2>&1 || {
+    tail -n 30 /w/logs/lang-wasm.wast-verify.log >&2
+    echo "m1-lib: pinned WebAssembly spec verification failed" >&2
+    exit 2
+  }
+  [ -f "$spec_dir/test/LICENSE" ] || {
+    echo "m1-lib: pinned WebAssembly spec corpus is incomplete" >&2
+    exit 2
+  }
+  for data_file in data-wast-classification.tsv data-wast-assertion-skips.tsv \
+    data-wast-execution-baseline.tsv; do
+    [ -f "/w/lang-wasm/tests/$data_file" ] || {
+      echo "m1-lib: lang-wasm WAST input $data_file is missing" >&2
+      exit 2
+    }
+  done
+  wine_path() { printf 'Z:%s\n' "$1" | sed 's#/#\\#g'; }
+  wast_env=(
+    GLWASM_WAST_CORPUS_ROOT="$(wine_path "$spec_dir/test")"
+    GLWASM_WAST_CLASSIFICATION="$(wine_path /w/lang-wasm/tests/data-wast-classification.tsv)"
+    GLWASM_WAST_ASSERTION_SKIPS="$(wine_path /w/lang-wasm/tests/data-wast-assertion-skips.tsv)"
+    GLWASM_WAST_EXECUTION_BASELINE="$(wine_path /w/lang-wasm/tests/data-wast-execution-baseline.tsv)"
+    GLWASM_WAST_SPEC_COMMIT="$spec_commit"
+  )
+fi
 run() { # run <target>...: -k so that one failure does not hide the rest
   for t in "$@"; do
-    timeout 3000 make -k -j4 $t PREFIX=$P > /w/logs/$l.$t.log 2>&1; eval "rc_$t=$?"
+    if [ "$l/$t" = lang-wasm/test ]; then
+      timeout 3000 make -k -j4 "$t" PREFIX="$P" "${wast_env[@]}" > /w/logs/$l.$t.log 2>&1
+    else
+      timeout 3000 make -k -j4 "$t" PREFIX="$P" > /w/logs/$l.$t.log 2>&1
+    fi
+    eval "rc_$t=$?"
   done
 }
 rc_all=0 rc_install=0 rc_test=0 rc_examples=0
@@ -67,7 +111,14 @@ tot=0; pass=0; skip=0; bad=0; progs=0
 for t in $APPS/test*.exe; do
   [ -e "$t" ] || continue
   progs=$((progs + 1))
-  (cd $APPS && timeout 1200 ./$(basename $t) > /w/logs/$l.$(basename $t .exe).out 2>&1); rc=$?
+  if [ "$l/$(basename "$t")" = lang-wasm/testWast.exe ]; then
+    (cd "$APPS" && env "${wast_env[@]}" timeout 1200 "./$(basename "$t")" \
+      > "/w/logs/$l.$(basename "$t" .exe).out" 2>&1)
+  else
+    (cd "$APPS" && timeout 1200 "./$(basename "$t")" \
+      > "/w/logs/$l.$(basename "$t" .exe).out" 2>&1)
+  fi
+  rc=$?
   out=$(tr -d '\r' < /w/logs/$l.$(basename $t .exe).out)
   n=$(echo "$out" | sed -n 's/^\[==========\] \([0-9]*\) tests\? from.*/\1/p' | tail -1)
   p=$(echo "$out" | sed -n 's/^\[  PASSED  \] \([0-9]*\) tests\?\..*/\1/p' | tail -1)
