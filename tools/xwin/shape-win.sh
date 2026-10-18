@@ -68,9 +68,9 @@ else
 fi
 # The shape-geometry hash (CAP-2, CAP-13): the committed value, and a planted bit that must differ.
 G=/w/geom
-GF="-std=c17 -O2 -pedantic-errors -Wall -Wextra -Werror -ffp-contract=off -DGSHGEOM_BUILD -I$G/include -I$G/gen/generated -I$G/stubs"
-x86_64-w64-mingw32-gcc $GF "$G/tools/corpus-hash.c" $(find "$G/src" -name '*.c' | sort) "$G/stubs/cutil-allocator-stub.c" -o geom-probe.exe || { echo "shape-win: the shape-geometry probe did not build" >&2; exit 2; }
-x86_64-w64-mingw32-gcc $GF -DSHAPE_GEOM_PLANT_BIT "$G/tools/corpus-hash.c" $(find "$G/src" -name '*.c' | sort) "$G/stubs/cutil-allocator-stub.c" -o geom-plant.exe || { echo "shape-win: the planted shape-geometry probe did not build" >&2; exit 2; }
+GF="-std=c17 -O2 -pedantic-errors -Wall -Wextra -Werror -ffp-contract=off -DGSHGEOM_BUILD -DGMATH_STATIC -I$G/include -I$G/gen/generated -I$M/include -I$M/gen/generated -I$G/stubs"
+x86_64-w64-mingw32-gcc $GF "$G/tools/corpus-hash.c" $(find "$G/src" -name '*.c' | sort) "$M"/src/elementary/*.c "$G/stubs/cutil-allocator-stub.c" -o geom-probe.exe || { echo "shape-win: the shape-geometry probe did not build" >&2; exit 2; }
+x86_64-w64-mingw32-gcc $GF -DSHAPE_GEOM_PLANT_BIT "$G/tools/corpus-hash.c" $(find "$G/src" -name '*.c' | sort) "$M"/src/elementary/*.c "$G/stubs/cutil-allocator-stub.c" -o geom-plant.exe || { echo "shape-win: the planted shape-geometry probe did not build" >&2; exit 2; }
 ggot=$(./geom-probe.exe 2>/dev/null | tr -d '\r' | awk '/^shape-geometry.hash/{h=$2} /^shape-geometry.count/{c=$2} END{if (h != "") print h, c}')
 gplant=$(./geom-plant.exe 2>/dev/null | tr -d '\r' | awk '/^shape-geometry.hash/{h=$2} /^shape-geometry.count/{c=$2} END{if (h != "") print h, c}')
 echo "windows (wine) shape-geometry hash: ${ggot:-none}   planted: ${gplant:-none}   committed: $geom_hash $geom_count"

@@ -79,9 +79,11 @@ ROOT=$(cd "$HERE/../../.." && pwd)
 . "$HERE/targets.sh"
 # Dependencies' headers for the libraries' sources: cutil's allocator is a stand-in
 # (shape-stubs), checked against the real header in section 6.
-SHAPE_DEP_INCLUDES=${SHAPE_DEP_INCLUDES--I$HERE/shape-stubs}
+# math's headers (shape-geometry's rotations call gmath_sin and gmath_cos) are the library's
+# own, with the generated header section 3 writes into $B/gen/math (math is the first of LIBS).
 
 B=${B:-/tmp/xarch-shape}
+SHAPE_DEP_INCLUDES=${SHAPE_DEP_INCLUDES--I$HERE/shape-stubs -I$ROOT/libs/math/include -I$B/gen/math/generated}
 case "$B" in
   ""|/|/tmp|/tmp/|/work|/work/*|"$HOME"|"$HOME"/)
     echo "shape.sh: refusing B='$B' (it is deleted and recreated)" >&2; exit 2 ;;
@@ -602,14 +604,16 @@ fi
 gh_hash=$(awk '$1=="hash"{print $2}' "$GEOM/tests/corpus/geometry.hash")
 gh_count=$(awk '$1=="count"{print $2}' "$GEOM/tests/corpus/geometry.hash")
 [ -n "$gh_hash" ] && [ -n "$gh_count" ] || { echo "   FAIL  no committed hash in $GEOM/tests/corpus/geometry.hash"; status=1; }
-GFLAGS="-std=c17 -O2 -pedantic-errors -Wall -Wextra -Werror -ffp-contract=off -DGSHGEOM_BUILD -I$GEOM/include -I$gg/generated -I$HERE/shape-stubs"
+# Story 6: the rotation constructors call math's sine and cosine, so the probe is built with
+# math's sources too (section 4's generated header directory is $mg).
+GFLAGS="-std=c17 -O2 -pedantic-errors -Wall -Wextra -Werror -ffp-contract=off -DGSHGEOM_BUILD -DGMATH_BUILD -I$GEOM/include -I$gg/generated -I$MATH/include -I$mg/generated -I$HERE/shape-stubs"
 
 # geom_run TRIPLE CC QEMU TAG FLAGS... -> prints "HASH COUNT"
 geom_run() {
   local triple=$1 cc=$2 qemu=$3 tag=$4 out
   shift 4
   # shellcheck disable=SC2086
-  "$cc" $GFLAGS "$@" "$GEOM/tools/corpus-hash.c" $(find "$GEOM/src" -name '*.c' | sort) \
+  "$cc" $GFLAGS "$@" "$GEOM/tools/corpus-hash.c" $(find "$GEOM/src" -name '*.c' | sort) "$MATH"/src/elementary/*.c \
     "$HERE/shape-stubs/cutil-allocator-stub.c" -o "$B/geom-$tag-$triple" 2> "$B/geom-$tag-$triple.err" || return 1
   xarch_run "$triple" "$qemu" "$B/geom-$tag-$triple" > "$B/geom-$tag-$triple.txt" 2>> "$B/geom-$tag-$triple.err" || return 1
   awk '/^shape-geometry.hash/{h=$2} /^shape-geometry.count/{c=$2} END{if (h != "") print h, c}' "$B/geom-$tag-$triple.txt"
