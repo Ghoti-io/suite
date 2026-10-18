@@ -30,14 +30,21 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 ROOT=$(cd "$HERE/../../.." && pwd)
 W=${1:-/tmp/xwin-shape}
 
-command -v podman >/dev/null || { echo "shape.sh: podman is needed on the host" >&2; exit 2; }
-[ -d /usr/lib/wine ] || { echo "shape.sh: the host needs wine in /usr/lib/wine" >&2; exit 2; }
-
 mkdir -p "$W/logs"
-ref=$(mktemp -d "$W/ref.XXXXXX") || exit 2
-gcc -O2 -std=gnu17 -Wall -Wextra -Werror -ffp-contract=off "$ROOT/suite/tools/xarch/shape-hash-probe.c" -o "$ref/probe" -lm || exit 2
-want=$("$ref/probe" | awk '/^shape.hash/{print $2}')
-rm -rf "$ref"
+if [ -n "${M1_IN_IMAGE:-}" ]; then
+  # Inside ghoti-xwin-wine (the EVO-X2 runs it that way, with the workspace at
+  # /work, the scratch tree at /w and suite/tools at /tools): there is no
+  # podman and no native compiler, so the native x86-64 hash of the placeholder
+  # fixture is given (xarch/shape.sh prints it in section 2).
+  want=${XWIN_NATIVE_HASH:?shape.sh: in the image, XWIN_NATIVE_HASH is the native x86_64 hash of shape-hash-probe.c}
+else
+  command -v podman >/dev/null || { echo "shape.sh: podman is needed on the host" >&2; exit 2; }
+  [ -d /usr/lib/wine ] || { echo "shape.sh: the host needs wine in /usr/lib/wine" >&2; exit 2; }
+  ref=$(mktemp -d "$W/ref.XXXXXX") || exit 2
+  gcc -O2 -std=gnu17 -Wall -Wextra -Werror -ffp-contract=off "$ROOT/suite/tools/xarch/shape-hash-probe.c" -o "$ref/probe" -lm || exit 2
+  want=$("$ref/probe" | awk '/^shape.hash/{print $2}')
+  rm -rf "$ref"
+fi
 [ -n "$want" ] || { echo "shape.sh: the native probe printed no hash" >&2; exit 2; }
 echo "native x86_64 hash: $want"
 
@@ -55,4 +62,17 @@ math_hash=$(awk '$1=="hash"{print $2}' "$MATH/tests/corpus/trig.hash")
 math_count=$(awk '$1=="count"{print $2}' "$MATH/tests/corpus/trig.hash")
 [ -n "$math_hash" ] && [ -n "$math_count" ] || { echo "shape.sh: no committed math hash" >&2; exit 2; }
 echo "committed math hash: $math_hash over $math_count results"
-"$HERE/m1-win.sh" "$W" "bash /tools/xwin/shape-win.sh $want $math_hash $math_count"
+# The shape-geometry sources, the cutil allocator stand-in and the committed hash.
+GEOM="$ROOT/libs/shape-geometry"
+rm -rf "$W/geom"
+mkdir -p "$W/geom/tools" "$W/geom/gen" "$W/geom/stubs"
+cp -r "$GEOM/include" "$W/geom/include"
+cp -r "$GEOM/src" "$W/geom/src"
+cp "$GEOM/tools/corpus-hash.c" "$W/geom/tools/"
+cp -r "$HERE/../xarch/shape-stubs/." "$W/geom/stubs/"
+make -s -C "$GEOM" libver-gen BUILD_DIR="$W/geom/gen" > "$W/logs/geom-libver.log" 2>&1 || { echo "shape.sh: libver-gen failed (see $W/logs/geom-libver.log)" >&2; exit 2; }
+geom_hash=$(awk '$1=="hash"{print $2}' "$GEOM/tests/corpus/geometry.hash")
+geom_count=$(awk '$1=="count"{print $2}' "$GEOM/tests/corpus/geometry.hash")
+[ -n "$geom_hash" ] && [ -n "$geom_count" ] || { echo "shape.sh: no committed shape-geometry hash" >&2; exit 2; }
+echo "committed shape-geometry hash: $geom_hash over $geom_count results"
+"$HERE/m1-win.sh" "$W" "bash /tools/xwin/shape-win.sh $want $math_hash $math_count $geom_hash $geom_count"

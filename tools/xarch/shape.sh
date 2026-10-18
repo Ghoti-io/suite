@@ -55,6 +55,16 @@
 #      only is seen.  A fixture calling __builtin_sin on each target must be
 #      refused, naming sin.
 #
+#   6. The shape-geometry hash gate (CAP-2, CAP-13, AD-17).  libs/shape-geometry/
+#      tools/corpus-hash.c, built with every src/*/*.c of the library and the
+#      cutil allocator stand-in in shape-stubs, must print the hash committed in
+#      libs/shape-geometry/tests/corpus/geometry.hash on every target.  It
+#      evaluates and bounds 3,000 curves of every kind in 2D and 3D, builds 80
+#      paths and hashes it all in the library's own hash spelling, so a fused
+#      multiply-add, x87 excess precision or a byte-order slip shows.  The
+#      controls and the plant are the same as in section 4.  The stand-in
+#      header must declare what cutil's does (checked here).
+#
 # Arm64 is run under qemu-user, not on an arm64 machine; the real Raspberry Pi
 # 4 is `tools/evo --box pi4`.  A target that cannot be built or run fails the
 # section, naming it.
@@ -67,6 +77,9 @@ set -u
 HERE=$(cd "$(dirname "$0")" && pwd)
 ROOT=$(cd "$HERE/../../.." && pwd)
 . "$HERE/targets.sh"
+# Dependencies' headers for the libraries' sources: cutil's allocator is a stand-in
+# (shape-stubs), checked against the real header in section 6.
+SHAPE_DEP_INCLUDES=${SHAPE_DEP_INCLUDES--I$HERE/shape-stubs}
 
 B=${B:-/tmp/xarch-shape}
 case "$B" in
@@ -543,6 +556,131 @@ while IFS='|' read -r triple cc qemu desc; do
   else
     echo "$out" | sed 's/^/   | /'
     echo "   FAIL  planted: the libm gate refused the $triple fixture without naming sin"
+    status=1
+  fi
+done <<EOT
+$XARCH_TARGETS
+EOT
+
+#---------------------------------------------------------------------------
+echo
+echo "6. the shape-geometry hash gate (libs/shape-geometry: curves, bounds, paths, the hash spelling)"
+GEOM="$ROOT/libs/shape-geometry"
+gg="$B/gen/geom-hash"
+mkdir -p "$gg"
+if ! make -s -C "$GEOM" libver-gen BUILD_DIR="$gg" > "$B/gen-geom-hash.log" 2>&1; then
+  echo "   FAIL  shape-geometry: could not write libver_gen.h (see $B/gen-geom-hash.log)"
+  status=1
+fi
+# The stand-in allocator header must declare what cutil's does.
+declared() {
+  perl -0777 -pe 's{/\*.*?\*/}{}gs; s{//[^\n]*}{}g; s{\bGCU_API\b}{}g' "$1" \
+    | perl -0777 -ne 'print "$1\n" while /(typedef\s+struct\s+GCU_Allocator\s*\{.*?\}\s*GCU_Allocator\s*;)/gs; print "$1\n" while /((?:const\s+GCU_Allocator|void)\s*\*?\s*gcu_allocator_(?:default|malloc|calloc|realloc|free)\s*\([^;]*;)/gs' \
+    | tr -d ' \t\n' | sed 's/;/;\n/g' | sort
+}
+CUTIL_ALLOC="$ROOT/libs/cutil/include/ghoti.io/cutil/allocator.h"
+if [ -f "$CUTIL_ALLOC" ] && command -v perl > /dev/null; then
+  if [ "$(declared "$CUTIL_ALLOC")" = "$(declared "$HERE/shape-stubs/ghoti.io/cutil/allocator.h")" ] \
+    && [ -n "$(declared "$CUTIL_ALLOC")" ]; then
+    echo "   ok    the allocator stand-in declares what cutil's header declares"
+  else
+    echo "   FAIL  shape-stubs/ghoti.io/cutil/allocator.h differs from cutil's declarations"
+    status=1
+  fi
+  # The plant: a stand-in with one member renamed must be refused.
+  sed 's/realloc_fn/reallocate_fn/' "$HERE/shape-stubs/ghoti.io/cutil/allocator.h" > "$B/stub-plant.h"
+  if [ "$(declared "$CUTIL_ALLOC")" = "$(declared "$B/stub-plant.h")" ]; then
+    echo "   FAIL  planted: a drifted stand-in header was not noticed"
+    status=1
+  else
+    echo "   ok    planted: a drifted stand-in header is noticed"
+  fi
+else
+  echo "   FAIL  cannot compare the stand-in with cutil's header (no cutil checkout or no perl)"
+  status=1
+fi
+gh_hash=$(awk '$1=="hash"{print $2}' "$GEOM/tests/corpus/geometry.hash")
+gh_count=$(awk '$1=="count"{print $2}' "$GEOM/tests/corpus/geometry.hash")
+[ -n "$gh_hash" ] && [ -n "$gh_count" ] || { echo "   FAIL  no committed hash in $GEOM/tests/corpus/geometry.hash"; status=1; }
+GFLAGS="-std=c17 -O2 -pedantic-errors -Wall -Wextra -Werror -ffp-contract=off -DGSHGEOM_BUILD -I$GEOM/include -I$gg/generated -I$HERE/shape-stubs"
+
+# geom_run TRIPLE CC QEMU TAG FLAGS... -> prints "HASH COUNT"
+geom_run() {
+  local triple=$1 cc=$2 qemu=$3 tag=$4 out
+  shift 4
+  # shellcheck disable=SC2086
+  "$cc" $GFLAGS "$@" "$GEOM/tools/corpus-hash.c" $(find "$GEOM/src" -name '*.c' | sort) \
+    "$HERE/shape-stubs/cutil-allocator-stub.c" -o "$B/geom-$tag-$triple" 2> "$B/geom-$tag-$triple.err" || return 1
+  xarch_run "$triple" "$qemu" "$B/geom-$tag-$triple" > "$B/geom-$tag-$triple.txt" 2>> "$B/geom-$tag-$triple.err" || return 1
+  awk '/^shape-geometry.hash/{h=$2} /^shape-geometry.count/{c=$2} END{if (h != "") print h, c}' "$B/geom-$tag-$triple.txt"
+}
+
+declare -A GOK GPLANT
+while IFS='|' read -r triple cc qemu desc; do
+  triple=$(echo "$triple" | tr -d ' '); cc=$(echo "$cc" | tr -d ' ')
+  qemu=$(echo "$qemu" | tr -d ' ')
+  [ -z "$triple" ] && continue
+  # shellcheck disable=SC2046
+  GOK[$triple]=$(geom_run "$triple" "$cc" "$qemu" ok $(xarch_fp_cflags "$triple")) \
+    || { echo "   FAIL  $triple: cannot build or run the shape-geometry probe (see $B/geom-ok-$triple.err)"; status=1; GOK[$triple]=""; }
+  # shellcheck disable=SC2046
+  GPLANT[$triple]=$(geom_run "$triple" "$cc" "$qemu" plant -DSHAPE_GEOM_PLANT_BIT $(xarch_fp_cflags "$triple")) \
+    || { echo "   FAIL  $triple: cannot build or run the planted shape-geometry probe"; status=1; GPLANT[$triple]=""; }
+done <<EOT
+$XARCH_TARGETS
+EOT
+
+# geom_gate PLANTED_TRIPLE -> 0 if every target prints the committed hash and count.
+geom_gate() {
+  local planted=$1 rc=0 triple cc qemu desc got
+  while IFS='|' read -r triple cc qemu desc; do
+    triple=$(echo "$triple" | tr -d ' ')
+    [ -z "$triple" ] && continue
+    if [ "$triple" = "$planted" ]; then got=${GPLANT[$triple]:-}; else got=${GOK[$triple]:-}; fi
+    if [ -n "$got" ] && [ "$got" = "$gh_hash $gh_count" ]; then
+      printf "   ok    %-22s %s\n" "$triple" "$got"
+    else
+      printf "   FAIL  %-22s %s  (want %s %s)\n" "$triple" "${got:-none}" "$gh_hash" "$gh_count"
+      rc=1
+    fi
+  done <<EOT2
+$XARCH_TARGETS
+EOT2
+  return $rc
+}
+
+echo " a. every target prints the committed hash"
+geom_gate "" || status=1
+
+echo " b. the controls: the probe sees what the flags prevent"
+gbare=$(geom_run i686-linux-gnu i686-linux-gnu-gcc qemu-i386 bare) || gbare=""
+if [ -n "$gbare" ] && [ "$gbare" != "$gh_hash $gh_count" ]; then
+  echo "   ok    i686 without -msse2 -mfpmath=sse prints $gbare, not the committed hash"
+else
+  echo "   FAIL  i686 without the SSE flags printed '${gbare:-nothing}': the hash cannot see x87"
+  status=1
+fi
+gfused=$(geom_run aarch64-linux-gnu aarch64-linux-gnu-gcc qemu-aarch64 fused -ffp-contract=fast) || gfused=""
+if [ -n "$gfused" ] && [ "$gfused" != "$gh_hash $gh_count" ]; then
+  echo "   ok    aarch64 with -ffp-contract=fast prints $gfused, not the committed hash"
+else
+  echo "   FAIL  aarch64 with contraction on printed '${gfused:-nothing}': the hash cannot see a fused multiply-add"
+  status=1
+fi
+
+echo " c. planted: one differing bit on each target in turn must fail the gate, naming it"
+while IFS='|' read -r triple cc qemu desc; do
+  triple=$(echo "$triple" | tr -d ' ')
+  [ -z "$triple" ] && continue
+  if geom_gate "$triple" > "$B/geom-planted-$triple.txt" 2>&1; then
+    echo "   FAIL  the shape-geometry gate passed with a bit flipped on $triple: it checks nothing there"
+    status=1
+  elif grep -q "FAIL  $triple " "$B/geom-planted-$triple.txt" \
+    && [ "$(grep -c FAIL "$B/geom-planted-$triple.txt")" -eq 1 ]; then
+    echo "   ok    $triple: caught, and only $triple named"
+  else
+    sed 's/^/   | /' "$B/geom-planted-$triple.txt"
+    echo "   FAIL  the shape-geometry gate failed, but not on $triple alone"
     status=1
   fi
 done <<EOT
