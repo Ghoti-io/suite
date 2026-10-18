@@ -85,6 +85,22 @@ INPUT                  = suite/suite.md \
                          libs/image/documentation \
                          libs/image/examples \
                          libs/image/CONTRIBUTING.md \
+                         libs/math/include \
+                         libs/math/src \
+                         libs/math/documentation \
+                         libs/math/CONTRIBUTING.md \
+                         libs/shape-geometry/include \
+                         libs/shape-geometry/src \
+                         libs/shape-geometry/documentation \
+                         libs/shape-geometry/CONTRIBUTING.md \
+                         libs/shape-scene/include \
+                         libs/shape-scene/src \
+                         libs/shape-scene/documentation \
+                         libs/shape-scene/CONTRIBUTING.md \
+                         libs/shape-cpu/include \
+                         libs/shape-cpu/src \
+                         libs/shape-cpu/documentation \
+                         libs/shape-cpu/CONTRIBUTING.md \
                          libs/font/include \
                          libs/font/src \
                          libs/font/documentation \
@@ -114,6 +130,10 @@ INPUT                  = suite/suite.md \
                          libs/ctang/src \
                          libs/ctang/documentation \
                          libs/ctang/CONTRIBUTING.md \
+                         libs/http/include \
+                         libs/http/src \
+                         libs/http/documentation \
+                         libs/http/CONTRIBUTING.md \
                          libs/runtime-core/include \
                          libs/runtime-core/documentation \
                          libs/runtime-core/CONTRIBUTING.md \
@@ -129,6 +149,34 @@ INPUT                  = suite/suite.md \
                          libs/lang-tang/include \
                          libs/lang-tang/documentation \
                          libs/lang-tang/CONTRIBUTING.md \
+                         libs/lang-wasm/include \
+                         libs/lang-wasm/documentation \
+                         libs/lang-wasm/CONTRIBUTING.md \
+                         libs/vendor-sqlite/src/sqlite3.h \
+                         libs/vendor-sqlite/documentation \
+                         libs/vendor-sqlite/CONTRIBUTING.md \
+                         libs/defiant-storage/include \
+                         libs/defiant-storage/src \
+                         libs/defiant-storage/documentation \
+                         libs/defiant-storage/CONTRIBUTING.md \
+                         libs/defiant-storage-memory/include \
+                         libs/defiant-storage-memory/src \
+                         libs/defiant-storage-memory/documentation \
+                         libs/defiant-storage-memory/CONTRIBUTING.md \
+                         libs/defiant-storage-sqlite/include \
+                         libs/defiant-storage-sqlite/src \
+                         libs/defiant-storage-sqlite/CONTRIBUTING.md \
+                         libs/defiant-core/include \
+                         libs/defiant-core/src \
+                         libs/defiant-core/documentation \
+                         libs/defiant-core/CONTRIBUTING.md \
+                         libs/defiant-test/include \
+                         libs/defiant-test/src \
+                         libs/defiant-test/documentation \
+                         libs/defiant-test/CONTRIBUTING.md \
+                         libs/defiant-web/include \
+                         libs/defiant-web/src \
+                         libs/defiant-web/CONTRIBUTING.md \
                          libs/cjelly/include \
                          libs/cjelly/src \
                          libs/cjelly/docs \

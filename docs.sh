@@ -125,7 +125,21 @@ names = {
     "lang-tang": "Lang-tang", "lang-wasm": "Lang-wasm",
     "certificate": "Certificate", "tls": "TLS",
     "http": "HTTP",
+    "math": "Math",
+    "shape-geometry": "Shape Geometry",
+    "shape-scene": "Shape Scene",
+    "shape-cpu": "Shape CPU",
+    "vendor-sqlite": "Vendor SQLite",
+    "defiant-storage": "Defiant Storage",
+    "defiant-storage-memory": "Defiant Storage Memory",
+    "defiant-storage-sqlite": "Defiant Storage SQLite",
+    "defiant-core": "Defiant Core",
+    "defiant-test": "Defiant Test",
+    "defiant-web": "Defiant Web",
 }
+
+def display_name(lib):
+    return names.get(lib, lib.replace("-", " ").title())
 
 exclude = {}
 for line in (suite / "documents" / "measure.conf").read_text().splitlines():
@@ -217,7 +231,7 @@ def list_tests(lib):
     return total if found else None
 
 test_counts = {lib: list_tests(lib) for lib, _, _ in rows}
-rows.sort(key=lambda item: names[item[0]].casefold())
+rows.sort(key=lambda item: display_name(item[0]).casefold())
 
 def parse_images(path):
     rows = []
@@ -290,7 +304,7 @@ measured.append("")
 measured.append("| Library | Code | Generated data |")
 measured.append("| --- | ---: | ---: |")
 for lib, code, generated in rows:
-    measured.append(f"| {names[lib]} | {comma(code)} | {comma(generated)} |")
+    measured.append(f"| {display_name(lib)} | {comma(code)} | {comma(generated)} |")
 measured.append("")
 measured.append("Code lines are cloc's code count over the same paths as that")
 measured.append("library's `make cloc`. Generated data is the paths named in")
@@ -306,7 +320,7 @@ measured.append("| --- | ---: |")
 for lib, _, _ in rows:
     count = test_counts[lib]
     cell = comma(count) if count is not None else "—"
-    measured.append(f"| {names[lib]} | {cell} |")
+    measured.append(f"| {display_name(lib)} | {cell} |")
 measured.append("")
 measured.append("Each number is `--gtest_list_tests` on the test binaries in")
 measured.append("that library's own build directory. A dash means the library")
@@ -620,6 +634,26 @@ table = "\n".join(
 entries = re.findall(r"^\| \[([^\]]+)\]\(@ref ([^)]+)\) \|", table, re.M)
 if len(entries) < 2:
     raise SystemExit("docs.sh: could not read the library table")
+manifest = [
+    line.split()[0]
+    for line in (suite / "libraries.txt").read_text().splitlines()
+    if line.strip() and not line.lstrip().startswith("#")
+]
+expected_pages = []
+for lib in manifest:
+    manual = (suite / "manual" / f"{lib}.md").read_text()
+    page = re.match(r"@page\s+(\S+)", manual)
+    if not page:
+        raise SystemExit(f"docs.sh: {lib} manual has no @page")
+    expected_pages.append(page.group(1))
+actual_pages = [page_id for _, page_id in entries]
+if sorted(actual_pages) != sorted(expected_pages):
+    missing = sorted(set(expected_pages) - set(actual_pages))
+    extra = sorted(set(actual_pages) - set(expected_pages))
+    raise SystemExit(
+        f"docs.sh: library table differs from libraries.txt: "
+        f"missing={missing}, extra={extra}, duplicates={len(actual_pages) != len(set(actual_pages))}"
+    )
 entries.sort(key=lambda item: item[0].casefold())
 hidden = ["<div style=\"display:none\">", ""]
 for label, page_id in entries:
