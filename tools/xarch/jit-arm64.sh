@@ -7,12 +7,13 @@
 # differential under a relocating runtime-heap, and the planted defects and mutations
 # that show those tests fail on a defect.
 #
-# Run it in the image Containerfile.arm64-jit builds, from the workspace root:
+# Run it in the pinned GCC 16 image Containerfile.arm64-jit-gcc16 builds,
+# from the workspace root:
 #
-#   podman build -t ghoti-xarch-arm64-jit:deb13-gxx14-gtest \
-#     -f suite/tools/xarch/Containerfile.arm64-jit suite/tools/xarch
+#   podman build -t ghoti-xarch-arm64-jit:sid-gxx16-gtest-wast \
+#     -f suite/tools/xarch/Containerfile.arm64-jit-gcc16 suite/tools/xarch
 #   podman run --rm -v "$PWD:/work:ro,z" -v /tmp/xarch-jit:/scratch:z \
-#     ghoti-xarch-arm64-jit:deb13-gxx14-gtest bash /work/suite/tools/xarch/jit-arm64.sh
+#     ghoti-xarch-arm64-jit:sid-gxx16-gtest-wast bash /work/suite/tools/xarch/jit-arm64.sh
 #
 # What it does, in order:
 #
@@ -68,6 +69,7 @@ set -o pipefail
 
 WORK="${WORK:-/work}"
 S="${SCRATCH:-/scratch}"
+FAILURE_RESULTS="${JIT_ARM64_FAILURE_RESULTS:-${RESULTS:-$S}}"
 JOBS="${JOBS:-$(nproc)}"
 QEMU_SYSROOT=/usr/aarch64-linux-gnu
 STARTED=$(date +%s)
@@ -76,7 +78,7 @@ STARTED=$(date +%s)
 BINARY_TIMEOUT="${JIT_ARM64_BINARY_TIMEOUT:-1800}"
 
 # The libraries, in dependency order, and the ones whose tests run.
-STACK="cutil unicode chron regex text runtime-core runtime-heap runtime-debug runtime-jit lang-wasm lang-tang"
+STACK="cutil security unicode chron regex text runtime-core runtime-heap runtime-debug runtime-jit lang-wasm lang-tang"
 # The libraries whose test programs are all run (lang-tang's are chosen below).
 SUITE_LIBS="runtime-core runtime-heap runtime-debug runtime-jit lang-wasm"
 
@@ -184,6 +186,11 @@ run_env() { # <arch> VAR=value... -- <command...>
     shift
   done
   shift
+  # This is a full-suite gate. Ambient Google Test selection or sharding must
+  # not turn a passing binary into a partial run (or an empty one). The one
+  # intentional AArch64 exclusion is supplied explicitly by run_binary.
+  local -a clean_gtest=(env -u GTEST_FILTER -u GTEST_TOTAL_SHARDS -u GTEST_SHARD_INDEX \
+    -u GTEST_SHARD_STATUS_FILE -u GTEST_REPEAT -u GTEST_ALSO_RUN_DISABLED_TESTS)
   # Bounded: exit status 124 is a command that did not finish in $BINARY_TIMEOUT seconds (and is killed
   # ten seconds after it was asked to stop).
   if [ "$arch" = aarch64 ]; then
@@ -192,9 +199,9 @@ run_env() { # <arch> VAR=value... -- <command...>
     for e in "${ev[@]}"; do
       q+=(-E "$e")
     done
-    timeout -k 10 "$BINARY_TIMEOUT" "${q[@]}" "$@"
+    "${clean_gtest[@]}" timeout -k 10 "$BINARY_TIMEOUT" "${q[@]}" "$@"
   else
-    timeout -k 10 "$BINARY_TIMEOUT" env "${ev[@]}" "$@"
+    "${clean_gtest[@]}" timeout -k 10 "$BINARY_TIMEOUT" env "${ev[@]}" "$@"
   fi
 }
 
@@ -294,6 +301,25 @@ build_stack() { # <arch>
   say "  $n installed libraries, each an $arch object by ELF header and file(1)"
 }
 
+# The direct test-binary runner does not inherit the exports in lang-wasm's
+# Makefile. Fetch the exact pinned spec corpus into this architecture's copied
+# runtime-jit tree and verify every file before any WAST test starts.
+prepare_wast_corpus() { # <arch>
+  local arch="$1" commit corpus log
+  commit=$(cat "$SRC/runtime-jit/tools/wasm/WASM_SPEC_COMMIT") ||
+    fail "cannot read the pinned WebAssembly spec commit ($arch)"
+  corpus="$SRC/runtime-jit/third_party/wasm-spec/$commit"
+  log="$S/$arch/fetch-wasm-spec.log"
+  sh "$SRC/runtime-jit/tools/wasm/fetch.sh" >"$log" 2>&1 ||
+    { tail -30 "$log" >&2; fail "pinned WebAssembly spec fetch failed ($arch)"; }
+  (cd "$corpus" && sha256sum -c "$SRC/runtime-jit/tools/wasm/SHA256SUMS") \
+    >"$S/$arch/verify-wasm-spec.log" 2>&1 ||
+    { tail -30 "$S/$arch/verify-wasm-spec.log" >&2; fail "pinned WebAssembly spec verification failed ($arch)"; }
+  [ -d "$corpus/test" ] && [ -f "$corpus/test/LICENSE" ] ||
+    fail "pinned WebAssembly spec corpus is incomplete ($arch)"
+  say "  pinned WebAssembly spec corpus $commit fetched and verified ($arch)"
+}
+
 # ---- Running test binaries -------------------------------------------------------
 
 RAN=0
@@ -318,7 +344,7 @@ run_binary() { # <arch> <lib> <name> [VAR=value ...]
   local bin="$dir/$name"
   [ -x "$bin" ] || fail "$lib/$name was not built"
   elf_machine_ok "$arch" "$bin" || fail "$bin is not an $arch binary: refusing to run it as one"
-  local filter=""
+  local filter="--gtest_filter=*"
   if [ "$arch" = aarch64 ]; then
     local entry f_lib f_bin f_test f_why
     for entry in "${SKIPPED_BY_FILTER_AARCH64[@]}"; do
@@ -337,29 +363,67 @@ run_binary() { # <arch> <lib> <name> [VAR=value ...]
       fi
     done
   fi
-  local out rc
+  local out rc output_file="$S/.test-output-$ARCH_NOW-$lib-$name-$$"
+  mkdir -p "$S"
+  : > "$output_file" || fail "cannot create captured test output for $shown/$name"
   local envs=(LD_LIBRARY_PATH="$pfx/lib/ghoti.io:$dir" "$@")
+  if [ "$lib/$name" = "lang-wasm/testWast" ]; then
+    local commit corpus data_file
+    commit=$(cat "$SRC/runtime-jit/tools/wasm/WASM_SPEC_COMMIT") ||
+      fail "cannot read the pinned WebAssembly spec commit ($arch)"
+    corpus="$SRC/runtime-jit/third_party/wasm-spec/$commit/test"
+    [ -d "$corpus" ] || fail "pinned WebAssembly spec corpus is missing ($arch)"
+    for data_file in data-wast-classification.tsv data-wast-assertion-skips.tsv \
+      data-wast-execution-baseline.tsv; do
+      [ -f "$SRC/lang-wasm/tests/$data_file" ] ||
+        fail "lang-wasm/testWast input $data_file is missing ($arch)"
+    done
+    envs+=(GLWASM_WAST_CORPUS_ROOT="$corpus"
+      GLWASM_WAST_CLASSIFICATION="$SRC/lang-wasm/tests/data-wast-classification.tsv"
+      GLWASM_WAST_ASSERTION_SKIPS="$SRC/lang-wasm/tests/data-wast-assertion-skips.tsv"
+      GLWASM_WAST_EXECUTION_BASELINE="$SRC/lang-wasm/tests/data-wast-execution-baseline.tsv"
+      GLWASM_WAST_SPEC_COMMIT="$commit")
+  fi
   [ "$arch" = x86_64 ] && envs+=(GRJIT_AARCH64_OBJDUMP=/usr/bin/aarch64-linux-gnu-objdump)
-  out=$(cd "$SRC/$lib" && run_env "$arch" "${envs[@]}" -- "$bin" $filter 2>&1)
+  (cd "$SRC/$lib" && run_env "$arch" "${envs[@]}" -- "$bin" "$filter") >"$output_file" 2>&1
   rc=$?
+  out=$(cat "$output_file")
   if [ $rc -eq 124 ] || [ $rc -eq 137 ]; then
+    local failure_log="$FAILURE_RESULTS/failures/$ARCH_NOW/$lib-$name.log"
+    mkdir -p "$(dirname "$failure_log")"
+    cp "$output_file" "$failure_log" || fail "could not retain full timeout output at $failure_log"
+    printf 'exit_status=%s\n' "$rc" > "$failure_log.status" ||
+      fail "could not retain timeout exit status at $failure_log.status"
+    rm -f "$output_file"
+    printf '  full failure output retained at %s\n' "$failure_log" >&2
     printf '%s\n' "$out" | tail -20 >&2
     fail "$shown/$name did not finish in ${BINARY_TIMEOUT}s ($arch): a hang is a failure"
   fi
   if [ $rc -ne 0 ]; then
+    local failure_log="$FAILURE_RESULTS/failures/$ARCH_NOW/$lib-$name.log"
+    mkdir -p "$(dirname "$failure_log")"
+    cp "$output_file" "$failure_log" || fail "could not retain full failure output at $failure_log"
+    printf 'exit_status=%s\n' "$rc" > "$failure_log.status" ||
+      fail "could not retain failure exit status at $failure_log.status"
+    rm -f "$output_file"
+    printf '  full failure output retained at %s\n' "$failure_log" >&2
     printf '%s\n' "$out" | tail -40 >&2
     fail "$shown/$name exited $rc ($arch, ${*:-no extra environment})"
   fi
   local passed
   passed=$(printf '%s\n' "$out" | sed -n 's/^\[  PASSED  \] \([0-9]*\) test.*/\1/p' | tail -1)
   passed=${passed:-0}
-  # runtime-core/testChild holds Windows-only tests (the child-process helper), so
-  # on Linux it is a binary with no tests by design; every other empty one is a failure.
-  if [ "$lib/$name" = "runtime-core/testChild" ] && printf '%s\n' "$out" | grep -q 'Running 0 tests'; then
-    printf '  %-36s Windows-only, no tests on Linux\n' "$shown/$name"
-    return 0
+  if [ "$passed" -le 0 ]; then
+    local failure_log="$FAILURE_RESULTS/failures/$ARCH_NOW/$lib-$name.log"
+    mkdir -p "$(dirname "$failure_log")"
+    cp "$output_file" "$failure_log" || fail "could not retain empty-run output at $failure_log"
+    printf 'exit_status=0\n' > "$failure_log.status" ||
+      fail "could not retain empty-run exit status at $failure_log.status"
+    rm -f "$output_file"
+    printf '  full failure output retained at %s\n' "$failure_log" >&2
+    fail "$lib/$name exited 0 having passed no tests: a binary that ran nothing is not a pass"
   fi
-  [ "$passed" -gt 0 ] || fail "$lib/$name exited 0 having passed no tests: a binary that ran nothing is not a pass"
+  rm -f "$output_file"
   PASSED_TESTS=$((PASSED_TESTS + passed))
   RAN=$((RAN + 1))
   RAN_LIST+=("$shown/$name${*:+ [$*]}: $passed passed")
@@ -670,6 +734,12 @@ mutation_harness_arm64() {
 
 machinery_checks() {
   heading "The machinery"
+  local compiler version
+  for compiler in gcc g++ aarch64-linux-gnu-gcc aarch64-linux-gnu-g++; do
+    version=$("$compiler" -dumpfullversion) || fail "$compiler does not report its version"
+    [ "$version" = 16.2.0 ] || fail "$compiler is $version, expected pinned GCC 16.2.0"
+    say "  $compiler: $version"
+  done
   mkdir -p "$S/probe"
   cat > "$S/probe/p.c" <<'EOC'
 #include <stdio.h>
@@ -717,12 +787,31 @@ machinery_checks
 
 setup_env aarch64
 build_stack aarch64
+if [ "${JIT_ARM64_FOCUS_TANG:-0}" = 1 ]; then
+  heading "Focused AArch64 Tang JIT compatibility"
+  ARCH_NOW=aarch64
+  build_tests lang-tang testJit
+  run_binary aarch64 lang-tang testJit
+  say "jit-arm64 focused Tang JIT gate: OK (the full cross gate remains separate)"
+  exit 0
+fi
+prepare_wast_corpus aarch64
+if [ "${JIT_ARM64_FOCUS_WAST:-0}" = 1 ]; then
+  heading "Focused AArch64 Lang-Wasm JIT cache and pinned WAST corpus"
+  ARCH_NOW=aarch64
+  build_tests lang-wasm testJit_cache testWast
+  run_binary aarch64 lang-wasm testJit_cache
+  run_binary aarch64 lang-wasm testWast
+  say "jit-arm64 focused WAST gate: OK (the full cross gate remains separate)"
+  exit 0
+fi
 run_suites aarch64
 plant_arm64_defects
 mutation_harness_arm64
 
 setup_env x86_64
 build_stack x86_64
+prepare_wast_corpus x86_64
 run_suites x86_64
 
 [ -z "${ARM64_PLANTS_FILE:-}" ] ||

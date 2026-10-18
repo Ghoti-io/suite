@@ -1,0 +1,31 @@
+# GCC 16.2.0 AArch64 and x86-64 runtime/JIT cross-gate image.
+# The parent pins the Debian sid base and package snapshot; this child uses
+# that same snapshot for the host tools and target googletest.
+FROM localhost/ghoti-xarch:sid-gcc16
+
+RUN apt-get update \
+ && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+      gcc-16 g++-16 \
+      pkg-config bison flex googletest libgtest-dev cmake make python3 curl \
+      binutils-aarch64-linux-gnu rsync \
+ && ln -sf gcc-16 /usr/bin/gcc \
+ && ln -sf g++-16 /usr/bin/g++ \
+ && ln -sf gcc-16 /usr/bin/cc \
+ && ln -sf g++-16 /usr/bin/c++ \
+ && rm -rf /var/lib/apt/lists/*
+
+# The libraries find target googletest through pkg-config. Build it with the
+# pinned target C++ compiler, not the host archive from libgtest-dev.
+RUN set -eux; \
+    mkdir -p /opt/aarch64/lib/pkgconfig /tmp/gtest-build; \
+    cd /tmp/gtest-build; \
+    aarch64-linux-gnu-g++ -std=c++17 -O1 -fPIC \
+      -I/usr/src/googletest/googletest \
+      -I/usr/src/googletest/googletest/include \
+      -c /usr/src/googletest/googletest/src/gtest-all.cc -o gtest-all.o; \
+    aarch64-linux-gnu-ar rcs /opt/aarch64/lib/libgtest.a gtest-all.o; \
+    printf 'Name: gtest\nDescription: googletest for aarch64\nVersion: 0\nLibs: -L/opt/aarch64/lib -lgtest -pthread\nCflags: -I/usr/src/googletest/googletest/include\n' \
+      > /opt/aarch64/lib/pkgconfig/gtest.pc; \
+    rm -rf /tmp/gtest-build
+
+WORKDIR /work

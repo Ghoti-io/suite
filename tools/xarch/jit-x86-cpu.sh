@@ -9,11 +9,11 @@
 # decoder over the raw CPUID words is tested by a table on any host; what this adds is that the assembly
 # reads the right registers, and that code compiled for the detected set is right.
 #
-# Run it in the image Containerfile.arm64-jit builds (it has qemu-x86_64 from ghoti-xarch:deb13, and g++,
+# Run it in the image Containerfile.arm64-jit-gcc16 builds (it has qemu-x86_64 from ghoti-xarch:sid-gcc16, and g++,
 # pkg-config and googletest for x86-64 as the control build), from the workspace root:
 #
 #   podman run --rm -v "$PWD:/work:ro,z" -v /tmp/xarch-x86-cpu:/scratch:z \
-#     ghoti-xarch-arm64-jit:deb13-gxx14-gtest bash /work/suite/tools/xarch/jit-x86-cpu.sh
+#     ghoti-xarch-arm64-jit:sid-gxx16-gtest-wast bash /work/suite/tools/xarch/jit-x86-cpu.sh
 #
 # What it does, in order:
 #
@@ -24,13 +24,15 @@
 #      about qemu, not about runtime-jit: qemu changes, and when it does this stage fails and says which
 #      cell moved, before any claim about runtime-jit is made. The models must also differ from the native
 #      run where the host has the feature, or `-cpu` did nothing.
-#   2. Builds cutil, runtime-core and runtime-jit natively as x86-64 (the control) and runs `testCpu_features`
-#      natively, once, with nothing set.
+#   2. Builds runtime-jit and lang-wasm with their dependencies natively as
+#      x86-64 (the control), and runs their feature tests natively.
 #   3. For each model runs `qemu-x86_64 -cpu <model> testCpu_features` with GRJIT_TEST_CPU_MODEL,
 #      GRJIT_TEST_EXPECT_FEATURES (the stamp of the model's set), GRJIT_TEST_LZCNT_AS and GRJIT_TEST_TZCNT_AS (what
 #      stage 1 measured the instructions to do) and GRJIT_TEST_CPU_CROSSED. The detected set must equal the
 #      model's, code compiled for it must be right where the model's instructions behave as its bits say, and the
-#      forced-wrong-arm control must show the instruction the model has: `clz(0x10)` is 59 where `lzcnt` ran
+#      Lang-Wasm's module policy test must compile and execute both baseline
+#      and host-supported masks, with recorded code features matching the model.
+#      The forced-wrong-arm control must show the instruction the model has: `clz(0x10)` is 59 where `lzcnt` ran
 #      and 4 where the CPU ran it as `bsr`. A model where the answer is not the one measured fails.
 #   4. Plants, one tree each, the defects runtime-jit lists in tools/x86-cpu-plants.txt and requires the model
 #      test to FAIL by an assertion (a crash or a hang is not one) while the unplanted control passes.
@@ -198,21 +200,21 @@ mk() { # <dir> <make args...>
 }
 
 build_native() {
-  heading "2. Building cutil, runtime-core and runtime-jit natively (the control)"
+  heading "2. Building runtime-jit and lang-wasm with dependencies natively"
   mkdir -p "$P" "$SRC"
   PATH="$ORIG_PATH"
   export PKG_CONFIG_PATH="$P/share/pkgconfig"
   local lib
-  for lib in cutil runtime-core runtime-jit; do
+  for lib in cutil security unicode chron regex text runtime-core runtime-heap runtime-debug runtime-jit lang-wasm; do
     sync_source "$lib"
   done
-  for lib in cutil runtime-core; do
+  for lib in cutil security unicode chron regex text runtime-core runtime-heap runtime-debug; do
     say "-- $lib"
     mk "$SRC/$lib" -j"$JOBS" install >"$S/x86_64/build-$lib.log" 2>&1 ||
       { tail -30 "$S/x86_64/build-$lib.log" >&2; fail "$lib did not build"; }
   done
   say "-- runtime-jit (the library and testCpu_features)"
-  mk "$SRC/runtime-jit" -j"$JOBS" all build/linux/release/apps/testCpu_features >"$S/x86_64/build-runtime-jit.log" 2>&1 ||
+  mk "$SRC/runtime-jit" -j"$JOBS" install build/linux/release/apps/testCpu_features >"$S/x86_64/build-runtime-jit.log" 2>&1 ||
     { tail -30 "$S/x86_64/build-runtime-jit.log" >&2; fail "runtime-jit did not build"; }
   TESTBIN="$SRC/runtime-jit/build/linux/release/apps/testCpu_features"
   [[ "$(file -b "$TESTBIN")" == *"x86-64"* ]] || fail "$TESTBIN is not an x86-64 binary"
@@ -223,6 +225,15 @@ build_native() {
   for t in "$T_CPUINFO" "$T_REUSE" "$T_FORCED_HOST" "$T_CODE" "$T_SKIPS" "$T_DETECT" "${T_RUN[@]}"; do
     grep -qxF "$t" "$S/x86_64/test-names.txt" || fail "the test $t named in this script is not in testCpu_features: the skip table is stale"
   done
+  say "-- lang-wasm (the library and pinned policy-mask test)"
+  mk "$SRC/lang-wasm" -j"$JOBS" build/linux/release/apps/testJit_cache >"$S/x86_64/build-lang-wasm.log" 2>&1 ||
+    { tail -30 "$S/x86_64/build-lang-wasm.log" >&2; fail "lang-wasm did not build"; }
+  WASM_BIN="$SRC/lang-wasm/build/linux/release/apps/testJit_cache"
+  WASM_FILTER=JitCache.ModulePolicySelectsBaselineOrHostSupportedCpuFeatures
+  [[ "$(file -b "$WASM_BIN")" == *"x86-64"* ]] || fail "$WASM_BIN is not an x86-64 binary"
+  local listed
+  listed=$(LD_LIBRARY_PATH="$P/lib/ghoti.io" "$WASM_BIN" --gtest_list_tests --gtest_filter="$WASM_FILTER" | grep -c '^  ')
+  [ "$listed" = 1 ] || fail "lang-wasm policy-mask fixture lists $listed tests, expected exactly one"
 }
 
 # qemu's -E splits its argument at commas (getsubopt), so a model name with a comma in it cannot be a value:
@@ -259,6 +270,15 @@ native_run() {
   passed=$(printf '%s\n' "$OUT" | sed -n 's/^\[  PASSED  \] \([0-9]*\) test.*/\1/p' | tail -1)
   say "  native: ${passed:-0} passed, $(printf '%s\n' "$OUT" | skipped_names | wc -l) skipped"
   NATIVE_SKIPS=$(printf '%s\n' "$OUT" | skipped_names | wc -l)
+  run_test "" "$WASM_BIN" "$WASM_FILTER"
+  [ "$RC" -eq 0 ] || { printf '%s\n' "$OUT" | tail -40 >&2; fail "lang-wasm policy-mask test failed natively (exit $RC)"; }
+  [ "$(printf '%s\n' "$OUT" | grep -c '^wasm compiled CPU mask=')" = 2 ] ||
+    fail "native lang-wasm policy-mask test did not exercise both modes"
+  [ "$(printf '%s\n' "$OUT" | skipped_names | wc -l)" = 0 ] ||
+    fail "native lang-wasm policy-mask test skipped"
+  printf '%s\n' "$OUT" | grep -q '^\[  PASSED  \] 1 test\.' ||
+    fail "native lang-wasm policy-mask test did not pass exactly one test"
+  say "  lang-wasm policy-mask test: 1 passed, 0 skipped; both masks compiled"
 }
 
 # ---- Stage 3 and 5: the models ----------------------------------------------------------------------------------
@@ -314,6 +334,28 @@ model_runs() {
     local s
     for s in "${want[@]}"; do say "       - $s"; done
     MODEL_RESULTS+=("$model: $passed passed, ${#want[@]} skipped$([ "$crossed" = 1 ] && echo ' (crossed: compiled-code assertions skipped, detection and the forced-arm control run)')")
+    local wasm_listed features
+    wasm_listed=$(qemu-x86_64 -cpu "$model" -E LD_LIBRARY_PATH="$P/lib/ghoti.io" \
+      "$WASM_BIN" --gtest_list_tests --gtest_filter="$WASM_FILTER" 2>/dev/null | grep -c '^  ')
+    [ "$wasm_listed" = 1 ] ||
+      fail "under -cpu $model lang-wasm policy-mask fixture lists $wasm_listed tests, expected one"
+    run_test "$model" "$WASM_BIN" "$WASM_FILTER"
+    if [ "$RC" -ne 0 ]; then
+      printf '%s\n' "$OUT" | tail -40 >&2
+      fail "lang-wasm policy-mask test under -cpu $model exited $RC"
+    fi
+    [ "$(printf '%s\n' "$OUT" | skipped_names | wc -l)" = 0 ] ||
+      fail "lang-wasm policy-mask test skipped under -cpu $model"
+    printf '%s\n' "$OUT" | grep -q '^\[  PASSED  \] 1 test\.' ||
+      fail "lang-wasm policy-mask test did not pass exactly one test under -cpu $model"
+    [ "$(printf '%s\n' "$OUT" | grep -c '^wasm compiled CPU mask=')" = 2 ] ||
+      fail "lang-wasm policy-mask test did not exercise both modes under -cpu $model"
+    features=$((sse41 + 2 * popcnt + 4 * lzcnt + 8 * bmi1))
+    printf '%s\n' "$OUT" | grep -qx "wasm compiled CPU mask=15 detected=$features effective=0 recorded=0 result=16" ||
+      fail "lang-wasm portable baseline disagreed with -cpu $model"
+    printf '%s\n' "$OUT" | grep -qx "wasm compiled CPU mask=0 detected=$features effective=$features recorded=$((features & 2)) result=16" ||
+      fail "lang-wasm supported-feature code disagreed with -cpu $model"
+    say "     lang-wasm: baseline and supported-feature masks compiled, 1 passed, 0 skipped"
   done
 }
 
@@ -359,6 +401,11 @@ plant_defects() {
 mkdir -p "$S" "$S/x86_64"
 say "jit-x86-cpu: scratch $S, $JOBS jobs, workspace $WORK"
 say "  qemu: $(qemu-x86_64 --version | head -1)"
+for compiler in gcc g++; do
+  version=$("$compiler" -dumpfullversion) || fail "$compiler does not report its version"
+  [ "$version" = 16.2.0 ] || fail "$compiler is $version, expected pinned GCC 16.2.0"
+  say "  $compiler: $version"
+done
 machinery_checks
 build_native
 native_run

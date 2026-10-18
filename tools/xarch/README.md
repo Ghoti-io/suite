@@ -27,12 +27,11 @@ podman run --rm -v "$PWD:/work:ro,z" ghoti-xarch:sid-gcc16 bash /work/suite/tool
 ```
 
 Run on `sid-gcc16` on 2026-10-14 and passing: `smoke.sh`, `check.sh`,
-`fiber.sh`, `loop.sh`, `lfs.sh`. **Not yet moved, still `ghoti-xarch:deb13` and
-GCC 14:** `http.sh`, `tls.sh`, `text.sh`, `jit-arm64.sh`, `jit-x86-cpu.sh` and
-the two images built on it (`Containerfile.arm64-jit`, `Containerfile.text`,
-both `FROM` the `deb13` image). Moving them means rebuilding those two on the
-new base and rerunning each script; a GCC 16 `-Werror` finding is possible and
-would be a real one. Until then their results are GCC 14 results.
+`fiber.sh`, `loop.sh`, `lfs.sh`. The runtime/JIT gates now use
+`Containerfile.arm64-jit-gcc16`, a child of that pinned image. The older
+`Containerfile.arm64-jit` and `Containerfile.text` remain GCC 14; `http.sh`,
+`tls.sh` and `text.sh` have not moved. Their earlier results are GCC 14
+results, and a GCC 16 `-Werror` finding while moving them is a real finding.
 
 The original image, still used by the scripts above that have not moved:
 
@@ -176,15 +175,15 @@ the question it answers is "does the arm64 backend work", which needs the tests,
 not a program.
 
 ```bash
-podman build -t ghoti-xarch-arm64-jit:deb13-gxx14-gtest \
-  -f suite/tools/xarch/Containerfile.arm64-jit suite/tools/xarch
+podman build -t ghoti-xarch-arm64-jit:sid-gxx16-gtest-wast \
+  -f suite/tools/xarch/Containerfile.arm64-jit-gcc16 suite/tools/xarch
 mkdir -p /tmp/xarch-jit
 podman run --rm -v "$PWD:/work:ro,z" -v /tmp/xarch-jit:/scratch:z \
-  ghoti-xarch-arm64-jit:deb13-gxx14-gtest bash /work/suite/tools/xarch/jit-arm64.sh
+  ghoti-xarch-arm64-jit:sid-gxx16-gtest-wast bash /work/suite/tools/xarch/jit-arm64.sh
 ```
 
-`Containerfile.arm64-jit` builds on `ghoti-xarch:deb13` and adds a C++ cross
-compiler and its libstdc++ (`g++-aarch64-linux-gnu`), `pkg-config`, `bison` and
+`Containerfile.arm64-jit-gcc16` builds on `ghoti-xarch:sid-gcc16` and adds
+the GCC 16 host compilers, `pkg-config`, `bison`, `curl` and
 `flex` (lang-tang generates its parser on the build host), the distribution's
 googletest source built into an aarch64 archive with a `gtest.pc` beside it, and
 the host's `libgtest-dev` for the x86-64 control. The tag names what is inside
@@ -214,8 +213,14 @@ What the script does:
    arm: `testJit`, and the Makefile's bounded suites (which include the execution
    corpus, the interpreter-against-JIT frame differential) with
    `GLTANG_TEST_JIT_THRESHOLD=1`, every function tiering up at its first poll.
+   Before the Lang-Wasm WAST binary runs, the script fetches and verifies every
+   file of runtime-jit's pinned WebAssembly spec corpus and supplies the same
+   corpus and classification inputs exported by Lang-Wasm's Makefile.
    Before each binary runs its ELF machine is read again. A non-zero exit stops
-   the script.
+   the script. The runner clears inherited Google Test filters, sharding and
+   repeat settings and selects the full suite, apart from the exact named
+   AArch64 exclusions recorded below; a caller's environment cannot silently
+   turn this gate into a partial test run.
 4. **Builds the relocating heap** into a separate prefix and runs its
    relocation suite, then builds Lang-Wasm's `testDebug_relocate` against that
    prefix. The nested debugger-frame differential compares every instruction
@@ -397,12 +402,16 @@ tests, because the plain image has no C++ cross compiler.
 without LZCNT or BMI1 the instructions do not fault: they run as `bsr` and `bsf`, with other answers, so a wrong
 detection gives wrong results and only a CPU that lacks the feature can show it. This runs the library's
 `testCpu_features` under `qemu-x86_64 -cpu <model>` in the same image as `jit-arm64.sh`, which already has
-`qemu-x86_64`, `g++`, `pkg-config` and googletest for x86-64.
+`qemu-x86_64`, GCC 16.2.0, `pkg-config` and googletest for x86-64. The gate
+also builds Lang-Wasm's pinned `JitCache.ModulePolicySelectsBaselineOrHostSupportedCpuFeatures`
+fixture and runs both module policy masks under every model. It asserts one
+executed test, zero skips, the model's detected/effective bits, and the
+features recorded in the compiled Wasm code.
 
 ```bash
 mkdir -p /tmp/xarch-x86-cpu
 podman run --rm -v "$PWD:/work:ro,z" -v /tmp/xarch-x86-cpu:/scratch:z \
-  ghoti-xarch-arm64-jit:deb13-gxx14-gtest bash /work/suite/tools/xarch/jit-x86-cpu.sh
+  ghoti-xarch-arm64-jit:sid-gxx16-gtest-wast bash /work/suite/tools/xarch/jit-x86-cpu.sh
 ```
 
 Seven models: `qemu64` (none of the four), `Nehalem` (SSE4.1 and POPCNT), `Haswell,-sse4.1`, `Haswell,-popcnt`,
@@ -428,28 +437,38 @@ own idea of them) or an operating system's gating of features.
 
 `jit-arm64.sh`, `jit-x86-cpu.sh` and `../xwin/m1-run.sh` do not need this machine. Each can run as a job of its
 own on the EVO-X2 through `tools/evo`, in parallel, instead of one after another on the laptop. The workspace the
-gates read is shipped as `ws/libs/<lib>` (the twelve libraries of the runtime stack, including lang-wasm) and `ws/suite`, each the working
+gates read is shipped as `ws/libs/<lib>` (the thirteen libraries of the runtime stack, including security and lang-wasm) and `ws/suite`, each the working
 tree minus `build/`, `docs/`, `.git` and `__pycache__` (about 0.9 GB; ignored third-party and tzdata files go along,
 as they do in the local copy). The box has docker and no qemu, wine, podman or bison; everything the gates need is in
 three images, built on the box from Containerfiles in this repository:
 
 | image (on the box) | Containerfile | used by |
 | --- | --- | --- |
-| `localhost/ghoti-xarch:deb13` | `xarch/Containerfile` | parent of the next (GCC 14) |
-| `localhost/ghoti-xarch-arm64-jit:deb13-gxx14-gtest` | `xarch/Containerfile.arm64-jit` | `jit-arm64.sh`, `jit-x86-cpu.sh` |
-| `localhost/ghoti-xwin-wine:deb13-mingw-win32-wine10` | `xwin/Containerfile.wine` | `m1-run.sh` |
+| `localhost/ghoti-xarch:sid-gcc16` | `xarch/Containerfile.gcc16` | pinned GCC 16 parent of the next |
+| `localhost/ghoti-xarch-arm64-jit:sid-gxx16-gtest-wast` | `xarch/Containerfile.arm64-jit-gcc16` | `jit-arm64.sh`, `jit-x86-cpu.sh` |
+| `localhost/ghoti-xwin-wine:deb13-mingw-win32-wine10-wast` | `xwin/Containerfile.wine` | `m1-run.sh` |
 
-`ghoti-xarch:sid-gcc16` (GCC 16, see the top of this file) is **not on the box yet**; build it there with
-`tools/evo image build localhost/ghoti-xarch:sid-gcc16 suite/tools/xarch suite/tools/xarch/Containerfile.gcc16`.
-The images below were built, not copied, so they hold the Debian trixie packages of the day (the local images are older);
-`jit-x86-cpu.sh` stage 1 would say if qemu's models had moved.
+Build the GCC 16 parent and its child on EVO-X2 from their pinned
+Containerfiles before the cross gates. The Wine image is rebuilt separately;
+its mingw-w64 compiler is a different toolchain family.
+Both cross images include `curl` so the gate can fill a missing WebAssembly
+spec corpus. Each gate verifies the pinned SHA-256 manifest before running
+Lang-Wasm's WAST suite. The Wine gate passes `Z:\w\...` paths to the Windows
+test executable through Wine's root-drive mapping, both from `make test` and
+from its separate direct-binary run.
+For a targeted AArch64 rerun after a WAST/JIT change, set
+`JIT_ARM64_FOCUS_WAST=1` on `jit-arm64.sh`; it builds the same target stack and
+runs only Lang-Wasm's JIT cache and pinned WAST binaries. It reports a focused
+result and leaves the full cross gate to a separate run. To isolate Tang JIT
+compatibility on AArch64, `JIT_ARM64_FOCUS_TANG=1` builds the stack and runs
+only Tang's `testJit`; this also reports a focused result.
 To build or remove (`tools/evo image ls` lists them):
 
 ```bash
-tools/evo image build localhost/ghoti-xarch:deb13 suite/tools/xarch suite/tools/xarch/Containerfile
-tools/evo image build localhost/ghoti-xarch-arm64-jit:deb13-gxx14-gtest suite/tools/xarch suite/tools/xarch/Containerfile.arm64-jit
-tools/evo image build localhost/ghoti-xwin-wine:deb13-mingw-win32-wine10 suite/tools/xwin suite/tools/xwin/Containerfile.wine
-tools/evo image rm localhost/ghoti-xwin-wine:deb13-mingw-win32-wine10     # likewise the other two, the child first
+tools/evo image build localhost/ghoti-xarch:sid-gcc16 suite/tools/xarch suite/tools/xarch/Containerfile.gcc16
+tools/evo image build localhost/ghoti-xarch-arm64-jit:sid-gxx16-gtest-wast suite/tools/xarch suite/tools/xarch/Containerfile.arm64-jit-gcc16
+tools/evo image build localhost/ghoti-xwin-wine:deb13-mingw-win32-wine10-wast suite/tools/xwin suite/tools/xwin/Containerfile.wine
+tools/evo image rm localhost/ghoti-xwin-wine:deb13-mingw-win32-wine10-wast     # likewise the other two, the child first
 ```
 
 One job per gate (the cap is the job's; with 20G each the three fit under the box's 64G total; `--cpus=8` and
@@ -457,10 +476,10 @@ One job per gate (the cap is the job's; with 20G each the three fit under the bo
 
 ```bash
 P='; rc=$?; cp -r /w/logs $RESULTS/ 2>/dev/null; cat /sys/fs/cgroup/memory.peak > $RESULTS/mem-peak.txt; date +%s > $RESULTS/ended; exit $rc'
-A=localhost/ghoti-xarch-arm64-jit:deb13-gxx14-gtest
+A=localhost/ghoti-xarch-arm64-jit:sid-gxx16-gtest-wast
 J=$(tools/evo new --xgates arm64);  tools/evo run $J -m 20G -t 4h --image $A --mount ws:/work:ro --mount scratch:/scratch --docker-arg --cpus=8 -- "JOBS=8 bash /work/suite/tools/xarch/jit-arm64.sh$P"
 J=$(tools/evo new --xgates x86cpu); tools/evo run $J -m 20G -t 2h --image $A --mount ws:/work:ro --mount scratch:/scratch --docker-arg --cpus=8 -- "JOBS=8 bash /work/suite/tools/xarch/jit-x86-cpu.sh$P"
-J=$(tools/evo new --xgates win);    tools/evo run $J -m 20G -t 4h --image localhost/ghoti-xwin-wine:deb13-mingw-win32-wine10 \
+J=$(tools/evo new --xgates win);    tools/evo run $J -m 20G -t 4h --image localhost/ghoti-xwin-wine:deb13-mingw-win32-wine10-wast \
     --mount ws:/work:ro --mount scratch:/w --mount ws/suite/tools:/tools:ro --docker-arg --security-opt=seccomp=unconfined --docker-arg --cpus=8 \
     -- "M1_IN_IMAGE=1 bash /work/suite/tools/xwin/m1-run.sh /w$P"
 tools/evo status; tools/evo logs JOB; tools/evo fetch JOB     # the gate's output is the log; results/ has mem-peak.txt and (win) logs/
@@ -472,6 +491,11 @@ text the local run prints. The win gate runs `m1-run.sh` inside the image (`M1_I
 container, and uses `unshare --user --map-root-user` so that the binfmt_misc entry for wine is private to the gate (it
 needs `seccomp=unconfined` for `unshare`, and no capability, and it changes nothing on the box). It unsets `TMPDIR`,
 because wine 10.0 frees what `getenv("TMPDIR")` returns and aborts with `free(): invalid pointer` when it makes a prefix.
+
+When `jit-arm64.sh` sees a failing test binary, it also retains that binary's
+complete output under `$RESULTS/failures/<architecture>/<library>-<binary>.log`
+before printing the concise tail to the job log. This keeps the failing
+assertions available in the fetched result bundle for triage.
 
 ## text: the XML, HTML, Encoding and markup tests for AArch64 and 32-bit x86 (`text.sh`, 2026-10-14)
 

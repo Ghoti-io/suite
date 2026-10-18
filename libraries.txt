@@ -10,7 +10,6 @@
 
 cutil      https://github.com/Ghoti-io/cutil.git      master -
 runtime-core https://github.com/Ghoti-io/runtime-core.git master cutil
-lang-wasm  https://github.com/Ghoti-io/lang-wasm.git  master cutil,runtime-core
 security   https://github.com/Ghoti-io/security.git   master cutil
 certificate https://github.com/Ghoti-io/certificate.git master cutil,security
 tls         https://github.com/Ghoti-io/tls.git         master cutil,security,certificate
@@ -35,6 +34,7 @@ http       https://github.com/Ghoti-io/http.git       master cutil,security,comp
 runtime-heap https://github.com/Ghoti-io/runtime-heap.git master cutil,runtime-core
 runtime-debug https://github.com/Ghoti-io/runtime-debug.git master cutil,text,runtime-core
 runtime-jit https://github.com/Ghoti-io/runtime-jit.git master cutil,runtime-core
+lang-wasm  https://github.com/Ghoti-io/lang-wasm.git  master cutil,runtime-core,runtime-jit,?runtime-debug
 lang-tang https://github.com/Ghoti-io/lang-tang.git master cutil,unicode,runtime-core,runtime-heap,runtime-jit,runtime-debug,text,ctang
 vendor-sqlite https://github.com/Ghoti-io/vendor-sqlite.git master -
 defiant-storage https://github.com/Ghoti-io/defiant-storage.git master cutil,text,archive
