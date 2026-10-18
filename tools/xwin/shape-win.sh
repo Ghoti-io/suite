@@ -47,5 +47,22 @@ if [ -n "$mplant" ] && [ "$mplant" != "$math_hash $math_count" ]; then
 else
   echo "   FAIL  planted: the win64 math probe with a flipped bit still matches (or did not run)"; rc=1
 fi
+# The portable square root (story 4a, AD-17): the same sources built with -DGMATH_SQRT_PORTABLE must print the
+# same hash, and the probe, which runs both square roots over the corpus, must report a planted variant mismatch.
+x86_64-w64-mingw32-gcc $MF -DGMATH_SQRT_PORTABLE "$M/tools/corpus-hash.c" "$M"/src/elementary/*.c -o math-port.exe -lm || { echo "shape-win: the portable math probe did not build" >&2; exit 2; }
+x86_64-w64-mingw32-gcc $MF -DGMATH_PLANT_VARIANT "$M/tools/corpus-hash.c" "$M"/src/elementary/*.c -o math-varplant.exe -lm || { echo "shape-win: the variant-planted math probe did not build" >&2; exit 2; }
+mport=$(./math-port.exe math/tests/corpus 2>/dev/null | tr -d '\r' | awk '/^math.trig.hash/{h=$2} /^math.trig.count/{c=$2} END{if (h != "") print h, c}')
+echo "windows (wine) math hash, portable square root: ${mport:-none}"
+if [ -n "$mport" ] && [ "$mport" = "$math_hash $math_count" ]; then
+  echo "   ok    win64 prints the committed math corpus hash with the portable square root"
+else
+  echo "   FAIL  win64 does not print the committed math corpus hash with the portable square root"; rc=1
+fi
+./math-probe.exe math/tests/corpus 2>/dev/null | tr -d '\r' | awk '/^math.sqrt_hardware.available/{print "   hardware square root instruction on win64: " ($2 == 1 ? "used" : "absent")}'
+if ./math-varplant.exe math/tests/corpus 2>/dev/null | tr -d '\r' | grep -q '^math.variants.mismatch  sqrt_hardware'; then
+  echo "   ok    planted: one bit off in the hardware square root alone is reported as a variant mismatch"
+else
+  echo "   FAIL  planted: the variant mismatch was not reported on win64"; rc=1
+fi
 [ $rc -eq 0 ] && echo "shape-win: PASS" || echo "shape-win: FAIL"
 exit $rc

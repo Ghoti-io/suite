@@ -14,7 +14,10 @@
 # It also runs the math corpus hash (CAP-1): libs/math/tools/corpus-hash.c with
 # every src/elementary/*.c, over libs/math/tests/corpus, must print the hash
 # committed in libs/math/tests/corpus/trig.hash under wine, and with one
-# planted differing bit it must not.  The sources and the corpus are copied
+# planted differing bit it must not; built with -DGMATH_SQRT_PORTABLE it must
+# print the same hash (story 4a: every variant of the square root is
+# bit-identical), and a planted bit in the hardware square root alone must be
+# reported as a variant mismatch.  The sources and the corpus are copied
 # into the scratch tree, which is all the container sees.
 #
 # What a green run means: mingw-w64's x86-64 code for this fixture gives the

@@ -8,7 +8,7 @@
 #   podman run --rm -v "$PWD:/work:ro,z" ghoti-xarch:sid-gcc16 \
 #     bash /work/suite/tools/xarch/shape.sh
 #
-# Three sections, each of which shows its gate failing:
+# Five sections, each of which shows its gate failing:
 #
 #   1. The four copies of each gate script (math, shape-geometry, shape-scene,
 #      shape-cpu) are byte-identical, because CONVENTIONS reuses one script text
@@ -34,11 +34,26 @@
 #
 #   4. The math corpus hash gate (CAP-1, AD-17).  libs/math/tools/corpus-hash.c,
 #      built with every libs/math/src/elementary/*.c (sin, cos, tan, atan2, exp,
-#      log, pow and hypot) for each target (same flags,
+#      log, pow, hypot, sqrt, floor, ceil, trunc, round, rint, fabs, copysign,
+#      scalbn, frexp and ilogb) for each target (same flags,
 #      xarch_fp_cflags), reads libs/math/tests/corpus and must print the hash
 #      committed in libs/math/tests/corpus/trig.hash on every target.  The
 #      controls are the same two (i686 without SSE, aarch64 with contraction
 #      on) and so is the plant (one differing bit on each target in turn).
+#      Story 4a (AD-17, AD-22): gmath_sqrt has two variants, the target's
+#      instruction and the portable method, and every variant must be
+#      bit-identical, so the probe is built twice for every target, as it is
+#      (the instruction, where the target has one; the probe says whether it did)
+#      and with -DGMATH_SQRT_PORTABLE, and both must print the committed hash;
+#      the probe itself also runs both variants over the corpus and exits 1 when
+#      they differ.  The plant is run on the portable build as well.
+#
+#   5. The libm gate on every target (AD-22): the sources of each library are
+#      built for each target of the matrix at -O0, -O2 and -Os, and
+#      check-libm.sh (which refuses every libm symbol) reads the objects with the
+#      target's own nm: a compiler that turns a builtin into a call on one target
+#      only is seen.  A fixture calling __builtin_sin on each target must be
+#      refused, naming sin.
 #
 # Arm64 is run under qemu-user, not on an arm64 machine; the real Raspberry Pi
 # 4 is `tools/evo --box pi4`.  A target that cannot be built or run fails the
@@ -314,7 +329,7 @@ fi
 
 #---------------------------------------------------------------------------
 echo
-echo "4. the math corpus hash gate (libs/math: gmath_sin, cos, tan, atan2, exp, log, pow, hypot)"
+echo "4. the math corpus hash gate (libs/math: nineteen functions, sqrt in both variants)"
 MATH="$ROOT/libs/math"
 CORPUS="$MATH/tests/corpus"
 mg="$B/gen/math-hash"
@@ -341,7 +356,7 @@ math_run() {
   awk '/^math.trig.hash/{h=$2} /^math.trig.count/{c=$2} END{if (h != "") print h, c}' "$B/math-$tag-$triple.txt"
 }
 
-declare -A MOK MPLANT
+declare -A MOK MPLANT MPOK MPPLANT
 while IFS='|' read -r triple cc qemu desc; do
   triple=$(echo "$triple" | tr -d ' '); cc=$(echo "$cc" | tr -d ' ')
   qemu=$(echo "$qemu" | tr -d ' ')
@@ -352,19 +367,34 @@ while IFS='|' read -r triple cc qemu desc; do
   # shellcheck disable=SC2046
   MPLANT[$triple]=$(math_run "$triple" "$cc" "$qemu" plant -DGMATH_PLANT_BIT $(xarch_fp_cflags "$triple")) \
     || { echo "   FAIL  $triple: cannot build or run the planted math hash probe"; status=1; MPLANT[$triple]=""; }
+  # shellcheck disable=SC2046
+  MPOK[$triple]=$(math_run "$triple" "$cc" "$qemu" port -DGMATH_SQRT_PORTABLE $(xarch_fp_cflags "$triple")) \
+    || { echo "   FAIL  $triple: cannot build or run the math hash probe with the portable square root (see $B/math-port-$triple.err)"; status=1; MPOK[$triple]=""; }
+  # shellcheck disable=SC2046
+  MPPLANT[$triple]=$(math_run "$triple" "$cc" "$qemu" portplant -DGMATH_SQRT_PORTABLE -DGMATH_PLANT_BIT $(xarch_fp_cflags "$triple")) \
+    || { echo "   FAIL  $triple: cannot build or run the planted portable math hash probe"; status=1; MPPLANT[$triple]=""; }
 done <<EOT
 $XARCH_TARGETS
 EOT
 
-# math_gate PLANTED_TRIPLE -> 0 if every target prints the committed hash and count.
+# math_gate KIND PLANTED_TRIPLE -> 0 if every target prints the committed hash and count.  KIND is
+# "default" or "port" (the build with -DGMATH_SQRT_PORTABLE).
 math_gate() {
-  local planted=$1 rc=0 triple cc qemu desc got
+  local kind=$1 planted=$2 rc=0 triple cc qemu desc got hw
+  local -n okarr=MOK plantarr=MPLANT
+  if [ "$kind" = port ]; then
+    local -n okarr=MPOK plantarr=MPPLANT
+  fi
   while IFS='|' read -r triple cc qemu desc; do
     triple=$(echo "$triple" | tr -d ' ')
     [ -z "$triple" ] && continue
-    if [ "$triple" = "$planted" ]; then got=${MPLANT[$triple]:-}; else got=${MOK[$triple]:-}; fi
+    if [ "$triple" = "$planted" ]; then got=${plantarr[$triple]:-}; else got=${okarr[$triple]:-}; fi
+    hw=""
+    if [ "$kind" = default ] && [ -f "$B/math-ok-$triple.txt" ]; then
+      hw=$(awk '/^math.sqrt_hardware.available/{print ($2 == 1) ? "sqrt: instruction" : "sqrt: portable only"}' "$B/math-ok-$triple.txt")
+    fi
     if [ -n "$got" ] && [ "$got" = "$committed_hash $committed_count" ]; then
-      printf "   ok    %-22s %s\n" "$triple" "$got"
+      printf "   ok    %-22s %s  %s\n" "$triple" "$got" "$hw"
     else
       printf "   FAIL  %-22s %s  (want %s %s)\n" "$triple" "${got:-none}" "$committed_hash" "$committed_count"
       rc=1
@@ -375,8 +405,11 @@ EOT
   return $rc
 }
 
-echo " a. every target prints the committed hash"
-math_gate "" || status=1
+echo " a. every target prints the committed hash (the square root as the target has it)"
+math_gate default "" || status=1
+
+echo " a2. the same, built with -DGMATH_SQRT_PORTABLE: the portable square root is bit-identical on every target"
+math_gate port "" || status=1
 
 echo " b. the controls: the probe sees what the flags prevent"
 mbare=$(math_run i686-linux-gnu i686-linux-gnu-gcc qemu-i386 bare) || mbare=""
@@ -394,19 +427,122 @@ else
   status=1
 fi
 
-echo " c. planted: one differing bit on each target in turn must fail the gate, naming it"
+for kind in default port; do
+  echo " c. planted ($kind build): one differing bit on each target in turn must fail the gate, naming it"
+  while IFS='|' read -r triple cc qemu desc; do
+    triple=$(echo "$triple" | tr -d ' ')
+    [ -z "$triple" ] && continue
+    if math_gate "$kind" "$triple" > "$B/math-planted-$kind-$triple.txt" 2>&1; then
+      echo "   FAIL  the math gate passed with a bit flipped on $triple: it checks nothing there"
+      status=1
+    elif grep -q "FAIL  $triple " "$B/math-planted-$kind-$triple.txt" \
+      && [ "$(grep -c FAIL "$B/math-planted-$kind-$triple.txt")" -eq 1 ]; then
+      echo "   ok    $triple: caught, and only $triple named"
+    else
+      sed 's/^/   | /' "$B/math-planted-$kind-$triple.txt"
+      echo "   FAIL  the math gate failed, but not on $triple alone"
+      status=1
+    fi
+  done <<EOT
+$XARCH_TARGETS
+EOT
+done
+
+echo " d. the variants: the probe runs both square roots and ldexp over the corpus on every target"
 while IFS='|' read -r triple cc qemu desc; do
   triple=$(echo "$triple" | tr -d ' ')
   [ -z "$triple" ] && continue
-  if math_gate "$triple" > "$B/math-planted-$triple.txt" 2>&1; then
-    echo "   FAIL  the math gate passed with a bit flipped on $triple: it checks nothing there"
-    status=1
-  elif grep -q "FAIL  $triple " "$B/math-planted-$triple.txt" \
-    && [ "$(grep -c FAIL "$B/math-planted-$triple.txt")" -eq 1 ]; then
-    echo "   ok    $triple: caught, and only $triple named"
+  if [ -f "$B/math-ok-$triple.txt" ] && grep -q '^math.sqrt_hardware.hash' "$B/math-ok-$triple.txt" \
+    && [ "$(awk '$1=="math.sqrt.hash"{print $2}' "$B/math-ok-$triple.txt")" = "$(awk '$1=="math.sqrt_portable.hash"{print $2}' "$B/math-ok-$triple.txt")" ] \
+    && [ "$(awk '$1=="math.sqrt.hash"{print $2}' "$B/math-ok-$triple.txt")" = "$(awk '$1=="math.sqrt_hardware.hash"{print $2}' "$B/math-ok-$triple.txt")" ] \
+    && [ "$(awk '$1=="math.scalbn.hash"{print $2}' "$B/math-ok-$triple.txt")" = "$(awk '$1=="math.ldexp.hash"{print $2}' "$B/math-ok-$triple.txt")" ]; then
+    printf "   ok    %-22s sqrt = sqrt_portable = sqrt_hardware, scalbn = ldexp  (%s)\n" "$triple" \
+      "$(awk '/^math.sqrt_hardware.available/{print ($2 == 1) ? "instruction used" : "no instruction: portable twice"}' "$B/math-ok-$triple.txt")"
   else
-    sed 's/^/   | /' "$B/math-planted-$triple.txt"
-    echo "   FAIL  the math gate failed, but not on $triple alone"
+    echo "   FAIL  $triple: the variants do not agree, or the probe did not report them"
+    status=1
+  fi
+done <<EOT
+$XARCH_TARGETS
+EOT
+
+echo " e. planted: one differing bit in the hardware square root alone must make the probe report the variant"
+while IFS='|' read -r triple cc qemu desc; do
+  triple=$(echo "$triple" | tr -d ' '); cc=$(echo "$cc" | tr -d ' ')
+  qemu=$(echo "$qemu" | tr -d ' ')
+  [ -z "$triple" ] && continue
+  # shellcheck disable=SC2046
+  if math_run "$triple" "$cc" "$qemu" varplant -DGMATH_PLANT_VARIANT $(xarch_fp_cflags "$triple") > /dev/null 2>&1; then
+    echo "   FAIL  $triple: the probe passed with the hardware square root one bit off"
+    status=1
+  elif grep -q '^math.variants.mismatch  sqrt_hardware' "$B/math-varplant-$triple.txt"; then
+    echo "   ok    $triple: the variant mismatch is reported, naming sqrt_hardware"
+  else
+    echo "   FAIL  $triple: the probe failed, but without naming the variant"
+    status=1
+  fi
+done <<EOT
+$XARCH_TARGETS
+EOT
+
+#---------------------------------------------------------------------------
+echo
+echo "5. no libm symbol in any library's objects, on every target (AD-22)"
+GATEL="$ROOT/libs/math/tools/check-libm.sh"
+nm_of() {
+  case "$1" in
+    x86_64-linux-gnu) echo nm ;;
+    *) echo "$1-nm" ;;
+  esac
+}
+while IFS='|' read -r triple cc qemu desc; do
+  triple=$(echo "$triple" | tr -d ' '); cc=$(echo "$cc" | tr -d ' ')
+  [ -z "$triple" ] && continue
+  nmt=$(nm_of "$triple")
+  command -v "$nmt" > /dev/null || { echo "   FAIL  $triple: no $nmt to read the objects with"; status=1; continue; }
+  # shellcheck disable=SC2046
+  fpf=$(xarch_fp_cflags "$triple")
+  for opt in -O0 -O2 -Os; do
+    objs=""
+    ok=1
+    for l in $LIBS; do
+      g="$B/gen/$l"
+      mkdir -p "$g" "$B/libm/$triple$opt/$l"
+      [ -d "$g/generated" ] || make -s -C "$ROOT/libs/$l" libver-gen BUILD_DIR="$g" > "$B/gen-$l.log" 2>&1
+      while IFS= read -r src; do
+        o="$B/libm/$triple$opt/$l/$(echo "${src#"$ROOT/libs/$l/src/"}" | tr / _).o"
+        # shellcheck disable=SC2086
+        if ! "$cc" -std=c17 $opt -pedantic-errors -Wall -Wextra -Werror -ffp-contract=off -fno-math-errno $fpf \
+          -fPIC -fvisibility=hidden -DGMATH_BUILD -I"$ROOT/libs/$l/include" -I"$g/generated" ${SHAPE_DEP_INCLUDES:-} \
+          -c "$src" -o "$o" 2> "$o.err"; then
+          echo "   FAIL  $triple $opt: cannot build $src (see $o.err)"
+          ok=0; status=1
+        fi
+        objs="$objs $o"
+      done < <(find "$ROOT/libs/$l/src" -name '*.c' | sort)
+    done
+    [ "$ok" -eq 1 ] || continue
+    # shellcheck disable=SC2086
+    if out=$(NM="$nmt" "$GATEL" $objs 2>&1); then
+      printf "   ok    %-22s %-3s %s\n" "$triple" "$opt" "$out"
+    else
+      echo "$out" | sed 's/^/   | /'
+      echo "   FAIL  $triple $opt: a libm symbol in the objects"
+      status=1
+    fi
+  done
+  # The plant: a builtin that has to be a call, built for this target, must be refused.
+  printf 'double libm_plant(double x) { return __builtin_sin(x); }\n' > "$B/libm-plant-$triple.c"
+  # shellcheck disable=SC2086
+  "$cc" -std=c17 -O2 $fpf -c "$B/libm-plant-$triple.c" -o "$B/libm-plant-$triple.o" 2> "$B/libm-plant-$triple.err"
+  if out=$(NM="$nmt" "$GATEL" "$B/libm-plant-$triple.o" 2>&1); then
+    echo "   FAIL  planted: a __builtin_sin built for $triple passed the libm gate"
+    status=1
+  elif echo "$out" | grep -q 'libm function sin is referenced'; then
+    echo "   ok    planted: a __builtin_sin built for $triple is refused, naming sin"
+  else
+    echo "$out" | sed 's/^/   | /'
+    echo "   FAIL  planted: the libm gate refused the $triple fixture without naming sin"
     status=1
   fi
 done <<EOT
