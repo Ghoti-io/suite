@@ -12,7 +12,7 @@
 # differing bit does not (so the comparison can fail).
 #
 # It also runs the math corpus hash (CAP-1): libs/math/tools/corpus-hash.c with
-# src/elementary/trig.c, over libs/math/tests/corpus, must print the hash
+# every src/elementary/*.c, over libs/math/tests/corpus, must print the hash
 # committed in libs/math/tests/corpus/trig.hash under wine, and with one
 # planted differing bit it must not.  The sources and the corpus are copied
 # into the scratch tree, which is all the container sees.

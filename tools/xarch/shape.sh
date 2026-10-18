@@ -33,7 +33,8 @@
 #      is given.
 #
 #   4. The math corpus hash gate (CAP-1, AD-17).  libs/math/tools/corpus-hash.c,
-#      built with libs/math/src/elementary/trig.c for each target (same flags,
+#      built with every libs/math/src/elementary/*.c (sin, cos, tan, atan2, exp,
+#      log, pow and hypot) for each target (same flags,
 #      xarch_fp_cflags), reads libs/math/tests/corpus and must print the hash
 #      committed in libs/math/tests/corpus/trig.hash on every target.  The
 #      controls are the same two (i686 without SSE, aarch64 with contraction
@@ -313,7 +314,7 @@ fi
 
 #---------------------------------------------------------------------------
 echo
-echo "4. the math corpus hash gate (libs/math: gmath_sin, gmath_cos, gmath_tan)"
+echo "4. the math corpus hash gate (libs/math: gmath_sin, cos, tan, atan2, exp, log, pow, hypot)"
 MATH="$ROOT/libs/math"
 CORPUS="$MATH/tests/corpus"
 mg="$B/gen/math-hash"
@@ -334,7 +335,7 @@ MFLAGS="-std=c17 -O2 -pedantic-errors -Wall -Wextra -Werror -ffp-contract=off -D
 math_run() {
   local triple=$1 cc=$2 qemu=$3 tag=$4 out
   shift 4
-  "$cc" $MFLAGS "$@" "$MATH/tools/corpus-hash.c" "$MATH/src/elementary/trig.c" \
+  "$cc" $MFLAGS "$@" "$MATH/tools/corpus-hash.c" "$MATH"/src/elementary/*.c \
     -o "$B/math-$tag-$triple" 2> "$B/math-$tag-$triple.err" || return 1
   xarch_run "$triple" "$qemu" "$B/math-$tag-$triple" "$CORPUS" > "$B/math-$tag-$triple.txt" 2>> "$B/math-$tag-$triple.err" || return 1
   awk '/^math.trig.hash/{h=$2} /^math.trig.count/{c=$2} END{if (h != "") print h, c}' "$B/math-$tag-$triple.txt"

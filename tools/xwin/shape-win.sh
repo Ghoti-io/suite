@@ -32,8 +32,8 @@ fi
 # The math corpus hash: the committed value, and a planted bit that must differ.
 M=/w/math
 MF="-std=c17 -O2 -pedantic-errors -Wall -Wextra -Werror -ffp-contract=off -DGMATH_STATIC -I$M/include -I$M/gen/generated"
-x86_64-w64-mingw32-gcc $MF "$M/tools/corpus-hash.c" "$M/src/elementary/trig.c" -o math-probe.exe -lm || { echo "shape-win: the math probe did not build" >&2; exit 2; }
-x86_64-w64-mingw32-gcc $MF -DGMATH_PLANT_BIT "$M/tools/corpus-hash.c" "$M/src/elementary/trig.c" -o math-plant.exe -lm || { echo "shape-win: the planted math probe did not build" >&2; exit 2; }
+x86_64-w64-mingw32-gcc $MF "$M/tools/corpus-hash.c" "$M"/src/elementary/*.c -o math-probe.exe -lm || { echo "shape-win: the math probe did not build" >&2; exit 2; }
+x86_64-w64-mingw32-gcc $MF -DGMATH_PLANT_BIT "$M/tools/corpus-hash.c" "$M"/src/elementary/*.c -o math-plant.exe -lm || { echo "shape-win: the planted math probe did not build" >&2; exit 2; }
 mgot=$(./math-probe.exe math/tests/corpus 2>/dev/null | tr -d '\r' | awk '/^math.trig.hash/{h=$2} /^math.trig.count/{c=$2} END{if (h != "") print h, c}')
 mplant=$(./math-plant.exe math/tests/corpus 2>/dev/null | tr -d '\r' | awk '/^math.trig.hash/{h=$2} /^math.trig.count/{c=$2} END{if (h != "") print h, c}')
 echo "windows (wine) math hash: ${mgot:-none}   planted: ${mplant:-none}   committed: $math_hash $math_count"
