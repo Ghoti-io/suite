@@ -568,6 +568,19 @@ podman run --rm -v "$PWD:/work:ro,z" ghoti-xarch:sid-gcc16 bash /work/suite/tool
    hashes, and the same plant (a bit flipped on each target in turn) is caught.
    Section 3 also builds `trig.c` for i686 and reads it for x87.
 
+7. **The shape-cpu coverage hash** (story 9). `libs/shape-cpu/tools/corpus-hash.c`,
+   built with every `src/*/*.c` of `shape-cpu`, `shape-geometry` and `math` and the
+   cutil allocator stand-in, fills random polygons under both fill rules, random
+   curves, rectangles with an open subpath and shapes moved to the corners of the
+   26.6 range, hashes each coverage in the library's own spelling and must print
+   the hash committed in `libs/shape-cpu/tests/corpus/coverage.hash` on every
+   target. The coverage path has no floating point, so the controls of section 4
+   (x87, a fused multiply-add) could not differ; the control here is the probe
+   built to fold its results in the host's byte order, which prints the committed
+   hash on a little-endian target and another on a big-endian one. The plant is
+   as in section 4. Windows is
+   `suite/tools/xwin/shape.sh`, which runs the same probe under wine.
+
 Arm64 is qemu-user here, not hardware; the real Pi is `tools/evo --box pi4`. A
 library whose sources include its dependencies' headers needs
 `SHAPE_DEP_INCLUDES` set to their `-I` flags; the scaffolds include none.

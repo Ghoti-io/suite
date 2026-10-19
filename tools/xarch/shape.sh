@@ -65,6 +65,20 @@
 #      controls and the plant are the same as in section 4.  The stand-in
 #      header must declare what cutil's does (checked here).
 #
+#   7. The shape-cpu hash gate (CAP-6, CAP-13, AD-17).  libs/shape-cpu/tools/
+#      corpus-hash.c, built with every src/*/*.c of shape-cpu, of shape-geometry
+#      (the flattener and the device path it fills) and of math, and the cutil
+#      allocator stand-in, must print the hash committed in libs/shape-cpu/tests/
+#      corpus/coverage.hash on every target.  It fills random polygons under both
+#      fill rules, random curves, rectangles with an open subpath, and shapes
+#      moved to the corners of the 26.6 range, and hashes every coverage in the
+#      library's own spelling, so a byte-order slip, a 32-bit size assumption or
+#      a host-dependent division shows.  The coverage path has no floating point,
+#      so there is no x87 or fused-multiply-add control; the control is a probe
+#      that folds its results in the host's byte order, which must print the
+#      committed hash on a little-endian target and another on a big-endian one.
+#      The plant (one differing bit on each target in turn) is as in section 4.
+#
 # Arm64 is run under qemu-user, not on an arm64 machine; the real Raspberry Pi
 # 4 is `tools/evo --box pi4`.  A target that cannot be built or run fails the
 # section, naming it.
@@ -83,7 +97,7 @@ ROOT=$(cd "$HERE/../../.." && pwd)
 # own, with the generated header section 3 writes into $B/gen/math (math is the first of LIBS).
 
 B=${B:-/tmp/xarch-shape}
-SHAPE_DEP_INCLUDES=${SHAPE_DEP_INCLUDES--I$HERE/shape-stubs -I$ROOT/libs/math/include -I$B/gen/math/generated}
+SHAPE_DEP_INCLUDES=${SHAPE_DEP_INCLUDES--I$HERE/shape-stubs -I$ROOT/libs/math/include -I$B/gen/math/generated -I$ROOT/libs/shape-geometry/include -I$B/gen/shape-geometry/generated}
 case "$B" in
   ""|/|/tmp|/tmp/|/work|/work/*|"$HOME"|"$HOME"/)
     echo "shape.sh: refusing B='$B' (it is deleted and recreated)" >&2; exit 2 ;;
@@ -685,6 +699,120 @@ while IFS='|' read -r triple cc qemu desc; do
   else
     sed 's/^/   | /' "$B/geom-planted-$triple.txt"
     echo "   FAIL  the shape-geometry gate failed, but not on $triple alone"
+    status=1
+  fi
+done <<EOT
+$XARCH_TARGETS
+EOT
+
+#---------------------------------------------------------------------------
+echo
+echo "7. the shape-cpu hash gate (libs/shape-cpu: coverage of device paths under both fill rules, CAP-6)"
+CPU="$ROOT/libs/shape-cpu"
+gc="$B/gen/cpu-hash"
+mkdir -p "$gc"
+if ! make -s -C "$CPU" libver-gen BUILD_DIR="$gc" > "$B/gen-cpu-hash.log" 2>&1; then
+  echo "   FAIL  shape-cpu: could not write libver_gen.h (see $B/gen-cpu-hash.log)"
+  status=1
+fi
+ch_hash=$(awk '$1=="hash"{print $2}' "$CPU/tests/corpus/coverage.hash")
+ch_count=$(awk '$1=="count"{print $2}' "$CPU/tests/corpus/coverage.hash")
+[ -n "$ch_hash" ] && [ -n "$ch_count" ] || { echo "   FAIL  no committed hash in $CPU/tests/corpus/coverage.hash"; status=1; }
+# The probe is built with shape-geometry's sources (the flattener, the device path, the hash)
+# and, because those call math, math's.
+CPUFLAGS="-std=c17 -O2 -pedantic-errors -Wall -Wextra -Werror -ffp-contract=off -DGSHCPU_BUILD -DGSHGEOM_BUILD -DGMATH_BUILD -I$CPU/include -I$gc/generated -I$GEOM/include -I$gg/generated -I$MATH/include -I$mg/generated -I$HERE/shape-stubs"
+
+# cpu_run TRIPLE CC QEMU TAG FLAGS... -> prints "HASH COUNT"
+cpu_run() {
+  local triple=$1 cc=$2 qemu=$3 tag=$4 out
+  shift 4
+  # shellcheck disable=SC2086
+  "$cc" $CPUFLAGS "$@" "$CPU/tools/corpus-hash.c" $(find "$CPU/src" -name '*.c' | sort) $(find "$GEOM/src" -name '*.c' | sort) "$MATH"/src/elementary/*.c \
+    "$HERE/shape-stubs/cutil-allocator-stub.c" -o "$B/cpu-$tag-$triple" 2> "$B/cpu-$tag-$triple.err" || return 1
+  xarch_run "$triple" "$qemu" "$B/cpu-$tag-$triple" > "$B/cpu-$tag-$triple.txt" 2>> "$B/cpu-$tag-$triple.err" || return 1
+  awk '/^shape-cpu.hash/{h=$2} /^shape-cpu.count/{c=$2} END{if (h != "") print h, c}' "$B/cpu-$tag-$triple.txt"
+}
+
+declare -A COK CPLANT
+while IFS='|' read -r triple cc qemu desc; do
+  triple=$(echo "$triple" | tr -d ' '); cc=$(echo "$cc" | tr -d ' ')
+  qemu=$(echo "$qemu" | tr -d ' ')
+  [ -z "$triple" ] && continue
+  # shellcheck disable=SC2046
+  COK[$triple]=$(cpu_run "$triple" "$cc" "$qemu" ok $(xarch_fp_cflags "$triple")) \
+    || { echo "   FAIL  $triple: cannot build or run the shape-cpu probe (see $B/cpu-ok-$triple.err)"; status=1; COK[$triple]=""; }
+  # shellcheck disable=SC2046
+  CPLANT[$triple]=$(cpu_run "$triple" "$cc" "$qemu" plant -DSHAPE_CPU_PLANT_BIT $(xarch_fp_cflags "$triple")) \
+    || { echo "   FAIL  $triple: cannot build or run the planted shape-cpu probe"; status=1; CPLANT[$triple]=""; }
+done <<EOT
+$XARCH_TARGETS
+EOT
+
+# cpu_gate PLANTED_TRIPLE -> 0 if every target prints the committed hash and count.
+cpu_gate() {
+  local planted=$1 rc=0 triple cc qemu desc got
+  while IFS='|' read -r triple cc qemu desc; do
+    triple=$(echo "$triple" | tr -d ' ')
+    [ -z "$triple" ] && continue
+    if [ "$triple" = "$planted" ]; then got=${CPLANT[$triple]:-}; else got=${COK[$triple]:-}; fi
+    if [ -n "$got" ] && [ "$got" = "$ch_hash $ch_count" ]; then
+      printf "   ok    %-22s %s\n" "$triple" "$got"
+    else
+      printf "   FAIL  %-22s %s  (want %s %s)\n" "$triple" "${got:-none}" "$ch_hash" "$ch_count"
+      rc=1
+    fi
+  done <<EOT2
+$XARCH_TARGETS
+EOT2
+  return $rc
+}
+
+echo " a. every target prints the committed hash"
+cpu_gate "" || status=1
+
+echo " b. the control: the probe sees a byte-order slip"
+# Nothing in the coverage path is floating point, so unlike the shape-geometry probe there is
+# no flag (x87, a fused multiply-add) for a control to show. What this probe can see is byte
+# order and word size, so the control folds each result in the host's own byte order: the same
+# stream as the real one on a little-endian target, another on a big-endian one.
+while IFS='|' read -r triple cc qemu desc; do
+  triple=$(echo "$triple" | tr -d ' '); cc=$(echo "$cc" | tr -d ' ')
+  qemu=$(echo "$qemu" | tr -d ' ')
+  [ -z "$triple" ] && continue
+  # shellcheck disable=SC2046
+  cn=$(cpu_run "$triple" "$cc" "$qemu" native -DSHAPE_CPU_CONTROL_NATIVE_ORDER $(xarch_fp_cflags "$triple")) || cn=""
+  case "$triple" in
+    s390x*|powerpc*|sparc*) want_same=0 ;;
+    *) want_same=1 ;;
+  esac
+  if [ -z "$cn" ]; then
+    echo "   FAIL  $triple: the byte-order control did not build or run"
+    status=1
+  elif [ $want_same -eq 1 ] && [ "$cn" = "$ch_hash $ch_count" ]; then
+    echo "   ok    $triple (little-endian): the native-order control prints the committed hash"
+  elif [ $want_same -eq 0 ] && [ "$cn" != "$ch_hash $ch_count" ]; then
+    echo "   ok    $triple (big-endian): the native-order control prints $cn, not the committed hash"
+  else
+    echo "   FAIL  $triple: the native-order control printed '$cn' (committed $ch_hash $ch_count): the probe cannot see byte order there"
+    status=1
+  fi
+done <<EOT
+$XARCH_TARGETS
+EOT
+
+echo " c. planted: one differing bit on each target in turn must fail the gate, naming it"
+while IFS='|' read -r triple cc qemu desc; do
+  triple=$(echo "$triple" | tr -d ' ')
+  [ -z "$triple" ] && continue
+  if cpu_gate "$triple" > "$B/cpu-planted-$triple.txt" 2>&1; then
+    echo "   FAIL  the shape-cpu gate passed with a bit flipped on $triple: it checks nothing there"
+    status=1
+  elif grep -q "FAIL  $triple " "$B/cpu-planted-$triple.txt" \
+    && [ "$(grep -c FAIL "$B/cpu-planted-$triple.txt")" -eq 1 ]; then
+    echo "   ok    $triple: caught, and only $triple named"
+  else
+    sed 's/^/   | /' "$B/cpu-planted-$triple.txt"
+    echo "   FAIL  the shape-cpu gate failed, but not on $triple alone"
     status=1
   fi
 done <<EOT

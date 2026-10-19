@@ -75,4 +75,16 @@ geom_hash=$(awk '$1=="hash"{print $2}' "$GEOM/tests/corpus/geometry.hash")
 geom_count=$(awk '$1=="count"{print $2}' "$GEOM/tests/corpus/geometry.hash")
 [ -n "$geom_hash" ] && [ -n "$geom_count" ] || { echo "shape.sh: no committed shape-geometry hash" >&2; exit 2; }
 echo "committed shape-geometry hash: $geom_hash over $geom_count results"
-"$HERE/m1-win.sh" "$W" "bash /tools/xwin/shape-win.sh $want $math_hash $math_count $geom_hash $geom_count"
+# The shape-cpu sources and the committed hash (story 9); it is built with shape-geometry's and math's.
+CPU="$ROOT/libs/shape-cpu"
+rm -rf "$W/cpu"
+mkdir -p "$W/cpu/tools" "$W/cpu/gen"
+cp -r "$CPU/include" "$W/cpu/include"
+cp -r "$CPU/src" "$W/cpu/src"
+cp "$CPU/tools/corpus-hash.c" "$W/cpu/tools/"
+make -s -C "$CPU" libver-gen BUILD_DIR="$W/cpu/gen" > "$W/logs/cpu-libver.log" 2>&1 || { echo "shape.sh: libver-gen failed (see $W/logs/cpu-libver.log)" >&2; exit 2; }
+cpu_hash=$(awk '$1=="hash"{print $2}' "$CPU/tests/corpus/coverage.hash")
+cpu_count=$(awk '$1=="count"{print $2}' "$CPU/tests/corpus/coverage.hash")
+[ -n "$cpu_hash" ] && [ -n "$cpu_count" ] || { echo "shape.sh: no committed shape-cpu hash" >&2; exit 2; }
+echo "committed shape-cpu hash: $cpu_hash over $cpu_count results"
+"$HERE/m1-win.sh" "$W" "bash /tools/xwin/shape-win.sh $want $math_hash $math_count $geom_hash $geom_count $cpu_hash $cpu_count"

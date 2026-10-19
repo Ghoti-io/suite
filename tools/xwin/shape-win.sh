@@ -7,7 +7,9 @@ want=${1:?usage: shape-win.sh NATIVE_HASH MATH_HASH MATH_COUNT}
 math_hash=${2:?usage: shape-win.sh NATIVE_HASH MATH_HASH MATH_COUNT}
 math_count=${3:?usage: shape-win.sh NATIVE_HASH MATH_HASH MATH_COUNT}
 geom_hash=${4:?usage: shape-win.sh NATIVE_HASH MATH_HASH MATH_COUNT GEOM_HASH GEOM_COUNT}
-geom_count=${5:?usage: shape-win.sh NATIVE_HASH MATH_HASH MATH_COUNT GEOM_HASH GEOM_COUNT}
+geom_count=${5:?usage: shape-win.sh NATIVE_HASH MATH_HASH MATH_COUNT GEOM_HASH GEOM_COUNT CPU_HASH CPU_COUNT}
+cpu_hash=${6:?usage: shape-win.sh NATIVE_HASH MATH_HASH MATH_COUNT GEOM_HASH GEOM_COUNT CPU_HASH CPU_COUNT}
+cpu_count=${7:?usage: shape-win.sh NATIVE_HASH MATH_HASH MATH_COUNT GEOM_HASH GEOM_COUNT CPU_HASH CPU_COUNT}
 P=/tools/xarch/shape-hash-probe.c
 cd /w || exit 2
 
@@ -83,6 +85,24 @@ if [ -n "$gplant" ] && [ "$gplant" != "$geom_hash $geom_count" ]; then
   echo "   ok    planted: one differing bit in a shape-geometry result on win64 is not the committed hash"
 else
   echo "   FAIL  planted: the win64 shape-geometry probe with a flipped bit still matches (or did not run)"; rc=1
+fi
+# The shape-cpu coverage hash (CAP-6, CAP-13): the committed value, and a planted bit that must differ.
+C=/w/cpu
+CF="-std=c17 -O2 -pedantic-errors -Wall -Wextra -Werror -ffp-contract=off -DGSHCPU_BUILD -DGSHGEOM_BUILD -DGMATH_STATIC -I$C/include -I$C/gen/generated -I$G/include -I$G/gen/generated -I$M/include -I$M/gen/generated -I$G/stubs"
+x86_64-w64-mingw32-gcc $CF "$C/tools/corpus-hash.c" $(find "$C/src" -name '*.c' | sort) $(find "$G/src" -name '*.c' | sort) "$M"/src/elementary/*.c "$G/stubs/cutil-allocator-stub.c" -o cpu-probe.exe || { echo "shape-win: the shape-cpu probe did not build" >&2; exit 2; }
+x86_64-w64-mingw32-gcc $CF -DSHAPE_CPU_PLANT_BIT "$C/tools/corpus-hash.c" $(find "$C/src" -name '*.c' | sort) $(find "$G/src" -name '*.c' | sort) "$M"/src/elementary/*.c "$G/stubs/cutil-allocator-stub.c" -o cpu-plant.exe || { echo "shape-win: the planted shape-cpu probe did not build" >&2; exit 2; }
+cgot=$(./cpu-probe.exe 2>/dev/null | tr -d '\r' | awk '/^shape-cpu.hash/{h=$2} /^shape-cpu.count/{c=$2} END{if (h != "") print h, c}')
+cplant=$(./cpu-plant.exe 2>/dev/null | tr -d '\r' | awk '/^shape-cpu.hash/{h=$2} /^shape-cpu.count/{c=$2} END{if (h != "") print h, c}')
+echo "windows (wine) shape-cpu hash: ${cgot:-none}   planted: ${cplant:-none}   committed: $cpu_hash $cpu_count"
+if [ -n "$cgot" ] && [ "$cgot" = "$cpu_hash $cpu_count" ]; then
+  echo "   ok    win64 prints the committed shape-cpu hash"
+else
+  echo "   FAIL  win64 does not print the committed shape-cpu hash"; rc=1
+fi
+if [ -n "$cplant" ] && [ "$cplant" != "$cpu_hash $cpu_count" ]; then
+  echo "   ok    planted: one differing bit in a shape-cpu result on win64 is not the committed hash"
+else
+  echo "   FAIL  planted: the win64 shape-cpu probe with a flipped bit still matches (or did not run)"; rc=1
 fi
 [ $rc -eq 0 ] && echo "shape-win: PASS" || echo "shape-win: FAIL"
 exit $rc
