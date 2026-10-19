@@ -409,5 +409,8 @@ From story 10 it also builds `libs/shape-scene/tools/corpus-hash.c` with the
 sources of `shape-scene`, `shape-geometry` and `math` and requires the win64
 hash over the resources and lists of the probe to equal the one committed in
 `libs/shape-scene/tests/corpus/scene.hash`, and a planted differing bit not to.
-The scene sources use `SRWLOCK` on Windows (`src/store/sync.h`), which this
-build links; it is the one place the library touches a Windows API.
+Since story 11 that hash also covers a retained scene (versions, a merge, a diff
+and its damage through a general map). The scene sources use cutil's mutex (`GCU_MUTEX_T`, an `SRWLOCK` on Windows) and
+its atomic counts, so this build uses cutil's real headers, its generated
+`libver_gen.h`, `allocator.c` and `atomic.c` (compiled with `GHOTIIO_CUTIL_STATIC`),
+not the allocator stand-in.

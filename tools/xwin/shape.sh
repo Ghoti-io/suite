@@ -89,6 +89,13 @@ cpu_count=$(awk '$1=="count"{print $2}' "$CPU/tests/corpus/coverage.hash")
 echo "committed shape-cpu hash: $cpu_hash over $cpu_count results"
 # The shape-scene sources and the committed hash (story 10); it is built with shape-geometry's and math's too.
 SCENE="$ROOT/libs/shape-scene"
+# cutil's real headers, its generated libver_gen.h, allocator.c and atomic.c: the scene's mutex and counts are cutil's.
+CUTIL="$ROOT/libs/cutil"
+rm -rf "$W/cutil"
+mkdir -p "$W/cutil/src" "$W/cutil/gen"
+cp -r "$CUTIL/include" "$W/cutil/include"
+cp "$CUTIL/src/allocator.c" "$CUTIL/src/atomic.c" "$W/cutil/src/"
+make -s -C "$CUTIL" BUILD_DIR="$W/cutil/gen" "$W/cutil/gen/include/ghoti.io/cutil/libver_gen.h" > "$W/logs/cutil-libver.log" 2>&1 || { echo "shape.sh: cutil libver_gen.h failed (see $W/logs/cutil-libver.log)" >&2; exit 2; }
 rm -rf "$W/scene"
 mkdir -p "$W/scene/tools" "$W/scene/gen"
 cp -r "$SCENE/include" "$W/scene/include"

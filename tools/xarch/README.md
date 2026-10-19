@@ -592,8 +592,17 @@ podman run --rm -v "$PWD:/work:ro,z" ghoti-xarch:sid-gcc16 bash /work/suite/tool
    composition of two general maps with entries over 1000 (sums of two products
    of inexact doubles), so
    the controls of section 4 (i686 without SSE, aarch64 with contraction on)
-   and the plant apply. The library includes no cutil header (its lock is
-   `src/store/sync.h`), so no stand-in beyond the allocator is needed.
+   and the plant apply. From story 11 the library uses cutil's `GCU_MUTEX_T` and
+   `GCU_Atomic_Size`, so this probe, and the section 3 and 5 builds of the scene's
+   sources, use cutil's real headers (with its generated `libver_gen.h`) and its
+   `allocator.c` and `atomic.c`, never the stand-in (the real headers rename the
+   stand-in's names, so the two cannot share a translation unit). Since
+   story 11 the probe also builds a retained scene (nodes with keys, hidden
+   definitions and instances of them, a merge of sibling edits, a diff) and hashes
+   its version hashes, IDs, emitted lists, pictures, every occurrence's instance
+   path key and composed map, and the damage rectangles of a diff through a
+   general map; the composed maps and the damage are floating point, so the
+   controls see them too.
 
 Arm64 is qemu-user here, not hardware; the real Pi is `tools/evo --box pi4`. A
 library whose sources include its dependencies' headers needs

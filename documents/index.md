@@ -41,7 +41,7 @@ Clone the libraries, build them, and build this manual from
 | [Security](@ref security_library) | SHA-256, SHA-384, SHA-512, SHA-1, and MD5, with HMAC, HKDF, and PBKDF2; AES, ChaCha20-Poly1305, Triple DES, RC2, and RC4; X25519, Ed25519, P-256, P-384, and RSA; Argon2, scrypt, and bcrypt; and DER, PEM, PKCS#8, PKCS#12, X.509, a certificate revocation list, and a basic OCSP response. |
 | [Shape CPU](@ref shape-cpu) | The shape family’s CPU rasterizer scaffold, with deterministic floating-point build rules and its shared test gates. |
 | [Shape Geometry](@ref shape-geometry) | The shape family’s path, transform, and flattening scaffold, with deterministic floating-point build rules and its shared test gates. |
-| [Shape Scene](@ref shape-scene) | The shape family’s resource, list, and scene scaffold, with deterministic floating-point build rules and its shared test gates. |
+| [Shape Scene](@ref shape-scene) | The shape family’s waist (interned resources and transient lists) and the retained scene above it (immutable versions, edits, stable IDs, merge, diff and damage), with deterministic floating-point build rules and its shared test gates. |
 | [Text](@ref text) | JSON, including JSON Schema, and CSV, YAML, TOML, and INI. |
 | [TLS](@ref tls) | TLS 1.3 as a state machine over buffers, for both roles, with no I/O and no clock: the record layer over a byte stream, or handshake messages by epoch with the traffic secrets for QUIC; session tickets and resumption, and early data. Built on Certificate and Security. |
 | [Unicode](@ref unicode) | Character properties, the four normalisation forms, segmentation, the bidirectional algorithm, case mapping, and character names. |

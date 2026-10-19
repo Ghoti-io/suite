@@ -92,8 +92,10 @@
 #      products of inexact doubles:
 #      the two controls of section 4 (i686 without SSE, aarch64 with contraction
 #      on) apply, and so does the plant (one differing bit on each target in
-#      turn).  The library includes no cutil header (its lock is src/store/
-#      sync.h), so the probe needs only the allocator stand-in.
+#      turn).  The library uses cutil's mutex and atomic counts, so this probe (and
+#      the section 3 and 5 builds of the scene's sources) is built against cutil's
+#      real headers, generated libver_gen.h, allocator.c and atomic.c, never the
+#      stand-in.
 #
 # Arm64 is run under qemu-user, not on an arm64 machine; the real Raspberry Pi
 # 4 is `tools/evo --box pi4`.  A target that cannot be built or run fails the
@@ -114,12 +116,20 @@ ROOT=$(cd "$HERE/../../.." && pwd)
 
 B=${B:-/tmp/xarch-shape}
 SHAPE_DEP_INCLUDES=${SHAPE_DEP_INCLUDES--I$HERE/shape-stubs -I$ROOT/libs/math/include -I$B/gen/math/generated -I$ROOT/libs/shape-geometry/include -I$B/gen/shape-geometry/generated}
+# shape-scene uses cutil's mutex and atomic counts (Corey, 2026-10-19: cutil is the suite's cross-platform layer), so its
+# sources are built against cutil's real headers, with the generated header that section 3 writes into $B/gen/cutil, and its
+# probe links cutil's atomic.c and allocator.c.  The other libraries keep the allocator stand-in (shape-stubs): the two must
+# not meet in one translation unit, because the real headers rename the stand-in's names.
+SCENE_DEP_INCLUDES="-I$ROOT/libs/cutil/include -I$B/gen/cutil/include -I$ROOT/libs/math/include -I$B/gen/math/generated -I$ROOT/libs/shape-geometry/include -I$B/gen/shape-geometry/generated"
+dep_includes() { if [ "$1" = shape-scene ]; then echo "$SCENE_DEP_INCLUDES"; else echo "${SHAPE_DEP_INCLUDES:-}"; fi; }
 case "$B" in
   ""|/|/tmp|/tmp/|/work|/work/*|"$HOME"|"$HOME"/)
     echo "shape.sh: refusing B='$B' (it is deleted and recreated)" >&2; exit 2 ;;
 esac
 case "$B" in /*) ;; *) echo "shape.sh: B must be absolute, got '$B'" >&2; exit 2 ;; esac
 rm -rf "$B"; mkdir -p "$B"
+make -s -C "$ROOT/libs/cutil" BUILD_DIR="$B/gen/cutil" "$B/gen/cutil/include/ghoti.io/cutil/libver_gen.h" > "$B/gen-cutil.log" 2>&1 \
+  || { echo "shape.sh: could not write cutil's libver_gen.h (see $B/gen-cutil.log)" >&2; exit 2; }
 
 LIBS="math shape-geometry shape-scene shape-cpu"
 status=0
@@ -288,7 +298,7 @@ for l in $LIBS; do
     o="$B/obj/$l/$(echo "${src#"$ROOT/libs/$l/src/"}" | tr / _).o"
     # shellcheck disable=SC2086
     if ! $I686 -std=c17 -O2 -pedantic-errors -Wall -Wextra -Werror -ffp-contract=off $SSE \
-      -fPIC -fvisibility=hidden -I"$ROOT/libs/$l/include" -I"$g/generated" ${SHAPE_DEP_INCLUDES:-} \
+      -fPIC -fvisibility=hidden -I"$ROOT/libs/$l/include" -I"$g/generated" $(dep_includes "$l") \
       -c "$src" -o "$o" 2> "$o.err"; then
       echo "   FAIL  $l: cannot build $src for i686 (see $o.err)"
       ok=0; status=1
@@ -558,7 +568,7 @@ while IFS='|' read -r triple cc qemu desc; do
         o="$B/libm/$triple$opt/$l/$(echo "${src#"$ROOT/libs/$l/src/"}" | tr / _).o"
         # shellcheck disable=SC2086
         if ! "$cc" -std=c17 $opt -pedantic-errors -Wall -Wextra -Werror -ffp-contract=off -fno-math-errno $fpf \
-          -fPIC -fvisibility=hidden -DGMATH_BUILD -I"$ROOT/libs/$l/include" -I"$g/generated" ${SHAPE_DEP_INCLUDES:-} \
+          -fPIC -fvisibility=hidden -DGMATH_BUILD -I"$ROOT/libs/$l/include" -I"$g/generated" $(dep_includes "$l") \
           -c "$src" -o "$o" 2> "$o.err"; then
           echo "   FAIL  $triple $opt: cannot build $src (see $o.err)"
           ok=0; status=1
@@ -849,8 +859,9 @@ sh_hash=$(awk '$1=="hash"{print $2}' "$SCENE/tests/corpus/scene.hash")
 sh_count=$(awk '$1=="count"{print $2}' "$SCENE/tests/corpus/scene.hash")
 [ -n "$sh_hash" ] && [ -n "$sh_count" ] || { echo "   FAIL  no committed hash in $SCENE/tests/corpus/scene.hash"; status=1; }
 # The probe is built with shape-scene's sources, shape-geometry's (the paths, the maps, the hash) and, because
-# those call math, math's.  The scene sources include no cutil header: its lock and counts are private (src/store/sync.h).
-SCFLAGS="-std=c17 -O2 -pedantic-errors -Wall -Wextra -Werror -ffp-contract=off -pthread -DGSHSCENE_BUILD -DGSHGEOM_BUILD -DGMATH_BUILD -I$SCENE/include -I$gsc/generated -I$GEOM/include -I$gg/generated -I$MATH/include -I$mg/generated -I$HERE/shape-stubs"
+# those call math, math's, and cutil's real allocator.c and atomic.c (the scene's mutex is cutil's header-only GCU_MUTEX_T and its
+# reference counts are cutil's GCU_Atomic_Size, on every target; no stand-in is used here).
+SCFLAGS="-std=c17 -O2 -pedantic-errors -Wall -Wextra -Werror -ffp-contract=off -pthread -DGSHSCENE_BUILD -DGSHGEOM_BUILD -DGMATH_BUILD -I$SCENE/include -I$gsc/generated -I$GEOM/include -I$gg/generated -I$MATH/include -I$mg/generated -I$ROOT/libs/cutil/include -I$B/gen/cutil/include"
 
 # scene_run TRIPLE CC QEMU TAG FLAGS... -> prints "HASH COUNT"
 scene_run() {
@@ -858,7 +869,7 @@ scene_run() {
   shift 4
   # shellcheck disable=SC2086
   "$cc" $SCFLAGS "$@" "$SCENE/tools/corpus-hash.c" $(find "$SCENE/src" -name '*.c' | sort) $(find "$GEOM/src" -name '*.c' | sort) "$MATH"/src/elementary/*.c \
-    "$HERE/shape-stubs/cutil-allocator-stub.c" -o "$B/scene-$tag-$triple" 2> "$B/scene-$tag-$triple.err" || return 1
+    "$ROOT/libs/cutil/src/allocator.c" "$ROOT/libs/cutil/src/atomic.c" -o "$B/scene-$tag-$triple" 2> "$B/scene-$tag-$triple.err" || return 1
   xarch_run "$triple" "$qemu" "$B/scene-$tag-$triple" > "$B/scene-$tag-$triple.txt" 2>> "$B/scene-$tag-$triple.err" || return 1
   awk '/^shape-scene.hash/{h=$2} /^shape-scene.count/{c=$2} END{if (h != "") print h, c}' "$B/scene-$tag-$triple.txt"
 }
