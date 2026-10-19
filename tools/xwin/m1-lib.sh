@@ -74,7 +74,7 @@ if [ "$l" = lang-wasm ]; then
     exit 2
   }
   for data_file in data-wast-classification.tsv data-wast-assertion-skips.tsv \
-    data-wast-execution-baseline.tsv; do
+    data-wast-jit-rules.tsv; do
     [ -f "/w/lang-wasm/tests/$data_file" ] || {
       echo "m1-lib: lang-wasm WAST input $data_file is missing" >&2
       exit 2
@@ -85,7 +85,7 @@ if [ "$l" = lang-wasm ]; then
     GLWASM_WAST_CORPUS_ROOT="$(wine_path "$spec_dir/test")"
     GLWASM_WAST_CLASSIFICATION="$(wine_path /w/lang-wasm/tests/data-wast-classification.tsv)"
     GLWASM_WAST_ASSERTION_SKIPS="$(wine_path /w/lang-wasm/tests/data-wast-assertion-skips.tsv)"
-    GLWASM_WAST_EXECUTION_BASELINE="$(wine_path /w/lang-wasm/tests/data-wast-execution-baseline.tsv)"
+    GLWASM_WAST_JIT_RULES="$(wine_path /w/lang-wasm/tests/data-wast-jit-rules.tsv)"
     GLWASM_WAST_SPEC_COMMIT="$spec_commit"
   )
 fi
@@ -111,7 +111,7 @@ tot=0; pass=0; skip=0; bad=0; progs=0
 for t in $APPS/test*.exe; do
   [ -e "$t" ] || continue
   progs=$((progs + 1))
-  if [ "$l/$(basename "$t")" = lang-wasm/testWast.exe ]; then
+  if [ "$l/$(basename "$t")" = lang-wasm/testSpec_suite.exe ]; then
     (cd "$APPS" && env "${wast_env[@]}" timeout 1200 "./$(basename "$t")" \
       > "/w/logs/$l.$(basename "$t" .exe).out" 2>&1)
   else

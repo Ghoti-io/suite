@@ -367,21 +367,21 @@ run_binary() { # <arch> <lib> <name> [VAR=value ...]
   mkdir -p "$S"
   : > "$output_file" || fail "cannot create captured test output for $shown/$name"
   local envs=(LD_LIBRARY_PATH="$pfx/lib/ghoti.io:$dir" "$@")
-  if [ "$lib/$name" = "lang-wasm/testWast" ]; then
+  if [ "$lib/$name" = "lang-wasm/testSpec_suite" ]; then
     local commit corpus data_file
     commit=$(cat "$SRC/runtime-jit/tools/wasm/WASM_SPEC_COMMIT") ||
       fail "cannot read the pinned WebAssembly spec commit ($arch)"
     corpus="$SRC/runtime-jit/third_party/wasm-spec/$commit/test"
     [ -d "$corpus" ] || fail "pinned WebAssembly spec corpus is missing ($arch)"
     for data_file in data-wast-classification.tsv data-wast-assertion-skips.tsv \
-      data-wast-execution-baseline.tsv; do
+      data-wast-jit-rules.tsv; do
       [ -f "$SRC/lang-wasm/tests/$data_file" ] ||
-        fail "lang-wasm/testWast input $data_file is missing ($arch)"
+        fail "lang-wasm/testSpec_suite input $data_file is missing ($arch)"
     done
     envs+=(GLWASM_WAST_CORPUS_ROOT="$corpus"
       GLWASM_WAST_CLASSIFICATION="$SRC/lang-wasm/tests/data-wast-classification.tsv"
       GLWASM_WAST_ASSERTION_SKIPS="$SRC/lang-wasm/tests/data-wast-assertion-skips.tsv"
-      GLWASM_WAST_EXECUTION_BASELINE="$SRC/lang-wasm/tests/data-wast-execution-baseline.tsv"
+      GLWASM_WAST_JIT_RULES="$SRC/lang-wasm/tests/data-wast-jit-rules.tsv"
       GLWASM_WAST_SPEC_COMMIT="$commit")
   fi
   [ "$arch" = x86_64 ] && envs+=(GRJIT_AARCH64_OBJDUMP=/usr/bin/aarch64-linux-gnu-objdump)
@@ -799,9 +799,9 @@ prepare_wast_corpus aarch64
 if [ "${JIT_ARM64_FOCUS_WAST:-0}" = 1 ]; then
   heading "Focused AArch64 Lang-Wasm JIT cache and pinned WAST corpus"
   ARCH_NOW=aarch64
-  build_tests lang-wasm testJit_cache testWast
+  build_tests lang-wasm testJit_cache testSpec_suite
   run_binary aarch64 lang-wasm testJit_cache
-  run_binary aarch64 lang-wasm testWast
+  run_binary aarch64 lang-wasm testSpec_suite
   say "jit-arm64 focused WAST gate: OK (the full cross gate remains separate)"
   exit 0
 fi
