@@ -10,6 +10,8 @@ geom_hash=${4:?usage: shape-win.sh NATIVE_HASH MATH_HASH MATH_COUNT GEOM_HASH GE
 geom_count=${5:?usage: shape-win.sh NATIVE_HASH MATH_HASH MATH_COUNT GEOM_HASH GEOM_COUNT CPU_HASH CPU_COUNT}
 cpu_hash=${6:?usage: shape-win.sh NATIVE_HASH MATH_HASH MATH_COUNT GEOM_HASH GEOM_COUNT CPU_HASH CPU_COUNT}
 cpu_count=${7:?usage: shape-win.sh NATIVE_HASH MATH_HASH MATH_COUNT GEOM_HASH GEOM_COUNT CPU_HASH CPU_COUNT}
+scene_hash=${8:?usage: shape-win.sh NATIVE_HASH MATH_HASH MATH_COUNT GEOM_HASH GEOM_COUNT CPU_HASH CPU_COUNT SCENE_HASH SCENE_COUNT}
+scene_count=${9:?usage: shape-win.sh NATIVE_HASH MATH_HASH MATH_COUNT GEOM_HASH GEOM_COUNT CPU_HASH CPU_COUNT SCENE_HASH SCENE_COUNT}
 P=/tools/xarch/shape-hash-probe.c
 cd /w || exit 2
 
@@ -103,6 +105,24 @@ if [ -n "$cplant" ] && [ "$cplant" != "$cpu_hash $cpu_count" ]; then
   echo "   ok    planted: one differing bit in a shape-cpu result on win64 is not the committed hash"
 else
   echo "   FAIL  planted: the win64 shape-cpu probe with a flipped bit still matches (or did not run)"; rc=1
+fi
+# The shape-scene resource and list hash (CAP-13, CAP-16): the committed value, and a planted bit that must differ.
+N=/w/scene
+NF="-std=c17 -O2 -pedantic-errors -Wall -Wextra -Werror -ffp-contract=off -DGSHSCENE_BUILD -DGSHGEOM_BUILD -DGMATH_STATIC -I$N/include -I$N/gen/generated -I$G/include -I$G/gen/generated -I$M/include -I$M/gen/generated -I$G/stubs"
+x86_64-w64-mingw32-gcc $NF "$N/tools/corpus-hash.c" $(find "$N/src" -name '*.c' | sort) $(find "$G/src" -name '*.c' | sort) "$M"/src/elementary/*.c "$G/stubs/cutil-allocator-stub.c" -o scene-probe.exe || { echo "shape-win: the shape-scene probe did not build" >&2; exit 2; }
+x86_64-w64-mingw32-gcc $NF -DSHAPE_SCENE_PLANT_BIT "$N/tools/corpus-hash.c" $(find "$N/src" -name '*.c' | sort) $(find "$G/src" -name '*.c' | sort) "$M"/src/elementary/*.c "$G/stubs/cutil-allocator-stub.c" -o scene-plant.exe || { echo "shape-win: the planted shape-scene probe did not build" >&2; exit 2; }
+sgot=$(./scene-probe.exe 2>/dev/null | tr -d '\r' | awk '/^shape-scene.hash/{h=$2} /^shape-scene.count/{c=$2} END{if (h != "") print h, c}')
+splant=$(./scene-plant.exe 2>/dev/null | tr -d '\r' | awk '/^shape-scene.hash/{h=$2} /^shape-scene.count/{c=$2} END{if (h != "") print h, c}')
+echo "windows (wine) shape-scene hash: ${sgot:-none}   planted: ${splant:-none}   committed: $scene_hash $scene_count"
+if [ -n "$sgot" ] && [ "$sgot" = "$scene_hash $scene_count" ]; then
+  echo "   ok    win64 prints the committed shape-scene hash"
+else
+  echo "   FAIL  win64 does not print the committed shape-scene hash"; rc=1
+fi
+if [ -n "$splant" ] && [ "$splant" != "$scene_hash $scene_count" ]; then
+  echo "   ok    planted: one differing bit in a shape-scene result on win64 is not the committed hash"
+else
+  echo "   FAIL  planted: the win64 shape-scene probe with a flipped bit still matches (or did not run)"; rc=1
 fi
 [ $rc -eq 0 ] && echo "shape-win: PASS" || echo "shape-win: FAIL"
 exit $rc

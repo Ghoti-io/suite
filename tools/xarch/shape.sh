@@ -8,7 +8,7 @@
 #   podman run --rm -v "$PWD:/work:ro,z" ghoti-xarch:sid-gcc16 \
 #     bash /work/suite/tools/xarch/shape.sh
 #
-# Five sections, each of which shows its gate failing:
+# Eight sections, each of which shows its gate failing:
 #
 #   1. The four copies of each gate script (math, shape-geometry, shape-scene,
 #      shape-cpu) are byte-identical, because CONVENTIONS reuses one script text
@@ -78,6 +78,22 @@
 #      that folds its results in the host's byte order, which must print the
 #      committed hash on a little-endian target and another on a big-endian one.
 #      The plant (one differing bit on each target in turn) is as in section 4.
+#
+#   8. The shape-scene hash gate (CAP-13, CAP-16, AD-17).  libs/shape-scene/tools/
+#      corpus-hash.c, built with every src/*/*.c of shape-scene, of shape-geometry
+#      and of math, and the cutil allocator stand-in, must print the hash
+#      committed in libs/shape-scene/tests/corpus/scene.hash on every target.  It
+#      interns 64 random paths (each twice), 24 glyph runs of both sources and
+#      builds 40 lists of every kind of item, a third of them frozen into
+#      pictures that later lists instance, and hashes every resource hash, list
+#      hash, count, expansion and picture depth and the store's counters in
+#      shape-geometry's spelling.  The maps are the composition of two
+#      general maps with entries over 1000, so their entries are sums of two
+#      products of inexact doubles:
+#      the two controls of section 4 (i686 without SSE, aarch64 with contraction
+#      on) apply, and so does the plant (one differing bit on each target in
+#      turn).  The library includes no cutil header (its lock is src/store/
+#      sync.h), so the probe needs only the allocator stand-in.
 #
 # Arm64 is run under qemu-user, not on an arm64 machine; the real Raspberry Pi
 # 4 is `tools/evo --box pi4`.  A target that cannot be built or run fails the
@@ -813,6 +829,106 @@ while IFS='|' read -r triple cc qemu desc; do
   else
     sed 's/^/   | /' "$B/cpu-planted-$triple.txt"
     echo "   FAIL  the shape-cpu gate failed, but not on $triple alone"
+    status=1
+  fi
+done <<EOT
+$XARCH_TARGETS
+EOT
+
+#---------------------------------------------------------------------------
+echo
+echo "8. the shape-scene hash gate (libs/shape-scene: resources and lists, the waist: CAP-13, CAP-16)"
+SCENE="$ROOT/libs/shape-scene"
+gsc="$B/gen/scene-hash"
+mkdir -p "$gsc"
+if ! make -s -C "$SCENE" libver-gen BUILD_DIR="$gsc" > "$B/gen-scene-hash.log" 2>&1; then
+  echo "   FAIL  shape-scene: could not write libver_gen.h (see $B/gen-scene-hash.log)"
+  status=1
+fi
+sh_hash=$(awk '$1=="hash"{print $2}' "$SCENE/tests/corpus/scene.hash")
+sh_count=$(awk '$1=="count"{print $2}' "$SCENE/tests/corpus/scene.hash")
+[ -n "$sh_hash" ] && [ -n "$sh_count" ] || { echo "   FAIL  no committed hash in $SCENE/tests/corpus/scene.hash"; status=1; }
+# The probe is built with shape-scene's sources, shape-geometry's (the paths, the maps, the hash) and, because
+# those call math, math's.  The scene sources include no cutil header: its lock and counts are private (src/store/sync.h).
+SCFLAGS="-std=c17 -O2 -pedantic-errors -Wall -Wextra -Werror -ffp-contract=off -pthread -DGSHSCENE_BUILD -DGSHGEOM_BUILD -DGMATH_BUILD -I$SCENE/include -I$gsc/generated -I$GEOM/include -I$gg/generated -I$MATH/include -I$mg/generated -I$HERE/shape-stubs"
+
+# scene_run TRIPLE CC QEMU TAG FLAGS... -> prints "HASH COUNT"
+scene_run() {
+  local triple=$1 cc=$2 qemu=$3 tag=$4 out
+  shift 4
+  # shellcheck disable=SC2086
+  "$cc" $SCFLAGS "$@" "$SCENE/tools/corpus-hash.c" $(find "$SCENE/src" -name '*.c' | sort) $(find "$GEOM/src" -name '*.c' | sort) "$MATH"/src/elementary/*.c \
+    "$HERE/shape-stubs/cutil-allocator-stub.c" -o "$B/scene-$tag-$triple" 2> "$B/scene-$tag-$triple.err" || return 1
+  xarch_run "$triple" "$qemu" "$B/scene-$tag-$triple" > "$B/scene-$tag-$triple.txt" 2>> "$B/scene-$tag-$triple.err" || return 1
+  awk '/^shape-scene.hash/{h=$2} /^shape-scene.count/{c=$2} END{if (h != "") print h, c}' "$B/scene-$tag-$triple.txt"
+}
+
+declare -A SOK SPLANT
+while IFS='|' read -r triple cc qemu desc; do
+  triple=$(echo "$triple" | tr -d ' '); cc=$(echo "$cc" | tr -d ' ')
+  qemu=$(echo "$qemu" | tr -d ' ')
+  [ -z "$triple" ] && continue
+  # shellcheck disable=SC2046
+  SOK[$triple]=$(scene_run "$triple" "$cc" "$qemu" ok $(xarch_fp_cflags "$triple")) \
+    || { echo "   FAIL  $triple: cannot build or run the shape-scene probe (see $B/scene-ok-$triple.err)"; status=1; SOK[$triple]=""; }
+  # shellcheck disable=SC2046
+  SPLANT[$triple]=$(scene_run "$triple" "$cc" "$qemu" plant -DSHAPE_SCENE_PLANT_BIT $(xarch_fp_cflags "$triple")) \
+    || { echo "   FAIL  $triple: cannot build or run the planted shape-scene probe"; status=1; SPLANT[$triple]=""; }
+done <<EOT
+$XARCH_TARGETS
+EOT
+
+# scene_gate PLANTED_TRIPLE -> 0 if every target prints the committed hash and count.
+scene_gate() {
+  local planted=$1 rc=0 triple cc qemu desc got
+  while IFS='|' read -r triple cc qemu desc; do
+    triple=$(echo "$triple" | tr -d ' ')
+    [ -z "$triple" ] && continue
+    if [ "$triple" = "$planted" ]; then got=${SPLANT[$triple]:-}; else got=${SOK[$triple]:-}; fi
+    if [ -n "$got" ] && [ "$got" = "$sh_hash $sh_count" ]; then
+      printf "   ok    %-22s %s\n" "$triple" "$got"
+    else
+      printf "   FAIL  %-22s %s  (want %s %s)\n" "$triple" "${got:-none}" "$sh_hash" "$sh_count"
+      rc=1
+    fi
+  done <<EOT2
+$XARCH_TARGETS
+EOT2
+  return $rc
+}
+
+echo " a. every target prints the committed hash"
+scene_gate "" || status=1
+
+echo " b. the controls: the probe sees what the flags prevent (its maps are products and sums of inexact doubles)"
+sbare=$(scene_run i686-linux-gnu i686-linux-gnu-gcc qemu-i386 bare) || sbare=""
+if [ -n "$sbare" ] && [ "$sbare" != "$sh_hash $sh_count" ]; then
+  echo "   ok    i686 without -msse2 -mfpmath=sse prints $sbare, not the committed hash"
+else
+  echo "   FAIL  i686 without the SSE flags printed '${sbare:-nothing}': the hash cannot see x87"
+  status=1
+fi
+sfused=$(scene_run aarch64-linux-gnu aarch64-linux-gnu-gcc qemu-aarch64 fused -ffp-contract=fast) || sfused=""
+if [ -n "$sfused" ] && [ "$sfused" != "$sh_hash $sh_count" ]; then
+  echo "   ok    aarch64 with -ffp-contract=fast prints $sfused, not the committed hash"
+else
+  echo "   FAIL  aarch64 with contraction on printed '${sfused:-nothing}': the hash cannot see a fused multiply-add"
+  status=1
+fi
+
+echo " c. planted: one differing bit on each target in turn must fail the gate, naming it"
+while IFS='|' read -r triple cc qemu desc; do
+  triple=$(echo "$triple" | tr -d ' ')
+  [ -z "$triple" ] && continue
+  if scene_gate "$triple" > "$B/scene-planted-$triple.txt" 2>&1; then
+    echo "   FAIL  the shape-scene gate passed with a bit flipped on $triple: it checks nothing there"
+    status=1
+  elif grep -q "FAIL  $triple " "$B/scene-planted-$triple.txt" \
+    && [ "$(grep -c FAIL "$B/scene-planted-$triple.txt")" -eq 1 ]; then
+    echo "   ok    $triple: caught, and only $triple named"
+  else
+    sed 's/^/   | /' "$B/scene-planted-$triple.txt"
+    echo "   FAIL  the shape-scene gate failed, but not on $triple alone"
     status=1
   fi
 done <<EOT

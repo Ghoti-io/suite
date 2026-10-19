@@ -581,6 +581,20 @@ podman run --rm -v "$PWD:/work:ro,z" ghoti-xarch:sid-gcc16 bash /work/suite/tool
    as in section 4. Windows is
    `suite/tools/xwin/shape.sh`, which runs the same probe under wine.
 
+8. **The shape-scene hash** (story 10). `libs/shape-scene/tools/corpus-hash.c`,
+   built with every `src/*/*.c` of `shape-scene`, `shape-geometry` and `math` and
+   the cutil allocator stand-in, interns 64 random paths (each twice) and 24
+   glyph runs of both sources, records 40 lists of every kind of item (a third
+   frozen into pictures that later lists instance) and hashes the resource
+   hashes, list hashes, counts, expansions, picture depths and the store's
+   counters in `shape-geometry`'s spelling; it must print the hash committed in
+   `libs/shape-scene/tests/corpus/scene.hash` on every target. The maps are the
+   composition of two general maps with entries over 1000 (sums of two products
+   of inexact doubles), so
+   the controls of section 4 (i686 without SSE, aarch64 with contraction on)
+   and the plant apply. The library includes no cutil header (its lock is
+   `src/store/sync.h`), so no stand-in beyond the allocator is needed.
+
 Arm64 is qemu-user here, not hardware; the real Pi is `tools/evo --box pi4`. A
 library whose sources include its dependencies' headers needs
 `SHAPE_DEP_INCLUDES` set to their `-I` flags; the scaffolds include none.

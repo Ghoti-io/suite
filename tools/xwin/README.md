@@ -404,3 +404,10 @@ From story 3 it also builds `libs/math/tools/corpus-hash.c` with
 `libs/math/src/elementary/trig.c` (copied into the scratch tree with the corpus)
 and requires the win64 hash over the corpus to equal the one committed in
 `libs/math/tests/corpus/trig.hash`, and a planted differing bit not to.
+
+From story 10 it also builds `libs/shape-scene/tools/corpus-hash.c` with the
+sources of `shape-scene`, `shape-geometry` and `math` and requires the win64
+hash over the resources and lists of the probe to equal the one committed in
+`libs/shape-scene/tests/corpus/scene.hash`, and a planted differing bit not to.
+The scene sources use `SRWLOCK` on Windows (`src/store/sync.h`), which this
+build links; it is the one place the library touches a Windows API.

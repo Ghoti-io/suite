@@ -87,4 +87,16 @@ cpu_hash=$(awk '$1=="hash"{print $2}' "$CPU/tests/corpus/coverage.hash")
 cpu_count=$(awk '$1=="count"{print $2}' "$CPU/tests/corpus/coverage.hash")
 [ -n "$cpu_hash" ] && [ -n "$cpu_count" ] || { echo "shape.sh: no committed shape-cpu hash" >&2; exit 2; }
 echo "committed shape-cpu hash: $cpu_hash over $cpu_count results"
-"$HERE/m1-win.sh" "$W" "bash /tools/xwin/shape-win.sh $want $math_hash $math_count $geom_hash $geom_count $cpu_hash $cpu_count"
+# The shape-scene sources and the committed hash (story 10); it is built with shape-geometry's and math's too.
+SCENE="$ROOT/libs/shape-scene"
+rm -rf "$W/scene"
+mkdir -p "$W/scene/tools" "$W/scene/gen"
+cp -r "$SCENE/include" "$W/scene/include"
+cp -r "$SCENE/src" "$W/scene/src"
+cp "$SCENE/tools/corpus-hash.c" "$W/scene/tools/"
+make -s -C "$SCENE" libver-gen BUILD_DIR="$W/scene/gen" > "$W/logs/scene-libver.log" 2>&1 || { echo "shape.sh: libver-gen failed (see $W/logs/scene-libver.log)" >&2; exit 2; }
+scene_hash=$(awk '$1=="hash"{print $2}' "$SCENE/tests/corpus/scene.hash")
+scene_count=$(awk '$1=="count"{print $2}' "$SCENE/tests/corpus/scene.hash")
+[ -n "$scene_hash" ] && [ -n "$scene_count" ] || { echo "shape.sh: no committed shape-scene hash" >&2; exit 2; }
+echo "committed shape-scene hash: $scene_hash over $scene_count results"
+"$HERE/m1-win.sh" "$W" "bash /tools/xwin/shape-win.sh $want $math_hash $math_count $geom_hash $geom_count $cpu_hash $cpu_count $scene_hash $scene_count"
