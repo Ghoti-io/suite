@@ -96,6 +96,13 @@ mkdir -p "$W/cutil/src" "$W/cutil/gen"
 cp -r "$CUTIL/include" "$W/cutil/include"
 cp "$CUTIL/src/allocator.c" "$CUTIL/src/atomic.c" "$W/cutil/src/"
 make -s -C "$CUTIL" BUILD_DIR="$W/cutil/gen" "$W/cutil/gen/include/ghoti.io/cutil/libver_gen.h" > "$W/logs/cutil-libver.log" 2>&1 || { echo "shape.sh: cutil libver_gen.h failed (see $W/logs/cutil-libver.log)" >&2; exit 2; }
+# color's headers, its generated libver_gen.h and gamut.c: the scene names its types and calls gcol_gamut_identify.
+COLOR="$ROOT/libs/color"
+rm -rf "$W/color"
+mkdir -p "$W/color/src" "$W/color/gen"
+cp -r "$COLOR/include" "$W/color/include"
+cp "$COLOR/src/gamut/gamut.c" "$W/color/src/"
+make -s -C "$COLOR" SKIP_DEP_CHECK=1 BUILD_DIR="$W/color/gen" "$W/color/gen/generated/ghoti.io/color/libver_gen.h" > "$W/logs/color-libver.log" 2>&1 || { echo "shape.sh: color libver-gen failed (see $W/logs/color-libver.log)" >&2; exit 2; }
 rm -rf "$W/scene"
 mkdir -p "$W/scene/tools" "$W/scene/gen"
 cp -r "$SCENE/include" "$W/scene/include"

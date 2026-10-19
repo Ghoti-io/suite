@@ -120,7 +120,10 @@ SHAPE_DEP_INCLUDES=${SHAPE_DEP_INCLUDES--I$HERE/shape-stubs -I$ROOT/libs/math/in
 # sources are built against cutil's real headers, with the generated header that section 3 writes into $B/gen/cutil, and its
 # probe links cutil's atomic.c and allocator.c.  The other libraries keep the allocator stand-in (shape-stubs): the two must
 # not meet in one translation unit, because the real headers rename the stand-in's names.
-SCENE_DEP_INCLUDES="-I$ROOT/libs/cutil/include -I$B/gen/cutil/include -I$ROOT/libs/math/include -I$B/gen/math/generated -I$ROOT/libs/shape-geometry/include -I$B/gen/shape-geometry/generated"
+# shape-scene also names `color`'s types (a color description, the gamut names) and calls gcol_gamut_identify (Corey's story 12),
+# so its sources see color's headers, with the generated header written into $B/gen/color, and the probe is linked with
+# color's gamut.c alone: it needs nothing else of color.
+SCENE_DEP_INCLUDES="-I$ROOT/libs/cutil/include -I$B/gen/cutil/include -I$ROOT/libs/color/include -I$B/gen/color/generated -I$ROOT/libs/math/include -I$B/gen/math/generated -I$ROOT/libs/shape-geometry/include -I$B/gen/shape-geometry/generated"
 dep_includes() { if [ "$1" = shape-scene ]; then echo "$SCENE_DEP_INCLUDES"; else echo "${SHAPE_DEP_INCLUDES:-}"; fi; }
 case "$B" in
   ""|/|/tmp|/tmp/|/work|/work/*|"$HOME"|"$HOME"/)
@@ -130,6 +133,8 @@ case "$B" in /*) ;; *) echo "shape.sh: B must be absolute, got '$B'" >&2; exit 2
 rm -rf "$B"; mkdir -p "$B"
 make -s -C "$ROOT/libs/cutil" BUILD_DIR="$B/gen/cutil" "$B/gen/cutil/include/ghoti.io/cutil/libver_gen.h" > "$B/gen-cutil.log" 2>&1 \
   || { echo "shape.sh: could not write cutil's libver_gen.h (see $B/gen-cutil.log)" >&2; exit 2; }
+make -s -C "$ROOT/libs/color" SKIP_DEP_CHECK=1 BUILD_DIR="$B/gen/color" "$B/gen/color/generated/ghoti.io/color/libver_gen.h" > "$B/gen-color.log" 2>&1 \
+  || { echo "shape.sh: could not write color's libver_gen.h (see $B/gen-color.log)" >&2; exit 2; }
 
 LIBS="math shape-geometry shape-scene shape-cpu"
 status=0
@@ -861,7 +866,7 @@ sh_count=$(awk '$1=="count"{print $2}' "$SCENE/tests/corpus/scene.hash")
 # The probe is built with shape-scene's sources, shape-geometry's (the paths, the maps, the hash) and, because
 # those call math, math's, and cutil's real allocator.c and atomic.c (the scene's mutex is cutil's header-only GCU_MUTEX_T and its
 # reference counts are cutil's GCU_Atomic_Size, on every target; no stand-in is used here).
-SCFLAGS="-std=c17 -O2 -pedantic-errors -Wall -Wextra -Werror -ffp-contract=off -pthread -DGSHSCENE_BUILD -DGSHGEOM_BUILD -DGMATH_BUILD -I$SCENE/include -I$gsc/generated -I$GEOM/include -I$gg/generated -I$MATH/include -I$mg/generated -I$ROOT/libs/cutil/include -I$B/gen/cutil/include"
+SCFLAGS="-std=c17 -O2 -pedantic-errors -Wall -Wextra -Werror -ffp-contract=off -pthread -DGSHSCENE_BUILD -DGSHGEOM_BUILD -DGMATH_BUILD -DGCOL_BUILD -I$SCENE/include -I$gsc/generated -I$GEOM/include -I$gg/generated -I$MATH/include -I$mg/generated -I$ROOT/libs/cutil/include -I$B/gen/cutil/include -I$ROOT/libs/color/include -I$B/gen/color/generated"
 
 # scene_run TRIPLE CC QEMU TAG FLAGS... -> prints "HASH COUNT"
 scene_run() {
@@ -869,7 +874,7 @@ scene_run() {
   shift 4
   # shellcheck disable=SC2086
   "$cc" $SCFLAGS "$@" "$SCENE/tools/corpus-hash.c" $(find "$SCENE/src" -name '*.c' | sort) $(find "$GEOM/src" -name '*.c' | sort) "$MATH"/src/elementary/*.c \
-    "$ROOT/libs/cutil/src/allocator.c" "$ROOT/libs/cutil/src/atomic.c" -o "$B/scene-$tag-$triple" 2> "$B/scene-$tag-$triple.err" || return 1
+    "$ROOT/libs/cutil/src/allocator.c" "$ROOT/libs/cutil/src/atomic.c" "$ROOT/libs/color/src/gamut/gamut.c" -o "$B/scene-$tag-$triple" 2> "$B/scene-$tag-$triple.err" || return 1
   xarch_run "$triple" "$qemu" "$B/scene-$tag-$triple" > "$B/scene-$tag-$triple.txt" 2>> "$B/scene-$tag-$triple.err" || return 1
   awk '/^shape-scene.hash/{h=$2} /^shape-scene.count/{c=$2} END{if (h != "") print h, c}' "$B/scene-$tag-$triple.txt"
 }
