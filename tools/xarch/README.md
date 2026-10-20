@@ -528,6 +528,25 @@ the workspace's has, so the tests that list a corpus directory saw no files; tex
 (`LFS_FLAGS`); two tests (`(size_t)1 << 40`) did not compile with a 32-bit `size_t` and now use the type's own width.
 cutil's file layer has the same exposure and is for cutil's session.
 
+## archive: `archive.sh` and `Containerfile.archive` (archive phase I, 2026-10-20)
+
+`archive.sh i686|s390x|powerpc|sparc64|all` builds cutil, security, compress
+and archive for the target with the image's cross GCC 16, runs every archive
+test program under qemu-user from the library's directory (so the fixtures are
+found), then writes a tar, a tar.xz, a zip and a 7z with the examples and lists
+each with the others. A program that passes no tests is a failure, and skips
+are listed by name. The image is `localhost/ghoti-xarch-archive:sid-gcc16-gtest`,
+`Containerfile.archive` over `sid-gcc16` with googletest built for each target;
+build it on the EVO and run it there (`JOBS=6`), not here.
+
+The first run (2026-10-20) found two 32-bit build failures in compress (an
+lz4 `-Wtype-limits` comparison and `_mm_cvtsi64_si128` in the PCLMUL CRC-64)
+and test objects that found gtest's headers only by luck; then i686 767
+tests, s390x, PowerPC and SPARC64 766 each, green. The Windows counterpart is
+`suite/tools/xwin/archive-run.sh`, run through `m1-lib.sh` in
+`ghoti-xwin-wine:deb13-mingw-win32-wine10`; its non-ASCII names needed the wine
+shim's `LANG=C.UTF-8`.
+
 ## The shape family's cross-target gates: `shape.sh` (shape-family milestone 1, story 2)
 
 The shape libraries (`math`, `shape-geometry`, `shape-scene`, `shape-cpu`) must

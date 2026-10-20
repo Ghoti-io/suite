@@ -11,7 +11,7 @@ Clone the libraries, build them, and build this manual from
 
 | Library | What it implements |
 | --- | --- |
-| [Archive](@ref archive) | Tar, read and written: v7, ustar, GNU, and pax, from a file or a pipe, with member names classified rather than rewritten. Zip, read and written, stored and deflate, plus zstd and ZipCrypto on read. |
+| [Archive](@ref archive) | Tar, zip, 7z, ar, cpio and shar, read and written without the reader or writer touching the filesystem, with member names classified rather than rewritten. GNU sparse and multi-volume tar; every zip method `compress` has, ZipCrypto and WinZip AES, zip64, zip from a pipe, split and self-extracting zips and 7z. An opt-in `fs.h` opens by path, extracts, packs, and updates an archive by rewriting it or appending in place. |
 | [Audio](@ref audio) | WAV, AIFF, and FLAC, read and written, with tags and cover art; MPEG audio and Vorbis, read; Opus identified. |
 | [Certificate](@ref certificate) | Strict DER, PEM, PKCS#8 and PKCS#12; X.509 with path validation and issuance, a certificate revocation list, and a basic OCSP response; and what a verifier builds on them: a trust store, path building, RFC 9525 name verification and private keys that sign by scheme. |
 | [Chron](@ref chron) | Civil time, calendars, instants, durations, time zones, and the text formats for them. |
