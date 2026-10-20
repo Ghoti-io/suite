@@ -110,9 +110,10 @@ fi
 N=/w/scene
 C=/w/cutil
 K=/w/color
-NF="-std=c17 -O2 -pedantic-errors -Wall -Wextra -Werror -ffp-contract=off -DGSHSCENE_BUILD -DGSHGEOM_BUILD -DGMATH_STATIC -DGHOTIIO_CUTIL_STATIC -DGCOL_BUILD -I$N/include -I$N/gen/generated -I$G/include -I$G/gen/generated -I$M/include -I$M/gen/generated -I$C/include -I$C/gen/include -I$K/include -I$K/gen/generated"
-x86_64-w64-mingw32-gcc $NF "$N/tools/corpus-hash.c" $(find "$N/src" -name '*.c' | sort) $(find "$G/src" -name '*.c' | sort) "$M"/src/elementary/*.c "$C/src/allocator.c" "$C/src/atomic.c" "$K/src/gamut.c" -o scene-probe.exe || { echo "shape-win: the shape-scene probe did not build" >&2; exit 2; }
-x86_64-w64-mingw32-gcc $NF -DSHAPE_SCENE_PLANT_BIT "$N/tools/corpus-hash.c" $(find "$N/src" -name '*.c' | sort) $(find "$G/src" -name '*.c' | sort) "$M"/src/elementary/*.c "$C/src/allocator.c" "$C/src/atomic.c" "$K/src/gamut.c" -o scene-plant.exe || { echo "shape-win: the planted shape-scene probe did not build" >&2; exit 2; }
+I=/w/image
+NF="-std=c17 -O2 -pedantic-errors -Wall -Wextra -Werror -ffp-contract=off -DGSHSCENE_BUILD -DGSHGEOM_BUILD -DGMATH_STATIC -DGHOTIIO_CUTIL_STATIC -DGCOL_BUILD -DGIMG_BUILD -I$N/include -I$N/gen/generated -I$G/include -I$G/gen/generated -I$M/include -I$M/gen/generated -I$C/include -I$C/gen/include -I$K/include -I$K/gen/generated -I$I/include -I$I/gen/generated"
+x86_64-w64-mingw32-gcc $NF "$N/tools/corpus-hash.c" $(find "$N/src" -name '*.c' | sort) $(find "$G/src" -name '*.c' | sort) "$M"/src/elementary/*.c "$C/src/allocator.c" "$C/src/atomic.c" "$K/src/gamut.c" "$I/src/raster.c" "$I/core/allocator.c" -o scene-probe.exe || { echo "shape-win: the shape-scene probe did not build" >&2; exit 2; }
+x86_64-w64-mingw32-gcc $NF -DSHAPE_SCENE_PLANT_BIT "$N/tools/corpus-hash.c" $(find "$N/src" -name '*.c' | sort) $(find "$G/src" -name '*.c' | sort) "$M"/src/elementary/*.c "$C/src/allocator.c" "$C/src/atomic.c" "$K/src/gamut.c" "$I/src/raster.c" "$I/core/allocator.c" -o scene-plant.exe || { echo "shape-win: the planted shape-scene probe did not build" >&2; exit 2; }
 sgot=$(./scene-probe.exe 2>/dev/null | tr -d '\r' | awk '/^shape-scene.hash/{h=$2} /^shape-scene.count/{c=$2} END{if (h != "") print h, c}')
 splant=$(./scene-plant.exe 2>/dev/null | tr -d '\r' | awk '/^shape-scene.hash/{h=$2} /^shape-scene.count/{c=$2} END{if (h != "") print h, c}')
 echo "windows (wine) shape-scene hash: ${sgot:-none}   planted: ${splant:-none}   committed: $scene_hash $scene_count"

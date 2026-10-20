@@ -22,7 +22,7 @@ color      https://github.com/Ghoti-io/color.git      master cutil,security
 image      https://github.com/Ghoti-io/image.git      master cutil,compress,color
 math       https://github.com/Ghoti-io/math.git       master cutil
 shape-geometry https://github.com/Ghoti-io/shape-geometry.git master cutil,math
-shape-scene https://github.com/Ghoti-io/shape-scene.git master cutil,color,shape-geometry
+shape-scene https://github.com/Ghoti-io/shape-scene.git master cutil,color,image,shape-geometry
 shape-cpu  https://github.com/Ghoti-io/shape-cpu.git  master shape-geometry
 font       https://github.com/Ghoti-io/font.git       master cutil,compress,unicode,image,shape-geometry,shape-cpu
 model      https://github.com/Ghoti-io/model.git      master cutil

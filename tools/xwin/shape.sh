@@ -103,6 +103,17 @@ mkdir -p "$W/color/src" "$W/color/gen"
 cp -r "$COLOR/include" "$W/color/include"
 cp "$COLOR/src/gamut/gamut.c" "$W/color/src/"
 make -s -C "$COLOR" SKIP_DEP_CHECK=1 BUILD_DIR="$W/color/gen" "$W/color/gen/generated/ghoti.io/color/libver_gen.h" > "$W/logs/color-libver.log" 2>&1 || { echo "shape.sh: color libver-gen failed (see $W/logs/color-libver.log)" >&2; exit 2; }
+# image's headers, its generated libver_gen.h, raster.c and its allocator.c: a target names a raster and the test sink
+# stamps one (story 13a).
+IMAGE="$ROOT/libs/image"
+rm -rf "$W/image"
+mkdir -p "$W/image/src" "$W/image/gen"
+cp -r "$IMAGE/include" "$W/image/include"
+cp "$IMAGE/src/raster/raster.c" "$IMAGE/src/raster/raster_internal.h" "$W/image/src/"
+mkdir -p "$W/image/core"
+cp "$IMAGE/src/core/"*.h "$W/image/core/"
+cp "$IMAGE/src/core/allocator.c" "$W/image/core/"
+make -s -C "$IMAGE" SKIP_DEP_CHECK=1 BUILD_DIR="$W/image/gen" "$W/image/gen/generated/ghoti.io/image/libver_gen.h" > "$W/logs/image-libver.log" 2>&1 || { echo "shape.sh: image libver-gen failed (see $W/logs/image-libver.log)" >&2; exit 2; }
 rm -rf "$W/scene"
 mkdir -p "$W/scene/tools" "$W/scene/gen"
 cp -r "$SCENE/include" "$W/scene/include"
