@@ -11,6 +11,10 @@
 # Windows hash equals the native one AND the same probe built with one planted
 # differing bit does not (so the comparison can fail).
 #
+# Since story 14b it also builds font's provider probe (libs/font/tools/scene-hash.c: AD-5 and AD-1 through
+# shape-cpu), which must exit 0 under wine (both equalities hold) and print the hash committed in
+# libs/font/tests/data/golden/scene.hash, and with its planted bit must not.
+#
 # It also runs each library's corpus hash; shape-cpu's prints its coverage hash
 # and, since story 13b, one hash per render of its fixture set (the goldens of
 # tests/corpus/render.hash) and their fold, which must equal the committed ones.
@@ -139,4 +143,24 @@ scene_hash=$(awk '$1=="hash"{print $2}' "$SCENE/tests/corpus/scene.hash")
 scene_count=$(awk '$1=="count"{print $2}' "$SCENE/tests/corpus/scene.hash")
 [ -n "$scene_hash" ] && [ -n "$scene_count" ] || { echo "shape.sh: no committed shape-scene hash" >&2; exit 2; }
 echo "committed shape-scene hash: $scene_hash over $scene_count results"
-"$HERE/m1-win.sh" "$W" "bash /tools/xwin/shape-win.sh $want $math_hash $math_count $geom_hash $geom_count $cpu_hash $cpu_count $scene_hash $scene_count $render_hash $render_count"
+# The font provider's probe (story 14b) also takes cutil's file.c: a blob's destroy frees through it.
+cp "$CUTIL/src/file.c" "$CUTIL/src/file_internal.h" "$CUTIL/src/path_internal.h" "$W/cutil/src/"
+# The font provider's probe (story 14b): font's sources, its tools/scene-hash.c, the fixtures it renders and the
+# committed hash; the headers and generated headers of the dependencies it names and never reaches (compress,
+# security, unicode), whose symbols the link drops or stubs.
+FONT="$ROOT/libs/font"
+rm -rf "$W/font"
+mkdir -p "$W/font/tools" "$W/font/fonts" "$W/font/gen"
+cp -r "$FONT/include" "$W/font/include"
+cp -r "$FONT/src" "$W/font/src"
+cp "$FONT/tools/scene-hash.c" "$W/font/tools/"
+for f in $(sed -n 's/^fixture \([^ ]*\) .*/\1/p' "$FONT/tests/data/golden/scene.hash"); do cp "$FONT/tests/data/fonts/$f" "$W/font/fonts/"; done
+for lib in font compress security unicode; do
+  [ "$lib" = font ] || { rm -rf "$W/$lib"; mkdir -p "$W/$lib"; cp -r "$ROOT/libs/$lib/include" "$W/$lib/include"; }
+  make -s -C "$ROOT/libs/$lib" SKIP_DEP_CHECK=1 BUILD_DIR="$W/$lib/gen" "$W/$lib/gen/generated/ghoti.io/$lib/libver_gen.h" > "$W/logs/$lib-libver.log" 2>&1 || { echo "shape.sh: $lib libver_gen.h failed (see $W/logs/$lib-libver.log)" >&2; exit 2; }
+done
+font_hash=$(awk '$1=="hash"{print $2}' "$FONT/tests/data/golden/scene.hash")
+font_count=$(awk '$1=="count"{print $2}' "$FONT/tests/data/golden/scene.hash")
+[ -n "$font_hash" ] && [ -n "$font_count" ] || { echo "shape.sh: no committed font provider hash" >&2; exit 2; }
+echo "committed font provider hash: $font_hash over $font_count renders"
+"$HERE/m1-win.sh" "$W" "bash /tools/xwin/shape-win.sh $want $math_hash $math_count $geom_hash $geom_count $cpu_hash $cpu_count $scene_hash $scene_count $render_hash $render_count $font_hash $font_count"

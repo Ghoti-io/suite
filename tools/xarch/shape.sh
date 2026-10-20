@@ -8,7 +8,7 @@
 #   podman run --rm -v "$PWD:/work:ro,z" ghoti-xarch:sid-gcc16 \
 #     bash /work/suite/tools/xarch/shape.sh
 #
-# Eight sections, each of which shows its gate failing:
+# Nine sections, each of which shows its gate failing:
 #
 #   1. The four copies of each gate script (math, shape-geometry, shape-scene,
 #      shape-cpu) are byte-identical, because CONVENTIONS reuses one script text
@@ -110,6 +110,16 @@
 #      the section 3 and 5 builds of the scene's sources) is built against cutil's
 #      real headers, generated libver_gen.h, allocator.c and atomic.c, never the
 #      stand-in.
+#
+#   9. The font provider's hash gate (story 14b; AD-1, AD-5, CAP-10).  libs/font/
+#      tools/scene-hash.c, built with every source of font, shape-cpu,
+#      shape-scene, shape-geometry and math and the parts of cutil, color and
+#      image section 7 uses (font's other dependencies are never reached and are
+#      stubbed), must print the hash committed in libs/font/tests/data/golden/
+#      scene.hash on every target, and exits 1 if AD-5's or AD-1's equality fails
+#      there.  Control: the probe folding in the host's byte order prints the
+#      committed hash on a little-endian target and another on a big-endian one.
+#      The plant (one differing bit on each target in turn) is as in section 4.
 #
 # Arm64 is run under qemu-user, not on an arm64 machine; the real Raspberry Pi
 # 4 is `tools/evo --box pi4`.  A target that cannot be built or run fails the
@@ -1017,6 +1027,154 @@ while IFS='|' read -r triple cc qemu desc; do
   else
     sed 's/^/   | /' "$B/scene-planted-$triple.txt"
     echo "   FAIL  the shape-scene gate failed, but not on $triple alone"
+    status=1
+  fi
+done <<EOT
+$XARCH_TARGETS
+EOT
+
+#---------------------------------------------------------------------------
+echo
+echo "9. the font provider's hash gate (libs/font: AD-5 and AD-1 through shape-cpu, story 14b)"
+FONT="$ROOT/libs/font"
+gf="$B/gen/font-hash"
+mkdir -p "$gf"
+for lib in font compress security unicode; do
+  make -s -C "$ROOT/libs/$lib" SKIP_DEP_CHECK=1 BUILD_DIR="$gf/$lib" "$gf/$lib/generated/ghoti.io/$lib/libver_gen.h" \
+    > "$B/gen-font-$lib.log" 2>&1 || { echo "   FAIL  $lib: could not write libver_gen.h (see $B/gen-font-$lib.log)"; status=1; }
+done
+fh_hash=$(awk '$1=="hash"{print $2}' "$FONT/tests/data/golden/scene.hash")
+fh_count=$(awk '$1=="count"{print $2}' "$FONT/tests/data/golden/scene.hash")
+[ -n "$fh_hash" ] && [ -n "$fh_count" ] || { echo "   FAIL  no committed hash in $FONT/tests/data/golden/scene.hash"; status=1; }
+fh_want="$fh_hash $fh_count"
+# The probe (libs/font/tools/scene-hash.c) renders seven committed fixtures through shape-cpu by both routes and
+# draws glyphs directly and as one-glyph scenes, exits 1 if AD-5's or AD-1's equality fails, and prints a hash of
+# the pixels.  It is built with every source of font, shape-cpu, shape-scene, shape-geometry and math, and cutil's,
+# color's and image's parts as section 7 is, with cutil's file.c (a blob's destroy frees through it).  font's other dependencies (compress for gzip and WOFF, unicode for the
+# shaper, the rest of cutil and image) are never reached from the probe: the link drops unreached sections
+# (--gc-sections), and what is still named is given a stub that aborts, listed in $B/font-stubs-TRIPLE.c, so a
+# path that reached one would fail the run rather than link the host's.  font's own sources are built with -w:
+# their warnings are its make test's business, and this gate's is the bits.  The paths are integers or, on the
+# general route, exact in double by construction (D2), so x87 and contraction cannot move them and there is no
+# floating-point control here; the byte-order control and the plant show the gate can fail.
+FONTFLAGS="-std=c17 -O2 -w -ffp-contract=off -pthread -D_FILE_OFFSET_BITS=64 -ffunction-sections -fdata-sections -DGFNT_BUILD -DGSHCPU_BUILD -DGSHSCENE_BUILD -DGSHGEOM_BUILD -DGMATH_BUILD -DGCOL_BUILD -DGIMG_BUILD -I$FONT/include -I$gf/font/generated -I$ROOT/libs/compress/include -I$gf/compress/generated -I$ROOT/libs/security/include -I$gf/security/generated -I$ROOT/libs/unicode/include -I$gf/unicode/generated -I$CPU/include -I$gc/generated $CPU_DEP_INCLUDES -I$GEOM/include -I$gg/generated -I$MATH/include -I$mg/generated"
+
+# font_build TRIPLE CC TAG FLAGS... -> the probe at $B/font-TAG-TRIPLE, or status 1
+font_build() {
+  local triple=$1 cc=$2 tag=$3 bin="$B/font-$3-$1" objs="$B/font-obj-$3-$1"
+  shift 3
+  rm -rf "$objs"; mkdir -p "$objs"
+  # shellcheck disable=SC2086
+  { echo "$FONT/tools/scene-hash.c"; find "$FONT/src" "$CPU/src" "$SCENE/src" "$GEOM/src" -name '*.c' | sort;
+    ls "$MATH"/src/elementary/*.c; echo "$ROOT/libs/cutil/src/allocator.c"; echo "$ROOT/libs/cutil/src/atomic.c";
+    echo "$ROOT/libs/cutil/src/file.c"; echo "$ROOT/libs/color/src/gamut/gamut.c"; echo "$ROOT/libs/image/src/raster/raster.c";
+    echo "$ROOT/libs/image/src/core/allocator.c"; } > "$objs/sources"
+  # One object per source, named by its path so that two libraries' raster.c do not meet.
+  # shellcheck disable=SC2086
+  xargs -P "${JOBS:-8}" -I{} sh -c 'o=$(echo "$1" | tr / _); exec "$2" '"$FONTFLAGS $*"' -c "$1" -o "$3/$o.o"' _ {} "$cc" "$objs" \
+    < "$objs/sources" 2> "$bin.err" || return 1
+  printf '#include <stdio.h>\n#include <stdlib.h>\n' > "$B/font-stubs-$tag-$triple.c"
+  "$cc" -pthread -Wl,--gc-sections "$objs"/*.o -o "$bin" 2> "$bin.link" && return 0
+  sed -n "s/.*undefined reference to \`\\([A-Za-z0-9_]*\\)'.*/\\1/p" "$bin.link" | sort -u > "$B/font-undefined-$tag-$triple.txt"
+  [ -s "$B/font-undefined-$tag-$triple.txt" ] || { cat "$bin.link" >> "$bin.err"; return 1; }
+  # A stub that is reached says which, then aborts.
+  awk '{printf "void %s(void);\nvoid %s(void) { fputs(\"stub reached: %s\\n\", stderr); abort(); }\n", $1, $1, $1}' \
+    "$B/font-undefined-$tag-$triple.txt" >> "$B/font-stubs-$tag-$triple.c"
+  # shellcheck disable=SC2086
+  "$cc" -w -c "$B/font-stubs-$tag-$triple.c" -o "$objs/stubs.o" 2>> "$bin.err" \
+    && "$cc" -pthread -Wl,--gc-sections "$objs"/*.o -o "$bin" 2>> "$bin.err"
+}
+
+# font_run TRIPLE QEMU TAG [ENV=VALUE...] -> prints "HASH COUNT", or status 1 (a failed equality is a failed run)
+font_run() {
+  local triple=$1 qemu=$2 tag=$3 out="$B/font-$3-$1"
+  shift 3
+  env "$@" bash -c '. "$1"/targets.sh; xarch_run "$2" "$3" "$4" "$5"' _ "$HERE" "$triple" "$qemu" "$out" "$FONT/tests/data/fonts" \
+    > "$out.txt.$$" 2>> "$out.err" || { cat "$out.txt.$$" >> "$out.err"; rm -f "$out.txt.$$"; return 1; }
+  awk '$1=="font-scene.hash"{h=$2} $1=="font-scene.count"{c=$2} END{if (h != "") print h, c}' "$out.txt.$$"
+  rm -f "$out.txt.$$"
+}
+
+declare -A FOK FPLANT
+while IFS='|' read -r triple cc qemu desc; do
+  triple=$(echo "$triple" | tr -d ' '); cc=$(echo "$cc" | tr -d ' ')
+  qemu=$(echo "$qemu" | tr -d ' ')
+  [ -z "$triple" ] && continue
+  # shellcheck disable=SC2046
+  if font_build "$triple" "$cc" ok $(xarch_fp_cflags "$triple"); then
+    FOK[$triple]=$(font_run "$triple" "$qemu" ok) \
+      || { echo "   FAIL  $triple: the font probe failed (see $B/font-ok-$triple.err)"; status=1; FOK[$triple]=""; }
+    FPLANT[$triple]=$(font_run "$triple" "$qemu" ok FONT_SCENE_PLANT=1) || FPLANT[$triple]=""
+  else
+    echo "   FAIL  $triple: cannot build the font probe (see $B/font-ok-$triple.err)"
+    status=1; FOK[$triple]=""; FPLANT[$triple]=""
+  fi
+  [ -s "$B/font-undefined-ok-$triple.txt" ] \
+    && echo "   |     $triple: $(wc -l < "$B/font-undefined-ok-$triple.txt") symbols the probe never reaches are stubbed (abort)"
+done <<EOT
+$XARCH_TARGETS
+EOT
+
+# font_gate PLANTED_TRIPLE -> 0 if every target prints the committed hash and count.
+font_gate() {
+  local planted=$1 rc=0 triple cc qemu desc got
+  while IFS='|' read -r triple cc qemu desc; do
+    triple=$(echo "$triple" | tr -d ' ')
+    [ -z "$triple" ] && continue
+    if [ "$triple" = "$planted" ]; then got=${FPLANT[$triple]:-}; else got=${FOK[$triple]:-}; fi
+    if [ -n "$got" ] && [ "$got" = "$fh_want" ]; then
+      printf "   ok    %-22s %s\n" "$triple" "$got"
+    else
+      printf "   FAIL  %-22s %s  (want %s)\n" "$triple" "${got:-none}" "$fh_want"
+      rc=1
+    fi
+  done <<EOT2
+$XARCH_TARGETS
+EOT2
+  return $rc
+}
+
+echo " a. every target prints the committed hash, with AD-5 and AD-1 holding there"
+font_gate "" || status=1
+
+echo " b. the control: the probe sees a byte-order slip"
+while IFS='|' read -r triple cc qemu desc; do
+  triple=$(echo "$triple" | tr -d ' '); qemu=$(echo "$qemu" | tr -d ' ')
+  [ -z "$triple" ] && continue
+  [ -n "${FOK[$triple]:-}" ] || continue
+  fn=$(font_run "$triple" "$qemu" ok FONT_SCENE_NATIVE_ORDER=1) || fn=""
+  case "$triple" in
+    s390x*|powerpc*|sparc*) want_same=0 ;;
+    *) want_same=1 ;;
+  esac
+  if [ -z "$fn" ]; then
+    echo "   FAIL  $triple: the byte-order control did not run"
+    status=1
+  elif [ $want_same -eq 1 ] && [ "$fn" = "$fh_want" ]; then
+    echo "   ok    $triple (little-endian): the native-order control prints the committed hash"
+  elif [ $want_same -eq 0 ] && [ "$fn" != "$fh_want" ]; then
+    echo "   ok    $triple (big-endian): the native-order control prints $fn, not the committed hash"
+  else
+    echo "   FAIL  $triple: the native-order control printed '$fn' (committed $fh_want): the probe cannot see byte order there"
+    status=1
+  fi
+done <<EOT
+$XARCH_TARGETS
+EOT
+
+echo " c. planted: one differing bit on each target in turn must fail the gate, naming it"
+while IFS='|' read -r triple cc qemu desc; do
+  triple=$(echo "$triple" | tr -d ' ')
+  [ -z "$triple" ] && continue
+  if font_gate "$triple" > "$B/font-planted-$triple.txt" 2>&1; then
+    echo "   FAIL  the font gate passed with a bit flipped on $triple: it checks nothing there"
+    status=1
+  elif grep -q "FAIL  $triple " "$B/font-planted-$triple.txt" \
+    && [ "$(grep -c FAIL "$B/font-planted-$triple.txt")" -eq 1 ]; then
+    echo "   ok    $triple: caught, and only $triple named"
+  else
+    sed 's/^/   | /' "$B/font-planted-$triple.txt"
+    echo "   FAIL  the font gate failed, but not on $triple alone"
     status=1
   fi
 done <<EOT

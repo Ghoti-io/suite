@@ -14,6 +14,8 @@ scene_hash=${8:?usage: shape-win.sh NATIVE_HASH MATH_HASH MATH_COUNT GEOM_HASH G
 scene_count=${9:?usage: shape-win.sh NATIVE_HASH MATH_HASH MATH_COUNT GEOM_HASH GEOM_COUNT CPU_HASH CPU_COUNT SCENE_HASH SCENE_COUNT}
 render_hash=${10:?usage: shape-win.sh ... SCENE_HASH SCENE_COUNT RENDER_HASH RENDER_COUNT}
 render_count=${11:?usage: shape-win.sh ... SCENE_HASH SCENE_COUNT RENDER_HASH RENDER_COUNT}
+font_hash=${12:?usage: shape-win.sh ... RENDER_HASH RENDER_COUNT FONT_HASH FONT_COUNT}
+font_count=${13:?usage: shape-win.sh ... RENDER_HASH RENDER_COUNT FONT_HASH FONT_COUNT}
 P=/tools/xarch/shape-hash-probe.c
 cd /w || exit 2
 
@@ -135,6 +137,46 @@ if [ -n "$cplant" ] && [ "$cplant" != "$cwant" ]; then
   echo "   ok    planted: one differing bit in a shape-cpu result on win64 is not the committed hash"
 else
   echo "   FAIL  planted: the win64 shape-cpu probe with a flipped bit still matches (or did not run)"; rc=1
+fi
+# The font provider's probe (story 14b; AD-5, AD-1): every source of font with shape-cpu's, shape-scene's,
+# shape-geometry's and math's and the parts of cutil, color and image above.  font's other dependencies are never
+# reached: unreached sections are dropped (--gc-sections) and a symbol still named gets a stub that aborts.  font's
+# sources are built with -w (their warnings are its make test's business; this gate's is the bits).
+F=/w/font
+FF="-std=c17 -O2 -w -ffp-contract=off -ffunction-sections -fdata-sections -DGFNT_BUILD -DGSHCPU_BUILD -DGSHSCENE_BUILD -DGSHGEOM_BUILD -DGMATH_STATIC -DGHOTIIO_CUTIL_STATIC -DGCOL_BUILD -DGIMG_BUILD -DGCOMP_STATIC -DGSEC_STATIC -DGUNI_STATIC -I$F/include -I$F/gen/generated -I/w/compress/include -I/w/compress/gen/generated -I/w/security/include -I/w/security/gen/generated -I/w/unicode/include -I/w/unicode/gen/generated -I$U/include -I$U/gen/generated -I$N/include -I$N/gen/generated -I$G/include -I$G/gen/generated -I$M/include -I$M/gen/generated -I$C/include -I$C/gen/include -I$K/include -I$K/gen/generated -I$I/include -I$I/gen/generated"
+rm -rf font-obj
+mkdir -p font-obj
+for src in "$F/tools/scene-hash.c" $(find "$F/src" "$U/src" "$N/src" "$G/src" -name '*.c' | sort) "$M"/src/elementary/*.c "$C/src/allocator.c" "$C/src/atomic.c" "$C/src/file.c" "$K/src/gamut.c" "$I/src/raster.c" "$I/core/allocator.c"; do
+  # shellcheck disable=SC2086
+  x86_64-w64-mingw32-gcc $FF -c "$src" -o "font-obj/$(echo "$src" | tr / _).o" || { echo "shape-win: the font probe did not build ($src)" >&2; exit 2; }
+done
+printf '#include <stdio.h>\n#include <stdlib.h>\n' > font-stubs.c
+if ! x86_64-w64-mingw32-gcc -Wl,--gc-sections font-obj/*.o -o font-probe.exe 2> font-link.txt; then
+  sed -n "s/.*undefined reference to \`\([A-Za-z0-9_]*\)'.*/\1/p" font-link.txt | sort -u > font-undefined.txt
+  [ -s font-undefined.txt ] || { cat font-link.txt >&2; echo "shape-win: the font probe did not link" >&2; exit 2; }
+  # A stub that is reached says which, then aborts.
+  awk '{printf "void %s(void);\nvoid %s(void) { fputs(\"stub reached: %s\\n\", stderr); abort(); }\n", $1, $1, $1}' font-undefined.txt >> font-stubs.c
+  x86_64-w64-mingw32-gcc -w -c font-stubs.c -o font-obj/stubs.o && x86_64-w64-mingw32-gcc -Wl,--gc-sections font-obj/*.o -o font-probe.exe \
+    || { echo "shape-win: the font probe did not link with its stubs" >&2; exit 2; }
+  echo "   |     $(wc -l < font-undefined.txt) symbols the font probe never reaches are stubbed (abort)"
+fi
+fwant="$font_hash $font_count"
+./font-probe.exe font/fonts 2> font-probe.err | tr -d '\r' > font-probe.txt
+frc=${PIPESTATUS[0]}
+fgot=$(awk '/^font-scene.hash/{h=$2} /^font-scene.count/{c=$2} END{if (h != "") print h, c}' font-probe.txt)
+fplant=$(FONT_SCENE_PLANT=1 ./font-probe.exe font/fonts 2>/dev/null | tr -d '\r' | awk '/^font-scene.hash/{h=$2} /^font-scene.count/{c=$2} END{if (h != "") print h, c}')
+echo "windows (wine) font provider hash: ${fgot:-none} (exit $frc)   planted: ${fplant:-none}   committed: $fwant"
+if [ "$frc" -eq 0 ] && [ -n "$fgot" ] && [ "$fgot" = "$fwant" ]; then
+  echo "   ok    win64 prints the committed font provider hash, with AD-5 and AD-1 holding"
+else
+  echo "   FAIL  win64 does not print the committed font provider hash (or an equality failed)"; rc=1
+  grep '^font-scene.FAIL' font-probe.txt | sed 's/^/   |   /'
+  tr -d '\r' < font-probe.err | grep 'stub reached' | sort -u | sed 's/^/   |   /'
+fi
+if [ -n "$fplant" ] && [ "$fplant" != "$fwant" ]; then
+  echo "   ok    planted: one differing bit in the font probe on win64 is not the committed hash"
+else
+  echo "   FAIL  planted: the win64 font probe with a flipped bit still matches (or did not run)"; rc=1
 fi
 [ $rc -eq 0 ] && echo "shape-win: PASS" || echo "shape-win: FAIL"
 exit $rc
