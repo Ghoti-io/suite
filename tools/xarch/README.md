@@ -632,8 +632,9 @@ podman run --rm -v "$PWD:/work:ro,z" ghoti-xarch:sid-gcc16 bash /work/suite/tool
    stream), publishes a driver's edit and redraws its damage. Everything it
    prints must be `suite/tools/shape-success/expected.txt` on every target. The
    font is not committed: `suite/tools/shape-success/fetch.sh` fetches it by
-   digest, and the section fails without it. The controls are section 4's
-   (i686 without SSE, aarch64 with contraction on), and so is the plant.
+   digest, and the section fails without it. The control is i686 without SSE
+   (x87 moves the output); aarch64 with contraction on does not move this
+   scene's output, so it is not used here. The plant is section 4's.
    Windows is `suite/tools/xwin/shape.sh`, and the Raspberry Pi 4 runs
    `suite/tools/shape-success/check.sh` on its own build.
 

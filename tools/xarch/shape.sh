@@ -130,10 +130,12 @@
 #      damage; everything it prints must be suite/tools/shape-success/
 #      expected.txt on every target.  The font is fetched by suite/tools/
 #      shape-success/fetch.sh (SUCCESS_FONT names another copy) and its digest is
-#      checked; a missing font fails the section.  Controls: i686 without the SSE
-#      flags and aarch64 with contraction on must print something else (the
-#      compositing and the general route are double arithmetic).  The plant (one
-#      differing bit on each target in turn) is as in section 4.
+#      checked; a missing font fails the section.  Control: i686 without the SSE
+#      flags must print something else (the compositing and the general route are
+#      double arithmetic).  aarch64 with contraction on prints this scene's
+#      output unchanged (story 16's first run: its few fused products move no
+#      8-bit pixel), so it is no control here; section 7's renders are.  The
+#      plant (one differing bit on each target in turn) is as in section 4.
 #
 # Arm64 is run under qemu-user, not on an arm64 machine; the real Raspberry Pi
 # 4 is `tools/evo --box pi4`.  A target that cannot be built or run fails the
@@ -1270,8 +1272,8 @@ if [ $s_ready -eq 1 ]; then
   echo " a. every target prints expected.txt: every hash, route, report entry and the damage"
   success_gate "" || status=1
 
-  echo " b. the controls: x87 excess precision and contraction are seen"
-  for ctl in "i686-linux-gnu|i686-linux-gnu-gcc||-O2" "aarch64-linux-gnu|aarch64-linux-gnu-gcc|qemu-aarch64|-ffp-contract=fast"; do
+  echo " b. the control: x87 excess precision is seen"
+  for ctl in "i686-linux-gnu|i686-linux-gnu-gcc||-O2"; do
     IFS='|' read -r triple cc qemu extra <<EOF2
 $ctl
 EOF2
@@ -1279,8 +1281,7 @@ EOF2
 $XARCH_TARGETS
 EOT3
 )
-    # The control replaces the target's own flags: i686 with none (x87), aarch64 with contraction (FONTFLAGS'
-    # -ffp-contract=off comes first, and the later flag wins).
+    # The control replaces the target's own flags: i686 with none, so x87.
     if FONT_MAIN="$FONT/examples/font-scene.c" font_build "$triple" "$cc" ctl $extra; then
       success_run "$triple" "$qemu" ctl > "$B/success-ctl-$triple.txt" || true
       if [ -s "$B/success-ctl-$triple.txt" ] && ! cmp -s "$B/success-ctl-$triple.txt" "$SUCCESS/expected.txt"; then
