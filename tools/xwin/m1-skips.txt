@@ -49,3 +49,12 @@ runtime-jit testCpu_features CpuDetect.TheDetectedSetIsTheCpuinfoFlagsOfTheHostW
 defiant-storage-sqlite testPlacement Io.DiskFailureOnPutIsNotCommitted a read-only directory does not stop a Windows process creating files in it
 defiant-test testHarness Site.Readable the reader is a separate ELF program started with fork and checked with readelf
 defiant-core testInst Inst.Effective the effective-config example is run with a chosen environment through fork and execve
+# archive: a shell to run, a fifo to make, and two tests that wait for data the job is not given.
+archive testArcpio_write SharWrite.TheScriptWhenRunRecreatesTheTree a shell archive is run by sh, which Windows does not have; check-arcpio-writer runs one under a real sh
+archive testFs ExtractRoot.PackRefusesAFifo Windows has no fifo in the filesystem to pack
+archive testZip_legacy ZipLegacy.EveryRealMemberFromOtherProgramsReadsAndItsCrcVerifies the PKZIP-era members are fetched by compress's tools/legacy_zip and are not shipped with the job
+archive testZip_legacy ZipLegacy.WritesFuzzSeedsWhenAsked runs only when GARC_SEED_DIR names where to write the seeds
+archive testFs ExtractRoot.PackAndExtractRoundTripMatchesBytesAndMasksModes the setup sets Unix modes, which Windows has none of; PackedAsSevenZipAndExtractedAgainMatches round-trips the bytes there
+archive testFs ExtractRoot.PackStoresASymlinkAndNotTheOutsideBytes the setup makes a symlink, which cutil does not create on Windows
+archive testFs ExtractRoot.APreexistingSymlinkIsNotFollowed the setup makes a symlink, which cutil does not create on Windows
+archive testFs ExtractRoot.DotSlashTargetIsStored extracting a symlink is refused on Windows, which ContainedSymlinkIsCreatedWhenLinksAreAllowed asserts there

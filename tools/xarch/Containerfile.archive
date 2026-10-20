@@ -1,0 +1,59 @@
+# The archive library's cross-architecture image: ghoti-xarch:sid-gcc16 with a
+# C++ compiler and a googletest for each target archive's tests run on.
+# Tag ghoti-xarch-archive:sid-gcc16-gtest.
+#
+# archive parses little-endian binary formats (zip, 7z, cpio, ar) on whatever
+# host it is built for, so the targets are the ones that can tell a correct
+# parser from one that only works on x86-64:
+#
+#   i686     32-bit size_t and pointers
+#   s390x    64-bit big-endian
+#   powerpc  32-bit big-endian, the two at once
+#   sparc64  64-bit big-endian with strict alignment: an unaligned load traps
+#
+# The parent pins the base by digest and apt to a dated snapshot, and this image
+# installs from the same snapshot, so the g++ here is the same 16.2.0 as the
+# parent's gcc.  googletest is built from the distribution's source for each
+# target into /opt/<target>, with a gtest.pc that PKG_CONFIG_PATH finds before
+# anything of the host's, so an x86-64 archive is never linked.
+#
+# The tag names what is inside (notes/suite/CONTAINERS.md section 6).  Never :latest.
+FROM localhost/ghoti-xarch:sid-gcc16
+
+RUN apt-get update \
+ && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+      g++-16-i686-linux-gnu \
+      g++-16-s390x-linux-gnu \
+      g++-16-powerpc-linux-gnu \
+      g++-16-sparc64-linux-gnu \
+      googletest \
+      pkg-config \
+      rsync \
+      python3 \
+ && for t in i686 s390x powerpc sparc64; do \
+      ln -sf "$t-linux-gnu-g++-16" "/usr/bin/$t-linux-gnu-g++"; \
+      for b in ar ranlib nm objdump readelf strip objcopy; do \
+        test -x "/usr/bin/$t-linux-gnu-$b" || exit 1; \
+      done; \
+    done \
+ && rm -rf /var/lib/apt/lists/*
+
+RUN set -eux; \
+    for t in i686 s390x powerpc sparc64; do \
+      d=/opt/$t; mkdir -p $d/lib/pkgconfig /tmp/gtest-build; cd /tmp/gtest-build; \
+      for f in gtest-all gtest_main; do \
+        $t-linux-gnu-g++ -std=c++20 -O1 -fPIC \
+          -I/usr/src/googletest/googletest \
+          -I/usr/src/googletest/googletest/include \
+          -c /usr/src/googletest/googletest/src/$f.cc -o $f.o; \
+      done; \
+      $t-linux-gnu-ar rcs $d/lib/libgtest.a gtest-all.o; \
+      $t-linux-gnu-ar rcs $d/lib/libgtest_main.a gtest_main.o; \
+      printf "Name: gtest\nDescription: googletest for $t\nVersion: 0\nLibs: -L$d/lib -lgtest -pthread\nCflags: -I/usr/src/googletest/googletest/include\n" \
+        > $d/lib/pkgconfig/gtest.pc; \
+      printf "Name: gtest_main\nDescription: googletest main for $t\nVersion: 0\nRequires: gtest\nLibs: -L$d/lib -lgtest_main\nCflags: -I/usr/src/googletest/googletest/include\n" \
+        > $d/lib/pkgconfig/gtest_main.pc; \
+      rm -rf /tmp/gtest-build; \
+    done
+
+WORKDIR /work

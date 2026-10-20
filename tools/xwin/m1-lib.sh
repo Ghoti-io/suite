@@ -134,7 +134,30 @@ done
 
 # Examples and the benchmark smoke, one by one: exit 77 is "skipped".
 ex_ran=0; ex_skip=0; ex_bad=0
+# archive's examples take paths, so they cannot run bare: each writer runs first, and every reader
+# then lists what the writers produced.  arcpio_list reads standard input.
+ax() { # ax <log tag> <example> [args...]
+  local tag=$1 name=$2; shift 2
+  (cd $APPS && timeout 300 ./examples/$name.exe "$@" > /w/logs/$l.ex-$tag.out 2>&1); local rc=$?
+  [ $rc -eq 0 ] && ex_ran=$((ex_ran + 1)) || { ex_bad=$((ex_bad + 1)); echo "EXAMPLE FAILED: $name $* rc=$rc"; tail -n 5 /w/logs/$l.ex-$tag.out; }
+}
+if [ "$l" = archive ]; then
+  rm -f $APPS/ex-*
+  ax w-tar tar_write ex-t.tar
+  ax w-txz tar_write --xz ex-t.tar.xz
+  ax w-zip zip_write ex-z.zip --deflate
+  ax w-zips zip_write ex-zs.zip --stream --xz
+  ax w-7z sevenz_write ex-s.7z
+  for f in ex-t.tar ex-t.tar.xz ex-z.zip ex-zs.zip ex-s.7z; do ax "l-$f" tar_list $f; done
+  ax l-zip zip_list ex-z.zip
+  ax l-7z sevenz_list ex-s.7z
+  ax l-stream stream_from_file ex-t.tar
+  ax l-names name_findings ex-t.tar
+  (cd $APPS && timeout 300 ./examples/arcpio_list.exe < /w/archive/tests/data/arcpio/newc.cpio > /w/logs/$l.ex-cpio.out 2>&1) \
+    && ex_ran=$((ex_ran + 1)) || { ex_bad=$((ex_bad + 1)); echo "EXAMPLE FAILED: arcpio_list"; }
+fi
 for e in $APPS/examples/*.exe $APPS/bench/*.exe; do
+  [ "$l" = archive ] && break
   [ -e "$e" ] || continue
   args=; case $(basename $e .exe) in web_server) args=--self-test ;; bench) args=--smoke ;; esac
   (cd $APPS && timeout 300 $e $args > /w/logs/$l.$(basename $e .exe).out 2>&1); rc=$?
