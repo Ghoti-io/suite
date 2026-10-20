@@ -187,6 +187,9 @@ ex "zip_list z.zip"           qrun "$E/zip_list" "$X/z.zip"
 ex "sevenz_list s.7z"         qrun "$E/sevenz_list" "$X/s.7z"
 ex "stream_from_file t.tar"   qrun "$E/stream_from_file" "$X/t.tar"
 ex "name_findings t.tar"      qrun "$E/name_findings" "$X/t.tar"
+ex "archive_update z.zip"     qrun "$E/archive_update" "$X/z.zip" -d notes/run.sh -a extra.txt=hello
+ex "archive_update --in-place t.tar" qrun "$E/archive_update" "$X/t.tar" --in-place -a log.txt=line
+ex "tar_list t.tar after"     qrun "$E/tar_list" "$X/t.tar"
 # newc, not bin.cpio, which the reader refuses by name.
 cpio="$SRC/archive/tests/data/arcpio/newc.cpio"
 [ -f "$cpio" ] || { fails+=("example: no newc.cpio for arcpio_list"); cpio=; }

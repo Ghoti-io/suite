@@ -153,6 +153,9 @@ if [ "$l" = archive ]; then
   ax l-7z sevenz_list ex-s.7z
   ax l-stream stream_from_file ex-t.tar
   ax l-names name_findings ex-t.tar
+  ax u-zip archive_update ex-z.zip -d notes/run.sh -a extra.txt=hello
+  ax u-tar archive_update ex-t.tar --in-place -a log.txt=line
+  ax u-list tar_list ex-t.tar
   (cd $APPS && timeout 300 ./examples/arcpio_list.exe < /w/archive/tests/data/arcpio/newc.cpio > /w/logs/$l.ex-cpio.out 2>&1) \
     && ex_ran=$((ex_ran + 1)) || { ex_bad=$((ex_bad + 1)); echo "EXAMPLE FAILED: arcpio_list"; }
 fi

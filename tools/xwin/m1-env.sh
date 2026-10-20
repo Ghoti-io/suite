@@ -37,6 +37,11 @@ cat > $SHIM/wine-exec <<'U'
 export LD_LIBRARY_PATH=/hostusr/lib/x86_64-linux-gnu${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
 export WINEPREFIX=${WINEPREFIX:-/w/wineprefix} WINEDEBUG=${WINEDEBUG:--all}
 export WINESERVER=/usr/lib/wine/wineserver64
+# A UTF-8 locale, or wine maps every non-ASCII name to nothing on the Unix side
+# and _wfopen, CreateFileW and everything above them answer "not found": a
+# probe (archive, 2026-10-20) failed for "bmp\u00e9\u00e8.txt" without it and
+# succeeded for that and for a non-BMP name with it.
+export LANG=C.UTF-8 LC_ALL=C.UTF-8
 exec /usr/lib/wine/wine64 "$@"
 U
 chmod +x $SHIM/wine-exec; ln -sf wine-exec $SHIM/wine
