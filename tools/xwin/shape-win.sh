@@ -178,5 +178,38 @@ if [ -n "$fplant" ] && [ "$fplant" != "$fwant" ]; then
 else
   echo "   FAIL  planted: the win64 font probe with a flipped bit still matches (or did not run)"; rc=1
 fi
+# The success scene (story 16): font's example program with the objects above (all but the probe's main), on the
+# pinned font; its whole output must be expected.txt, and a copy with one bit of its fold flipped must not be.
+x86_64-w64-mingw32-gcc $FF -c "$F/examples/font-scene.c" -o success-main.o || { echo "shape-win: the success scene did not build" >&2; exit 2; }
+probe_obj="font-obj/$(echo "$F/tools/scene-hash.c" | tr / _).o"
+sobjs=$(ls font-obj/*.o | grep -v -e "^$probe_obj\$" -e '^font-obj/stubs.o$')
+printf '#include <stdio.h>\n#include <stdlib.h>\n' > success-stubs.c
+# shellcheck disable=SC2086
+if ! x86_64-w64-mingw32-gcc -Wl,--gc-sections $sobjs success-main.o -o font-scene.exe 2> success-link.txt; then
+  sed -n "s/.*undefined reference to \`\([A-Za-z0-9_]*\)'.*/\1/p" success-link.txt | sort -u > success-undefined.txt
+  [ -s success-undefined.txt ] || { cat success-link.txt >&2; echo "shape-win: the success scene did not link" >&2; exit 2; }
+  awk '{printf "void %s(void);\nvoid %s(void) { fputs(\"stub reached: %s\\n\", stderr); abort(); }\n", $1, $1, $1}' success-undefined.txt >> success-stubs.c
+  # shellcheck disable=SC2086
+  x86_64-w64-mingw32-gcc -w -c success-stubs.c -o success-stubs.o && x86_64-w64-mingw32-gcc -Wl,--gc-sections $sobjs success-main.o success-stubs.o -o font-scene.exe \
+    || { echo "shape-win: the success scene did not link with its stubs" >&2; exit 2; }
+  echo "   |     $(wc -l < success-undefined.txt) symbols the success scene never reaches are stubbed (abort)"
+fi
+./font-scene.exe success/DejaVuSans.ttf AB 2> success.err | tr -d '\r' > success.txt
+src=${PIPESTATUS[0]}
+awk '$1=="font-scene.hash"{d=substr($2,16,1); n=index("0123456789abcdef",d)-1; n=(n%2==0)?n+1:n-1;
+  $2=substr($2,1,15) substr("0123456789abcdef",n+1,1)} {print}' success.txt > success-planted.txt
+echo "windows (wine) success scene: $(awk '$1=="font-scene.hash"{print $2}' success.txt) (exit $src)   committed: $(awk '$1=="font-scene.hash"{print $2}' success/expected.txt)"
+if [ "$src" -eq 0 ] && cmp -s success.txt success/expected.txt; then
+  echo "   ok    win64 prints the success scene's expected.txt"
+else
+  echo "   FAIL  win64 does not print the success scene's expected.txt (or a check of its own failed)"; rc=1
+  diff success/expected.txt success.txt | sed 's/^/   |   /'
+  tr -d '\r' < success.err | sed 's/^/   |   /'
+fi
+if cmp -s success-planted.txt success/expected.txt; then
+  echo "   FAIL  planted: the success scene with a flipped bit still matches"; rc=1
+else
+  echo "   ok    planted: one differing bit in the success scene's output is not expected.txt"
+fi
 [ $rc -eq 0 ] && echo "shape-win: PASS" || echo "shape-win: FAIL"
 exit $rc

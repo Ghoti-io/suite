@@ -623,6 +623,20 @@ podman run --rm -v "$PWD:/work:ro,z" ghoti-xarch:sid-gcc16 bash /work/suite/tool
    general map; the composed maps and the damage are floating point, so the
    controls see them too.
 
+10. **The success scene** (story 16, the milestone's success signal).
+   `libs/font/examples/font-scene.c`, built the way section 9 builds the font
+   provider's probe, records one retained scene (a star under both fill rules,
+   a group of opacity 0.6 under a clip, a glyph on the hinted fast tier and a
+   turned one on the general route) with the pinned real font DejaVu Sans 2.37,
+   renders it through `shape-cpu` and the test sink (a raster and a writer's
+   stream), publishes a driver's edit and redraws its damage. Everything it
+   prints must be `suite/tools/shape-success/expected.txt` on every target. The
+   font is not committed: `suite/tools/shape-success/fetch.sh` fetches it by
+   digest, and the section fails without it. The controls are section 4's
+   (i686 without SSE, aarch64 with contraction on), and so is the plant.
+   Windows is `suite/tools/xwin/shape.sh`, and the Raspberry Pi 4 runs
+   `suite/tools/shape-success/check.sh` on its own build.
+
 Arm64 is qemu-user here, not hardware; the real Pi is `tools/evo --box pi4`. A
 library whose sources include its dependencies' headers needs
 `SHAPE_DEP_INCLUDES` set to their `-I` flags; the scaffolds include none.

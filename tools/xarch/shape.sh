@@ -8,7 +8,7 @@
 #   podman run --rm -v "$PWD:/work:ro,z" ghoti-xarch:sid-gcc16 \
 #     bash /work/suite/tools/xarch/shape.sh
 #
-# Nine sections, each of which shows its gate failing:
+# Ten sections, each of which shows its gate failing:
 #
 #   1. The four copies of each gate script (math, shape-geometry, shape-scene,
 #      shape-cpu) are byte-identical, because CONVENTIONS reuses one script text
@@ -121,6 +121,20 @@
 #      committed hash on a little-endian target and another on a big-endian one.
 #      The plant (one differing bit on each target in turn) is as in section 4.
 #
+#  10. The success scene (story 16; the SPEC's success signal, CAP-11, CAP-12).
+#      libs/font/examples/font-scene.c, built as section 9 builds its probe, draws
+#      one retained scene (a star under both fill rules, a group of opacity 0.6
+#      under a clip, a glyph on the hinted fast tier and a turned one on the
+#      general route, from the pinned real font DejaVu Sans 2.37) through
+#      shape-cpu and the test sink, publishes a driver's edit and redraws its
+#      damage; everything it prints must be suite/tools/shape-success/
+#      expected.txt on every target.  The font is fetched by suite/tools/
+#      shape-success/fetch.sh (SUCCESS_FONT names another copy) and its digest is
+#      checked; a missing font fails the section.  Controls: i686 without the SSE
+#      flags and aarch64 with contraction on must print something else (the
+#      compositing and the general route are double arithmetic).  The plant (one
+#      differing bit on each target in turn) is as in section 4.
+#
 # Arm64 is run under qemu-user, not on an arm64 machine; the real Raspberry Pi
 # 4 is `tools/evo --box pi4`.  A target that cannot be built or run fails the
 # section, naming it.
@@ -177,7 +191,7 @@ status=0
 
 #---------------------------------------------------------------------------
 echo "1. the four copies of each gate script are identical"
-SCRIPTS="check-edges.sh check-libm.sh check-no-x87.sh check-gates.sh check-fp-contract.sh check-stamps.py"
+SCRIPTS="check-edges.sh check-libm.sh check-no-x87.sh check-gates.sh check-fp-contract.sh check-stamps.py run-examples.sh"
 # same_text REFERENCE FILE... -> 0 if every file equals REFERENCE; names a differing one.
 same_text() {
   local ref=$1 f rc=0
@@ -1064,8 +1078,9 @@ font_build() {
   local triple=$1 cc=$2 tag=$3 bin="$B/font-$3-$1" objs="$B/font-obj-$3-$1"
   shift 3
   rm -rf "$objs"; mkdir -p "$objs"
+  # The program's main: the provider's probe, or (section 10, FONT_MAIN) the success scene.
   # shellcheck disable=SC2086
-  { echo "$FONT/tools/scene-hash.c"; find "$FONT/src" "$CPU/src" "$SCENE/src" "$GEOM/src" -name '*.c' | sort;
+  { echo "${FONT_MAIN:-$FONT/tools/scene-hash.c}"; find "$FONT/src" "$CPU/src" "$SCENE/src" "$GEOM/src" -name '*.c' | sort;
     ls "$MATH"/src/elementary/*.c; echo "$ROOT/libs/cutil/src/allocator.c"; echo "$ROOT/libs/cutil/src/atomic.c";
     echo "$ROOT/libs/cutil/src/file.c"; echo "$ROOT/libs/color/src/gamut/gamut.c"; echo "$ROOT/libs/image/src/raster/raster.c";
     echo "$ROOT/libs/image/src/core/allocator.c"; } > "$objs/sources"
@@ -1180,6 +1195,127 @@ while IFS='|' read -r triple cc qemu desc; do
 done <<EOT
 $XARCH_TARGETS
 EOT
+
+#---------------------------------------------------------------------------
+echo
+echo "10. the success scene (libs/font/examples/font-scene.c on the pinned font, story 16)"
+SUCCESS="$ROOT/suite/tools/shape-success"
+SUCCESS_FONT=${SUCCESS_FONT:-$SUCCESS/data/DejaVuSans.ttf}
+SUCCESS_SHA256=7da195a74c55bef988d0d48f9508bd5d849425c1770dba5d7bfc6ce9ed848954
+declare -A SOK SPLANT
+s_ready=1
+if [ ! -f "$SUCCESS_FONT" ]; then
+  echo "   FAIL  no $SUCCESS_FONT: run suite/tools/shape-success/fetch.sh first"
+  status=1; s_ready=0
+elif ! printf '%s  %s\n' "$SUCCESS_SHA256" "$SUCCESS_FONT" | sha256sum -c - > /dev/null 2>&1; then
+  echo "   FAIL  $SUCCESS_FONT is not the pinned font (its digest differs)"
+  status=1; s_ready=0
+fi
+[ -s "$SUCCESS/expected.txt" ] || { echo "   FAIL  no $SUCCESS/expected.txt"; status=1; s_ready=0; }
+# success_run TRIPLE QEMU TAG -> the program's output on stdout, or status 1 (a failed check is a failed run)
+success_run() {
+  local triple=$1 qemu=$2 tag=$3 out="$B/font-$3-$1"
+  bash -c '. "$1"/targets.sh; xarch_run "$2" "$3" "$4" "$5" AB' _ "$HERE" "$triple" "$qemu" "$out" "$SUCCESS_FONT" \
+    2>> "$out.err"
+}
+# The plant flips the last hex digit of the fold in a copy of the output.
+success_plant() {
+  awk '$1=="font-scene.hash"{d=substr($2,16,1); n=index("0123456789abcdef",d)-1; n=(n%2==0)?n+1:n-1;
+    $2=substr($2,1,15) substr("0123456789abcdef",n+1,1)} {print}' "$1"
+}
+if [ $s_ready -eq 1 ]; then
+  while IFS='|' read -r triple cc qemu desc; do
+    triple=$(echo "$triple" | tr -d ' '); cc=$(echo "$cc" | tr -d ' '); qemu=$(echo "$qemu" | tr -d ' ')
+    [ -z "$triple" ] && continue
+    # shellcheck disable=SC2046
+    if FONT_MAIN="$FONT/examples/font-scene.c" font_build "$triple" "$cc" success $(xarch_fp_cflags "$triple"); then
+      if success_run "$triple" "$qemu" success > "$B/success-$triple.txt"; then
+        SOK[$triple]="$B/success-$triple.txt"
+        success_plant "$B/success-$triple.txt" > "$B/success-planted-$triple.txt"
+        SPLANT[$triple]="$B/success-planted-$triple.txt"
+      else
+        echo "   FAIL  $triple: the success scene failed a check of its own (see $B/font-success-$triple.err)"
+        status=1
+      fi
+    else
+      echo "   FAIL  $triple: cannot build the success scene (see $B/font-success-$triple.err)"
+      status=1
+    fi
+  done <<EOT
+$XARCH_TARGETS
+EOT
+fi
+
+# success_gate PLANTED_TRIPLE -> 0 if every target printed expected.txt.
+success_gate() {
+  local planted=$1 rc=0 triple cc qemu desc got
+  while IFS='|' read -r triple cc qemu desc; do
+    triple=$(echo "$triple" | tr -d ' ')
+    [ -z "$triple" ] && continue
+    if [ "$triple" = "$planted" ]; then got=${SPLANT[$triple]:-}; else got=${SOK[$triple]:-}; fi
+    if [ -n "$got" ] && cmp -s "$got" "$SUCCESS/expected.txt"; then
+      printf "   ok    %-22s %s\n" "$triple" "$(awk '$1=="font-scene.hash"{print $2}' "$got")"
+    else
+      printf "   FAIL  %-22s %s  (want %s)\n" "$triple" "$( [ -n "$got" ] && awk '$1=="font-scene.hash"{print $2}' "$got")" \
+        "$(awk '$1=="font-scene.hash"{print $2}' "$SUCCESS/expected.txt")"
+      rc=1
+    fi
+  done <<EOT2
+$XARCH_TARGETS
+EOT2
+  return $rc
+}
+
+if [ $s_ready -eq 1 ]; then
+  echo " a. every target prints expected.txt: every hash, route, report entry and the damage"
+  success_gate "" || status=1
+
+  echo " b. the controls: x87 excess precision and contraction are seen"
+  for ctl in "i686-linux-gnu|i686-linux-gnu-gcc||-O2" "aarch64-linux-gnu|aarch64-linux-gnu-gcc|qemu-aarch64|-ffp-contract=fast"; do
+    IFS='|' read -r triple cc qemu extra <<EOF2
+$ctl
+EOF2
+    qemu=$(awk -F'|' -v t="$triple" '{gsub(/ /,"",$1); gsub(/ /,"",$3)} $1==t{print $3}' <<EOT3
+$XARCH_TARGETS
+EOT3
+)
+    # The control replaces the target's own flags: i686 with none (x87), aarch64 with contraction (FONTFLAGS'
+    # -ffp-contract=off comes first, and the later flag wins).
+    if FONT_MAIN="$FONT/examples/font-scene.c" font_build "$triple" "$cc" ctl $extra; then
+      success_run "$triple" "$qemu" ctl > "$B/success-ctl-$triple.txt" || true
+      if [ -s "$B/success-ctl-$triple.txt" ] && ! cmp -s "$B/success-ctl-$triple.txt" "$SUCCESS/expected.txt"; then
+        echo "   ok    $triple $extra: prints $(awk '$1=="font-scene.hash"{print $2}' "$B/success-ctl-$triple.txt"), not expected.txt"
+      elif [ ! -s "$B/success-ctl-$triple.txt" ]; then
+        echo "   ok    $triple $extra: the program's own check failed (see $B/font-ctl-$triple.err)"
+      else
+        echo "   FAIL  $triple $extra: printed expected.txt; the scene cannot see what the flags prevent there"
+        status=1
+      fi
+    else
+      echo "   FAIL  $triple: cannot build the control (see $B/font-ctl-$triple.err)"
+      status=1
+    fi
+  done
+
+  echo " c. planted: one differing bit on each target in turn must fail the gate, naming it"
+  while IFS='|' read -r triple cc qemu desc; do
+    triple=$(echo "$triple" | tr -d ' ')
+    [ -z "$triple" ] && continue
+    if success_gate "$triple" > "$B/success-gate-planted-$triple.txt" 2>&1; then
+      echo "   FAIL  the success gate passed with a bit flipped on $triple: it checks nothing there"
+      status=1
+    elif grep -q "FAIL  $triple " "$B/success-gate-planted-$triple.txt" \
+      && [ "$(grep -c FAIL "$B/success-gate-planted-$triple.txt")" -eq 1 ]; then
+      echo "   ok    $triple: caught, and only $triple named"
+    else
+      sed 's/^/   | /' "$B/success-gate-planted-$triple.txt"
+      echo "   FAIL  the success gate failed, but not on $triple alone"
+      status=1
+    fi
+  done <<EOT
+$XARCH_TARGETS
+EOT
+fi
 
 echo
 if [ $status -eq 0 ]; then

@@ -11,6 +11,10 @@
 # Windows hash equals the native one AND the same probe built with one planted
 # differing bit does not (so the comparison can fail).
 #
+# Since story 16 it also builds the success scene (libs/font/examples/font-scene.c on the pinned font of
+# suite/tools/shape-success, fetched by its fetch.sh), whose whole output must be that directory's expected.txt
+# under wine, and with one planted differing bit must not.
+#
 # Since story 14b it also builds font's provider probe (libs/font/tools/scene-hash.c: AD-5 and AD-1 through
 # shape-cpu), which must exit 0 under wine (both equalities hold) and print the hash committed in
 # libs/font/tests/data/golden/scene.hash, and with its planted bit must not.
@@ -159,6 +163,17 @@ for lib in font compress security unicode; do
   [ "$lib" = font ] || { rm -rf "$W/$lib"; mkdir -p "$W/$lib"; cp -r "$ROOT/libs/$lib/include" "$W/$lib/include"; }
   make -s -C "$ROOT/libs/$lib" SKIP_DEP_CHECK=1 BUILD_DIR="$W/$lib/gen" "$W/$lib/gen/generated/ghoti.io/$lib/libver_gen.h" > "$W/logs/$lib-libver.log" 2>&1 || { echo "shape.sh: $lib libver_gen.h failed (see $W/logs/$lib-libver.log)" >&2; exit 2; }
 done
+# The success scene (story 16): font's example program, the pinned font and the committed output.
+SUCCESS="$ROOT/suite/tools/shape-success"
+SUCCESS_FONT=${SUCCESS_FONT:-$SUCCESS/data/DejaVuSans.ttf}
+printf '%s  %s\n' 7da195a74c55bef988d0d48f9508bd5d849425c1770dba5d7bfc6ce9ed848954 "$SUCCESS_FONT" | sha256sum -c - > /dev/null 2>&1 \
+  || { echo "shape.sh: no pinned font at $SUCCESS_FONT (run suite/tools/shape-success/fetch.sh)" >&2; exit 2; }
+mkdir -p "$W/font/examples"
+rm -rf "$W/success"
+mkdir -p "$W/success"
+cp "$FONT/examples/font-scene.c" "$W/font/examples/"
+cp "$SUCCESS_FONT" "$W/success/DejaVuSans.ttf"
+cp "$SUCCESS/expected.txt" "$W/success/"
 font_hash=$(awk '$1=="hash"{print $2}' "$FONT/tests/data/golden/scene.hash")
 font_count=$(awk '$1=="count"{print $2}' "$FONT/tests/data/golden/scene.hash")
 [ -n "$font_hash" ] && [ -n "$font_count" ] || { echo "shape.sh: no committed font provider hash" >&2; exit 2; }
