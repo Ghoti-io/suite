@@ -66,18 +66,24 @@
 #      header must declare what cutil's does (checked here).
 #
 #   7. The shape-cpu hash gate (CAP-6, CAP-13, AD-17).  libs/shape-cpu/tools/
-#      corpus-hash.c, built with every src/*/*.c of shape-cpu, of shape-geometry
-#      (the flattener and the device path it fills) and of math, and the cutil
-#      allocator stand-in, must print the hash committed in libs/shape-cpu/tests/
-#      corpus/coverage.hash on every target.  It fills random polygons under both
-#      fill rules, random curves, rectangles with an open subpath, and shapes
-#      moved to the corners of the 26.6 range, and hashes every coverage in the
-#      library's own spelling, so a byte-order slip, a 32-bit size assumption or
-#      a host-dependent division shows.  The coverage path has no floating point,
-#      so there is no x87 or fused-multiply-add control; the control is a probe
-#      that folds its results in the host's byte order, which must print the
-#      committed hash on a little-endian target and another on a big-endian one.
-#      The plant (one differing bit on each target in turn) is as in section 4.
+#      corpus-hash.c, built with every src/*/*.c of shape-cpu, of shape-scene,
+#      of shape-geometry (the flattener and the device path it fills) and of
+#      math, and cutil's real allocator.c and atomic.c, color's gamut.c and
+#      image's raster.c (the sink renders through shape-scene's contract into an
+#      image raster, story 13b), must print the hashes committed in
+#      libs/shape-cpu/tests/corpus/coverage.hash and render.hash on every target.
+#      The coverage part fills random polygons under both fill rules, random
+#      curves, rectangles with an open subpath, and shapes moved to the corners
+#      of the 26.6 range, and hashes every coverage in the library's own
+#      spelling, so a byte-order slip, a 32-bit size assumption or a
+#      host-dependent division shows.  The render part draws the fixture set of
+#      tests/render_fixtures.h on the four formats the sink writes and prints
+#      each render's hash (the goldens) and their fold.  Controls: a probe that
+#      folds its results in the host's byte order must print the committed
+#      hashes on a little-endian target and others on a big-endian one; and,
+#      because the compositor is double arithmetic, i686 without the SSE flags
+#      and aarch64 with contraction on must print another render hash.  The
+#      plant (one differing bit on each target in turn) is as in section 4.
 #
 #   8. The shape-scene hash gate (CAP-13, CAP-16, AD-17).  libs/shape-scene/tools/
 #      corpus-hash.c, built with every src/*/*.c of shape-scene, of shape-geometry
@@ -128,7 +134,15 @@ SHAPE_DEP_INCLUDES=${SHAPE_DEP_INCLUDES--I$HERE/shape-stubs -I$ROOT/libs/math/in
 # Since story 13a a sink's target names `image`'s raster and the test sink stamps one, so the scene's sources see image's
 # headers (generated header in $B/gen/image) and the probe is linked with image's raster.c and its allocator.c alone.
 SCENE_DEP_INCLUDES="-I$ROOT/libs/cutil/include -I$B/gen/cutil/include -I$ROOT/libs/color/include -I$B/gen/color/generated -I$ROOT/libs/image/include -I$B/gen/image/generated -I$ROOT/libs/math/include -I$B/gen/math/generated -I$ROOT/libs/shape-geometry/include -I$B/gen/shape-geometry/generated"
-dep_includes() { if [ "$1" = shape-scene ]; then echo "$SCENE_DEP_INCLUDES"; else echo "${SHAPE_DEP_INCLUDES:-}"; fi; }
+# shape-cpu's sink (story 13b) includes shape-scene's contract and with it everything the scene's sources see.
+CPU_DEP_INCLUDES="$SCENE_DEP_INCLUDES -I$ROOT/libs/shape-scene/include -I$B/gen/shape-scene/generated"
+dep_includes() {
+  case "$1" in
+    shape-scene) echo "$SCENE_DEP_INCLUDES" ;;
+    shape-cpu) echo "$CPU_DEP_INCLUDES" ;;
+    *) echo "${SHAPE_DEP_INCLUDES:-}" ;;
+  esac
+}
 case "$B" in
   ""|/|/tmp|/tmp/|/work|/work/*|"$HOME"|"$HOME"/)
     echo "shape.sh: refusing B='$B' (it is deleted and recreated)" >&2; exit 2 ;;
@@ -744,7 +758,7 @@ EOT
 
 #---------------------------------------------------------------------------
 echo
-echo "7. the shape-cpu hash gate (libs/shape-cpu: coverage of device paths under both fill rules, CAP-6)"
+echo "7. the shape-cpu hash gate (libs/shape-cpu: coverage under both fill rules, CAP-6, and the sink's renders, story 13b)"
 CPU="$ROOT/libs/shape-cpu"
 gc="$B/gen/cpu-hash"
 mkdir -p "$gc"
@@ -755,19 +769,29 @@ fi
 ch_hash=$(awk '$1=="hash"{print $2}' "$CPU/tests/corpus/coverage.hash")
 ch_count=$(awk '$1=="count"{print $2}' "$CPU/tests/corpus/coverage.hash")
 [ -n "$ch_hash" ] && [ -n "$ch_count" ] || { echo "   FAIL  no committed hash in $CPU/tests/corpus/coverage.hash"; status=1; }
-# The probe is built with shape-geometry's sources (the flattener, the device path, the hash)
-# and, because those call math, math's.
-CPUFLAGS="-std=c17 -O2 -pedantic-errors -Wall -Wextra -Werror -ffp-contract=off -DGSHCPU_BUILD -DGSHGEOM_BUILD -DGMATH_BUILD -I$CPU/include -I$gc/generated -I$GEOM/include -I$gg/generated -I$MATH/include -I$mg/generated -I$HERE/shape-stubs"
+cr_hash=$(awk '$1=="hash"{print $2}' "$CPU/tests/corpus/render.hash")
+cr_count=$(awk '$1=="count"{print $2}' "$CPU/tests/corpus/render.hash")
+[ -n "$cr_hash" ] && [ -n "$cr_count" ] || { echo "   FAIL  no committed renders in $CPU/tests/corpus/render.hash"; status=1; }
+# What a probe must print: the coverage part's hash and count, then the renders' (story 13b).
+ch_want="$ch_hash $ch_count $cr_hash $cr_count"
+# The probe is built with shape-scene's sources (the sink contract and the lists), shape-geometry's (the
+# flattener, the device path, the maps, the hash) and, because those call math, math's; with cutil's real
+# allocator.c and atomic.c (the scene's mutex and counts are cutil's), color's gamut.c and image's raster.c,
+# as the shape-scene probe of section 8 is.
+CPUFLAGS="-std=c17 -O2 -pedantic-errors -Wall -Wextra -Werror -ffp-contract=off -pthread -DGSHCPU_BUILD -DGSHSCENE_BUILD -DGSHGEOM_BUILD -DGMATH_BUILD -DGCOL_BUILD -DGIMG_BUILD -I$CPU/include -I$gc/generated $CPU_DEP_INCLUDES -I$GEOM/include -I$gg/generated -I$MATH/include -I$mg/generated"
 
-# cpu_run TRIPLE CC QEMU TAG FLAGS... -> prints "HASH COUNT"
+# cpu_run TRIPLE CC QEMU TAG FLAGS... -> prints "HASH COUNT RENDER-HASH RENDER-COUNT"
 cpu_run() {
   local triple=$1 cc=$2 qemu=$3 tag=$4 out
   shift 4
   # shellcheck disable=SC2086
-  "$cc" $CPUFLAGS "$@" "$CPU/tools/corpus-hash.c" $(find "$CPU/src" -name '*.c' | sort) $(find "$GEOM/src" -name '*.c' | sort) "$MATH"/src/elementary/*.c \
-    "$HERE/shape-stubs/cutil-allocator-stub.c" -o "$B/cpu-$tag-$triple" 2> "$B/cpu-$tag-$triple.err" || return 1
+  "$cc" $CPUFLAGS "$@" "$CPU/tools/corpus-hash.c" $(find "$CPU/src" -name '*.c' | sort) $(find "$ROOT/libs/shape-scene/src" -name '*.c' | sort) \
+    $(find "$GEOM/src" -name '*.c' | sort) "$MATH"/src/elementary/*.c "$ROOT/libs/cutil/src/allocator.c" "$ROOT/libs/cutil/src/atomic.c" \
+    "$ROOT/libs/color/src/gamut/gamut.c" "$ROOT/libs/image/src/raster/raster.c" "$ROOT/libs/image/src/core/allocator.c" \
+    -o "$B/cpu-$tag-$triple" 2> "$B/cpu-$tag-$triple.err" || return 1
   xarch_run "$triple" "$qemu" "$B/cpu-$tag-$triple" > "$B/cpu-$tag-$triple.txt" 2>> "$B/cpu-$tag-$triple.err" || return 1
-  awk '/^shape-cpu.hash/{h=$2} /^shape-cpu.count/{c=$2} END{if (h != "") print h, c}' "$B/cpu-$tag-$triple.txt"
+  awk '/^shape-cpu.hash/{h=$2} /^shape-cpu.count/{c=$2} /^shape-cpu.render-hash/{rh=$2} /^shape-cpu.render-count/{rc=$2}
+    END{if (h != "" && rh != "") print h, c, rh, rc}' "$B/cpu-$tag-$triple.txt"
 }
 
 declare -A COK CPLANT
@@ -792,10 +816,10 @@ cpu_gate() {
     triple=$(echo "$triple" | tr -d ' ')
     [ -z "$triple" ] && continue
     if [ "$triple" = "$planted" ]; then got=${CPLANT[$triple]:-}; else got=${COK[$triple]:-}; fi
-    if [ -n "$got" ] && [ "$got" = "$ch_hash $ch_count" ]; then
+    if [ -n "$got" ] && [ "$got" = "$ch_want" ]; then
       printf "   ok    %-22s %s\n" "$triple" "$got"
     else
-      printf "   FAIL  %-22s %s  (want %s %s)\n" "$triple" "${got:-none}" "$ch_hash" "$ch_count"
+      printf "   FAIL  %-22s %s  (want %s)\n" "$triple" "${got:-none}" "$ch_want"
       rc=1
     fi
   done <<EOT2
@@ -804,14 +828,26 @@ EOT2
   return $rc
 }
 
-echo " a. every target prints the committed hash"
+echo " a. every target prints the committed hashes (coverage, then the renders)"
 cpu_gate "" || status=1
+# Which render differs, when one does: the probe's lines against the committed goldens.
+while IFS='|' read -r triple cc qemu desc; do
+  triple=$(echo "$triple" | tr -d ' ')
+  [ -z "$triple" ] && continue
+  [ -f "$B/cpu-ok-$triple.txt" ] || continue
+  awk '$1=="shape-cpu.render"{print $2, $3, $4}' "$B/cpu-ok-$triple.txt" > "$B/cpu-renders-$triple.txt"
+  if ! awk '$1=="render"{print $2, $3, $4}' "$CPU/tests/corpus/render.hash" | diff -q - "$B/cpu-renders-$triple.txt" > /dev/null; then
+    echo "   | $triple: these renders differ from the goldens:"
+    awk '$1=="render"{print $2, $3, $4}' "$CPU/tests/corpus/render.hash" | diff - "$B/cpu-renders-$triple.txt" | sed -n 's/^> /   |   /p'
+  fi
+done <<EOT
+$XARCH_TARGETS
+EOT
 
 echo " b. the control: the probe sees a byte-order slip"
-# Nothing in the coverage path is floating point, so unlike the shape-geometry probe there is
-# no flag (x87, a fused multiply-add) for a control to show. What this probe can see is byte
-# order and word size, so the control folds each result in the host's own byte order: the same
-# stream as the real one on a little-endian target, another on a big-endian one.
+# The coverage path has no floating point; what its part can see is byte order and word size, so
+# the control folds each result in the host's own byte order: the same stream as the real one on
+# a little-endian target, another on a big-endian one (the render part's fold too).
 while IFS='|' read -r triple cc qemu desc; do
   triple=$(echo "$triple" | tr -d ' '); cc=$(echo "$cc" | tr -d ' ')
   qemu=$(echo "$qemu" | tr -d ' ')
@@ -825,17 +861,36 @@ while IFS='|' read -r triple cc qemu desc; do
   if [ -z "$cn" ]; then
     echo "   FAIL  $triple: the byte-order control did not build or run"
     status=1
-  elif [ $want_same -eq 1 ] && [ "$cn" = "$ch_hash $ch_count" ]; then
-    echo "   ok    $triple (little-endian): the native-order control prints the committed hash"
-  elif [ $want_same -eq 0 ] && [ "$cn" != "$ch_hash $ch_count" ]; then
-    echo "   ok    $triple (big-endian): the native-order control prints $cn, not the committed hash"
+  elif [ $want_same -eq 1 ] && [ "$cn" = "$ch_want" ]; then
+    echo "   ok    $triple (little-endian): the native-order control prints the committed hashes"
+  elif [ $want_same -eq 0 ] && [ "$cn" != "$ch_want" ]; then
+    echo "   ok    $triple (big-endian): the native-order control prints $cn, not the committed hashes"
   else
-    echo "   FAIL  $triple: the native-order control printed '$cn' (committed $ch_hash $ch_count): the probe cannot see byte order there"
+    echo "   FAIL  $triple: the native-order control printed '$cn' (committed $ch_want): the probe cannot see byte order there"
     status=1
   fi
 done <<EOT
 $XARCH_TARGETS
 EOT
+
+echo " b2. the controls of the render part: it sees what the flags prevent"
+# The compositor is double arithmetic and its transfers are gmath_pow, so x87 excess precision and a
+# fused multiply-add change renders: without the flags the render hash must differ (the coverage part
+# cannot, so only the render hash is compared).
+cbare=$(cpu_run i686-linux-gnu i686-linux-gnu-gcc qemu-i386 bare) || cbare=""
+if [ -n "$cbare" ] && [ "$(echo "$cbare" | cut -d' ' -f3)" != "$cr_hash" ]; then
+  echo "   ok    i686 without -msse2 -mfpmath=sse prints the render hash $(echo "$cbare" | cut -d' ' -f3), not the committed one"
+else
+  echo "   FAIL  i686 without the SSE flags printed '${cbare:-nothing}': the render hash cannot see x87"
+  status=1
+fi
+cfused=$(cpu_run aarch64-linux-gnu aarch64-linux-gnu-gcc qemu-aarch64 fused -ffp-contract=fast) || cfused=""
+if [ -n "$cfused" ] && [ "$(echo "$cfused" | cut -d' ' -f3)" != "$cr_hash" ]; then
+  echo "   ok    aarch64 with -ffp-contract=fast prints the render hash $(echo "$cfused" | cut -d' ' -f3), not the committed one"
+else
+  echo "   FAIL  aarch64 with contraction on printed '${cfused:-nothing}': the render hash cannot see a fused multiply-add"
+  status=1
+fi
 
 echo " c. planted: one differing bit on each target in turn must fail the gate, naming it"
 while IFS='|' read -r triple cc qemu desc; do

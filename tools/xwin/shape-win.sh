@@ -12,6 +12,8 @@ cpu_hash=${6:?usage: shape-win.sh NATIVE_HASH MATH_HASH MATH_COUNT GEOM_HASH GEO
 cpu_count=${7:?usage: shape-win.sh NATIVE_HASH MATH_HASH MATH_COUNT GEOM_HASH GEOM_COUNT CPU_HASH CPU_COUNT}
 scene_hash=${8:?usage: shape-win.sh NATIVE_HASH MATH_HASH MATH_COUNT GEOM_HASH GEOM_COUNT CPU_HASH CPU_COUNT SCENE_HASH SCENE_COUNT}
 scene_count=${9:?usage: shape-win.sh NATIVE_HASH MATH_HASH MATH_COUNT GEOM_HASH GEOM_COUNT CPU_HASH CPU_COUNT SCENE_HASH SCENE_COUNT}
+render_hash=${10:?usage: shape-win.sh ... SCENE_HASH SCENE_COUNT RENDER_HASH RENDER_COUNT}
+render_count=${11:?usage: shape-win.sh ... SCENE_HASH SCENE_COUNT RENDER_HASH RENDER_COUNT}
 P=/tools/xarch/shape-hash-probe.c
 cd /w || exit 2
 
@@ -88,24 +90,6 @@ if [ -n "$gplant" ] && [ "$gplant" != "$geom_hash $geom_count" ]; then
 else
   echo "   FAIL  planted: the win64 shape-geometry probe with a flipped bit still matches (or did not run)"; rc=1
 fi
-# The shape-cpu coverage hash (CAP-6, CAP-13): the committed value, and a planted bit that must differ.
-C=/w/cpu
-CF="-std=c17 -O2 -pedantic-errors -Wall -Wextra -Werror -ffp-contract=off -DGSHCPU_BUILD -DGSHGEOM_BUILD -DGMATH_STATIC -I$C/include -I$C/gen/generated -I$G/include -I$G/gen/generated -I$M/include -I$M/gen/generated -I$G/stubs"
-x86_64-w64-mingw32-gcc $CF "$C/tools/corpus-hash.c" $(find "$C/src" -name '*.c' | sort) $(find "$G/src" -name '*.c' | sort) "$M"/src/elementary/*.c "$G/stubs/cutil-allocator-stub.c" -o cpu-probe.exe || { echo "shape-win: the shape-cpu probe did not build" >&2; exit 2; }
-x86_64-w64-mingw32-gcc $CF -DSHAPE_CPU_PLANT_BIT "$C/tools/corpus-hash.c" $(find "$C/src" -name '*.c' | sort) $(find "$G/src" -name '*.c' | sort) "$M"/src/elementary/*.c "$G/stubs/cutil-allocator-stub.c" -o cpu-plant.exe || { echo "shape-win: the planted shape-cpu probe did not build" >&2; exit 2; }
-cgot=$(./cpu-probe.exe 2>/dev/null | tr -d '\r' | awk '/^shape-cpu.hash/{h=$2} /^shape-cpu.count/{c=$2} END{if (h != "") print h, c}')
-cplant=$(./cpu-plant.exe 2>/dev/null | tr -d '\r' | awk '/^shape-cpu.hash/{h=$2} /^shape-cpu.count/{c=$2} END{if (h != "") print h, c}')
-echo "windows (wine) shape-cpu hash: ${cgot:-none}   planted: ${cplant:-none}   committed: $cpu_hash $cpu_count"
-if [ -n "$cgot" ] && [ "$cgot" = "$cpu_hash $cpu_count" ]; then
-  echo "   ok    win64 prints the committed shape-cpu hash"
-else
-  echo "   FAIL  win64 does not print the committed shape-cpu hash"; rc=1
-fi
-if [ -n "$cplant" ] && [ "$cplant" != "$cpu_hash $cpu_count" ]; then
-  echo "   ok    planted: one differing bit in a shape-cpu result on win64 is not the committed hash"
-else
-  echo "   FAIL  planted: the win64 shape-cpu probe with a flipped bit still matches (or did not run)"; rc=1
-fi
 # The shape-scene resource and list hash (CAP-13, CAP-16): the committed value, and a planted bit that must differ.
 N=/w/scene
 C=/w/cutil
@@ -126,6 +110,31 @@ if [ -n "$splant" ] && [ "$splant" != "$scene_hash $scene_count" ]; then
   echo "   ok    planted: one differing bit in a shape-scene result on win64 is not the committed hash"
 else
   echo "   FAIL  planted: the win64 shape-scene probe with a flipped bit still matches (or did not run)"; rc=1
+fi
+# The shape-cpu hashes (CAP-6, CAP-13, story 13b): the coverage part and the sink's renders of the fixture set, the
+# committed values, and a planted bit that must differ.  Built as the scene's probe is, with shape-cpu's sources too.
+U=/w/cpu
+UF="$NF -DGSHCPU_BUILD -I$U/include -I$U/gen/generated"
+# shellcheck disable=SC2086
+x86_64-w64-mingw32-gcc $UF "$U/tools/corpus-hash.c" $(find "$U/src" -name '*.c' | sort) $(find "$N/src" -name '*.c' | sort) $(find "$G/src" -name '*.c' | sort) "$M"/src/elementary/*.c "$C/src/allocator.c" "$C/src/atomic.c" "$K/src/gamut.c" "$I/src/raster.c" "$I/core/allocator.c" -o cpu-probe.exe || { echo "shape-win: the shape-cpu probe did not build" >&2; exit 2; }
+# shellcheck disable=SC2086
+x86_64-w64-mingw32-gcc $UF -DSHAPE_CPU_PLANT_BIT "$U/tools/corpus-hash.c" $(find "$U/src" -name '*.c' | sort) $(find "$N/src" -name '*.c' | sort) $(find "$G/src" -name '*.c' | sort) "$M"/src/elementary/*.c "$C/src/allocator.c" "$C/src/atomic.c" "$K/src/gamut.c" "$I/src/raster.c" "$I/core/allocator.c" -o cpu-plant.exe || { echo "shape-win: the planted shape-cpu probe did not build" >&2; exit 2; }
+./cpu-probe.exe 2>/dev/null | tr -d '\r' > cpu-probe.txt
+cwant="$cpu_hash $cpu_count $render_hash $render_count"
+cgot=$(awk '/^shape-cpu.hash/{h=$2} /^shape-cpu.count/{c=$2} /^shape-cpu.render-hash/{rh=$2} /^shape-cpu.render-count/{rc=$2} END{if (h != "" && rh != "") print h, c, rh, rc}' cpu-probe.txt)
+cplant=$(./cpu-plant.exe 2>/dev/null | tr -d '\r' | awk '/^shape-cpu.hash/{h=$2} /^shape-cpu.count/{c=$2} /^shape-cpu.render-hash/{rh=$2} /^shape-cpu.render-count/{rc=$2} END{if (h != "" && rh != "") print h, c, rh, rc}')
+echo "windows (wine) shape-cpu hashes: ${cgot:-none}   planted: ${cplant:-none}   committed: $cwant"
+if [ -n "$cgot" ] && [ "$cgot" = "$cwant" ]; then
+  echo "   ok    win64 prints the committed shape-cpu coverage hash and renders"
+else
+  echo "   FAIL  win64 does not print the committed shape-cpu hashes"; rc=1
+  awk '$1=="shape-cpu.render"{print $2, $3, $4}' cpu-probe.txt > cpu-renders.txt
+  awk '$1=="render"{print $2, $3, $4}' "$U/tests/render.hash" | diff - cpu-renders.txt | sed -n 's/^> /   |   differs: /p'
+fi
+if [ -n "$cplant" ] && [ "$cplant" != "$cwant" ]; then
+  echo "   ok    planted: one differing bit in a shape-cpu result on win64 is not the committed hash"
+else
+  echo "   FAIL  planted: the win64 shape-cpu probe with a flipped bit still matches (or did not run)"; rc=1
 fi
 [ $rc -eq 0 ] && echo "shape-win: PASS" || echo "shape-win: FAIL"
 exit $rc

@@ -11,7 +11,11 @@
 # Windows hash equals the native one AND the same probe built with one planted
 # differing bit does not (so the comparison can fail).
 #
-# It also runs the math corpus hash (CAP-1): libs/math/tools/corpus-hash.c with
+# It also runs each library's corpus hash; shape-cpu's prints its coverage hash
+# and, since story 13b, one hash per render of its fixture set (the goldens of
+# tests/corpus/render.hash) and their fold, which must equal the committed ones.
+#
+# The math corpus hash (CAP-1): libs/math/tools/corpus-hash.c with
 # every src/elementary/*.c, over libs/math/tests/corpus, must print the hash
 # committed in libs/math/tests/corpus/trig.hash under wine, and with one
 # planted differing bit it must not; built with -DGMATH_SQRT_PORTABLE it must
@@ -75,18 +79,24 @@ geom_hash=$(awk '$1=="hash"{print $2}' "$GEOM/tests/corpus/geometry.hash")
 geom_count=$(awk '$1=="count"{print $2}' "$GEOM/tests/corpus/geometry.hash")
 [ -n "$geom_hash" ] && [ -n "$geom_count" ] || { echo "shape.sh: no committed shape-geometry hash" >&2; exit 2; }
 echo "committed shape-geometry hash: $geom_hash over $geom_count results"
-# The shape-cpu sources and the committed hash (story 9); it is built with shape-geometry's and math's.
+# The shape-cpu sources, the fixture set its probe renders and the committed hashes (story 9, and story 13b's
+# renders); it is built with shape-scene's, shape-geometry's and math's, and cutil's, color's and image's parts.
 CPU="$ROOT/libs/shape-cpu"
 rm -rf "$W/cpu"
-mkdir -p "$W/cpu/tools" "$W/cpu/gen"
+mkdir -p "$W/cpu/tools" "$W/cpu/gen" "$W/cpu/tests"
 cp -r "$CPU/include" "$W/cpu/include"
 cp -r "$CPU/src" "$W/cpu/src"
 cp "$CPU/tools/corpus-hash.c" "$W/cpu/tools/"
+cp "$CPU/tests/render_fixtures.h" "$CPU/tests/corpus/render.hash" "$W/cpu/tests/"
 make -s -C "$CPU" libver-gen BUILD_DIR="$W/cpu/gen" > "$W/logs/cpu-libver.log" 2>&1 || { echo "shape.sh: libver-gen failed (see $W/logs/cpu-libver.log)" >&2; exit 2; }
 cpu_hash=$(awk '$1=="hash"{print $2}' "$CPU/tests/corpus/coverage.hash")
 cpu_count=$(awk '$1=="count"{print $2}' "$CPU/tests/corpus/coverage.hash")
 [ -n "$cpu_hash" ] && [ -n "$cpu_count" ] || { echo "shape.sh: no committed shape-cpu hash" >&2; exit 2; }
 echo "committed shape-cpu hash: $cpu_hash over $cpu_count results"
+render_hash=$(awk '$1=="hash"{print $2}' "$CPU/tests/corpus/render.hash")
+render_count=$(awk '$1=="count"{print $2}' "$CPU/tests/corpus/render.hash")
+[ -n "$render_hash" ] && [ -n "$render_count" ] || { echo "shape.sh: no committed shape-cpu renders" >&2; exit 2; }
+echo "committed shape-cpu renders: $render_hash over $render_count"
 # The shape-scene sources and the committed hash (story 10); it is built with shape-geometry's and math's too.
 SCENE="$ROOT/libs/shape-scene"
 # cutil's real headers, its generated libver_gen.h, allocator.c and atomic.c: the scene's mutex and counts are cutil's.
@@ -124,4 +134,4 @@ scene_hash=$(awk '$1=="hash"{print $2}' "$SCENE/tests/corpus/scene.hash")
 scene_count=$(awk '$1=="count"{print $2}' "$SCENE/tests/corpus/scene.hash")
 [ -n "$scene_hash" ] && [ -n "$scene_count" ] || { echo "shape.sh: no committed shape-scene hash" >&2; exit 2; }
 echo "committed shape-scene hash: $scene_hash over $scene_count results"
-"$HERE/m1-win.sh" "$W" "bash /tools/xwin/shape-win.sh $want $math_hash $math_count $geom_hash $geom_count $cpu_hash $cpu_count $scene_hash $scene_count"
+"$HERE/m1-win.sh" "$W" "bash /tools/xwin/shape-win.sh $want $math_hash $math_count $geom_hash $geom_count $cpu_hash $cpu_count $scene_hash $scene_count $render_hash $render_count"
