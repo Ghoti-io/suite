@@ -2,12 +2,19 @@
 # SPDX-License-Identifier: LGPL-3.0-only
 """The shape benchmark's cross-check and results file.
 
-    report.py --results DIR --pamdiff PAMDIFF --shipped SHIPPED
+    report.py --results DIR --pamdiff PAMDIFF --shipped SHIPPED [--reuse EARLIER] [--tag TAG]
 
 Reads what run-evo.sh left in DIR (raw/<engine>.jsonl, frames/*.pam, prov/*.txt)
 and writes DIR/report/<date>-evo.json, the record, and DIR/report/<date>-evo.md,
 generated from it. Nothing in the Markdown is typed: every figure is read from
 the JSON as it is written.
+
+--reuse EARLIER takes the reference engines (Blend2D and Skia) from an earlier
+run's results directory instead of DIR: their measurements, provenance and
+frames are that run's, and they are cross-checked here against this run's
+shape-cpu frames. It is for re-measuring shape-cpu alone (run-evo.sh with
+SHAPE_BENCH_ENGINES=shape-cpu); the record names the run they came from. --tag
+names the files <date>-evo-<tag>.json and .md, for a second run on one date.
 
 The cross-check's bound is stated here and nowhere else (the story's spec gives
 the same numbers): against shape-cpu's last frame, the mean absolute difference
@@ -96,13 +103,20 @@ def main():
     ap.add_argument("--results", required=True)
     ap.add_argument("--pamdiff", required=True)
     ap.add_argument("--shipped", required=True)
+    ap.add_argument("--reuse", help="an earlier run's results directory, for the reference engines")
+    ap.add_argument("--tag", help="names the files <date>-evo-<tag>.*")
     args = ap.parse_args()
     root = args.results
     frames = os.path.join(root, "frames")
+    reused = ["blend2d", "skia"] if args.reuse else []
+
+    def home(engine):
+        """The results directory an engine's files are read from."""
+        return args.reuse if engine in reused else root
 
     measures = {}
     for engine in ENGINES + ["shape-cpu-empty"]:
-        path = os.path.join(root, "raw", engine + ".jsonl")
+        path = os.path.join(home(engine), "raw", engine + ".jsonl")
         if engine in ("font", "shape-cpu-empty"):
             path = os.path.join(root, "raw", "shape-cpu.jsonl")
         if not os.path.exists(path):
@@ -115,8 +129,8 @@ def main():
 
     engines = {}
     for engine in ["shape-cpu", "blend2d", "skia"]:
-        p = read_prov(os.path.join(root, "prov", engine + ".txt"))
-        p["driver_log"] = read_err_facts(os.path.join(root, "logs", engine + ".err"))
+        p = read_prov(os.path.join(home(engine), "prov", engine + ".txt"))
+        p["driver_log"] = read_err_facts(os.path.join(home(engine), "logs", engine + ".err"))
         for line in p["driver_log"]:
             word, _, rest = line.partition(" ")
             # The image's PROVENANCE lines: its base digest, the reference's commit, the package snapshot.
@@ -157,7 +171,7 @@ def main():
                 r["cross_check"] = None
                 r["valid"] = True
             else:
-                d = pamdiff(args.pamdiff, ref, os.path.join(frames, m["output"]))
+                d = pamdiff(args.pamdiff, ref, os.path.join(home(engine), "frames", m["output"]))
                 d["within_bound"] = within(d)
                 r["cross_check"] = d
                 r["valid"] = d["within_bound"]
@@ -168,9 +182,18 @@ def main():
         scenes[name] = entry
 
     date = datetime.date.today().isoformat()
+    stem = "%s-evo%s" % (date, "-" + args.tag if args.tag else "")
+    reuse = None
+    if reused:
+        earlier = sorted(f for f in os.listdir(os.path.join(args.reuse, "report")) if f.endswith(".json"))
+        if len(earlier) != 1:
+            raise SystemExit("report.py: %s/report holds %d records, not one" % (args.reuse, len(earlier)))
+        reuse = {"engines": reused, "from": earlier[0],
+                 "note": "measured in that run and not re-run; cross-checked here against this run's shape-cpu frames"}
     record = {
         "format": "shape-bench-results 1",
         "date": date,
+        "tag": args.tag,
         "generated_by": "suite/tools/shape-bench/report.py",
         "protocol": {
             "threads": 1,
@@ -190,18 +213,19 @@ def main():
                        % CONTROL_STRIDE,
         },
         "shipped": shipped,
+        "reused": reuse,
         "engines": engines,
         "scenes": scenes,
         "verdict": {"blind_checks": blind, "invalid": invalid},
     }
     out = os.path.join(root, "report")
     os.makedirs(out, exist_ok=True)
-    jpath = os.path.join(out, "%s-evo.json" % date)
+    jpath = os.path.join(out, stem + ".json")
     with open(jpath, "w") as f:
         json.dump(record, f, indent=1, sort_keys=False)
         f.write("\n")
     with open(jpath) as f:
-        write_markdown(json.load(f), os.path.join(out, "%s-evo.md" % date), os.path.basename(jpath))
+        write_markdown(json.load(f), os.path.join(out, stem + ".md"), os.path.basename(jpath))
     print("report.py: wrote %s; blind checks: %s; invalid: %s" % (jpath, blind or "none", invalid or "none"))
     return 1 if blind else 0
 
@@ -210,7 +234,7 @@ def write_markdown(rec, path, jname):
     """Every figure below is read from the record just written."""
     L = []
     sc = rec["engines"]["shape-cpu"]
-    L.append("# Shape benchmark results, %s" % rec["date"])
+    L.append("# Shape benchmark results, %s%s" % (rec["date"], " (%s)" % rec["tag"] if rec.get("tag") else ""))
     L.append("")
     L.append("Generated by `report.py` from `%s`, which holds every figure here and the full provenance. "
              "Do not edit by hand." % jname)
@@ -219,6 +243,10 @@ def write_markdown(rec, path, jname):
              % (sc.get("host"), sc.get("cpu_model"), sc.get("kernel"), sc.get("governor"), sc.get("boost"),
                 sc.get("pinned_cpu")))
     L.append("")
+    if rec.get("reused"):
+        L.append("%s: not re-run here; their measurements, provenance and frames are those of `%s` (%s)." % (
+            " and ".join(rec["reused"]["engines"]), rec["reused"]["from"], rec["reused"]["note"]))
+        L.append("")
     L.append("Each row: the median frame over %d timed frames after warm-up, the quartiles, the throughput derived "
              "from the median, the speed relative to shape-cpu (above 1 is faster), and the cross-check against "
              "shape-cpu's frame (mean absolute difference in 8-bit levels; pixels more than %d levels apart). "

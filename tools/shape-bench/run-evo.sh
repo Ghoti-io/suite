@@ -137,13 +137,22 @@ host() {
   cd "$JOB"
   ENGINE=${GHOTI_CONTAINER_ENGINE:-docker}
   CPU=${SHAPE_BENCH_CPU:-8}
+  # SHAPE_BENCH_ENGINES=shape-cpu re-measures shape-cpu alone; the report is then made with report.py --reuse over
+  # an earlier run's results (README.md, "Re-measuring shape-cpu alone").
+  ENGINES=${SHAPE_BENCH_ENGINES:-shape-cpu blend2d skia}
+  want() {
+    case " $ENGINES " in *" $1 "*) return 0 ;; esac
+    return 1
+  }
   base=$(sed -n 's/^FROM \([^ ]*\).*/\1/p' ws/suite/Containerfile.build | head -n 1)
 
-  run_engine shape-cpu "$BUILD_IMAGE" \
-    "echo \"compiler: \$(gcc --version | head -n 1)\" >&2; bench-build/bench-shape run results/scenes results/frames"
-  echo "base: $base" >> "$RESULTS/prov/shape-cpu.txt"
+  if want shape-cpu; then
+    run_engine shape-cpu "$BUILD_IMAGE" \
+      "echo \"compiler: \$(gcc --version | head -n 1)\" >&2; bench-build/bench-shape run results/scenes results/frames"
+    echo "base: $base" >> "$RESULTS/prov/shape-cpu.txt"
+  fi
 
-  run_engine blend2d "$BLEND2D_IMAGE" "set -e
+  want blend2d && run_engine blend2d "$BLEND2D_IMAGE" "set -e
     lib=\$(find /opt/blend2d -name 'libblend2d*.a' | head -n 1)
     flags='-O2 -DBL_STATIC -I/opt/blend2d/include'
     echo \"driver: clang++-19 -std=c++20 \$flags (scene.c: clang-19 -std=c17 -O2)\" >&2
@@ -152,7 +161,7 @@ host() {
     clang++-19 -std=c++20 \$flags -o /tmp/bench-blend2d $B/refs/bench-blend2d.cpp /tmp/scene.o \$lib -lpthread -lrt -ldl
     /tmp/bench-blend2d results/scenes results/frames"
 
-  run_engine skia "$SKIA_IMAGE" "set -e
+  want skia && run_engine skia "$SKIA_IMAGE" "set -e
     defs=\$(grep -E '^ *[A-Z_][A-Z0-9_]*(=.*)?\$' /opt/skia/share/DEFINES | grep -v SKIA_IMPLEMENTATION | sed 's/^ */-D/' | tr '\n' ' ')
     flags=\"-O2 -DNDEBUG \$defs -I/opt/skia\"
     echo \"driver: clang++-19 -std=c++20 \$flags (scene.c: clang-19 -std=c17 -O2)\" >&2
@@ -162,6 +171,10 @@ host() {
       -Wl,--start-group /opt/skia/out/Release/*.a -Wl,--end-group -lfreetype -lpthread -ldl
     /tmp/bench-skia results/scenes results/frames"
 
+  if [ "$ENGINES" != "shape-cpu blend2d skia" ]; then
+    echo "== report: not made here (engines: $ENGINES); run report.py --reuse over an earlier run's results"
+    return 0
+  fi
   echo "== report"
   "$ENGINE" run --rm --user "$(id -u):$(id -g)" -v "$JOB:/work" -w /work "$BUILD_IMAGE" \
     python3 "$B/report.py" --results results --pamdiff bench-build/pamdiff --shipped SHIPPED

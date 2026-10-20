@@ -96,3 +96,23 @@ tools/evo clean "$job"
 The container phase also runs `shape-cpu`'s `make test`, before anything is
 timed. Run it on a quiet box: the results record what else was running, and a
 loaded box is a reason to run again, not a footnote.
+
+### Re-measuring shape-cpu alone
+
+A change to `shape-cpu` does not move the references, so their numbers can stay
+and only `shape-cpu` (and `font`, which runs in its process) is timed again:
+
+```bash
+tools/evo run "$job" -m 24G -t 2h \
+    --host-after 'SHAPE_BENCH_ENGINES=shape-cpu sh ws/suite/tools/shape-bench/run-evo.sh host' \
+    -- 'sh ws/suite/tools/shape-bench/run-evo.sh container'
+tools/evo fetch "$job"
+python3 suite/tools/shape-bench/report.py --results .evo/"$job"/results --pamdiff PAMDIFF \
+    --shipped .evo/"$job"/SHIPPED --reuse .evo/EARLIER/results --tag TAG
+```
+
+`--reuse` names the fetched results of the run whose Blend2D and Skia figures
+are kept (raw, prov, logs and frames); their frames are cross-checked again,
+against the new `shape-cpu` frames, and the record names the run they came
+from. `PAMDIFF` is `pamdiff.c` compiled on its own (it needs no library), and `--tag`
+keeps a second run on one date from overwriting the first.
