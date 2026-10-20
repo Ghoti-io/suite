@@ -114,7 +114,7 @@ fi
 # The shape-cpu hashes (CAP-6, CAP-13, story 13b): the coverage part and the sink's renders of the fixture set, the
 # committed values, and a planted bit that must differ.  Built as the scene's probe is, with shape-cpu's sources too.
 U=/w/cpu
-UF="$NF -DGSHCPU_BUILD -I$U/include -I$U/gen/generated"
+UF="$NF -DGSHCPU_BUILD -I$U/include -I$U/gen/generated -I/w/scene-testing"
 # shellcheck disable=SC2086
 x86_64-w64-mingw32-gcc $UF "$U/tools/corpus-hash.c" $(find "$U/src" -name '*.c' | sort) $(find "$N/src" -name '*.c' | sort) $(find "$G/src" -name '*.c' | sort) "$M"/src/elementary/*.c "$C/src/allocator.c" "$C/src/atomic.c" "$K/src/gamut.c" "$I/src/raster.c" "$I/core/allocator.c" -o cpu-probe.exe || { echo "shape-win: the shape-cpu probe did not build" >&2; exit 2; }
 # shellcheck disable=SC2086

@@ -88,6 +88,10 @@ cp -r "$CPU/include" "$W/cpu/include"
 cp -r "$CPU/src" "$W/cpu/src"
 cp "$CPU/tools/corpus-hash.c" "$W/cpu/tools/"
 cp "$CPU/tests/render_fixtures.h" "$CPU/tests/corpus/render.hash" "$W/cpu/tests/"
+# The fixtures' runs from a font use shape-scene's test glyph provider, at the path shape-scene installs it (story 14a).
+rm -rf "$W/scene-testing"
+mkdir -p "$W/scene-testing/ghoti.io/shape-scene/testing"
+cp "$ROOT/libs/shape-scene/tests/glyph_test_provider.h" "$W/scene-testing/ghoti.io/shape-scene/testing/"
 make -s -C "$CPU" libver-gen BUILD_DIR="$W/cpu/gen" > "$W/logs/cpu-libver.log" 2>&1 || { echo "shape.sh: libver-gen failed (see $W/logs/cpu-libver.log)" >&2; exit 2; }
 cpu_hash=$(awk '$1=="hash"{print $2}' "$CPU/tests/corpus/coverage.hash")
 cpu_count=$(awk '$1=="count"{print $2}' "$CPU/tests/corpus/coverage.hash")
@@ -125,10 +129,11 @@ cp "$IMAGE/src/core/"*.h "$W/image/core/"
 cp "$IMAGE/src/core/allocator.c" "$W/image/core/"
 make -s -C "$IMAGE" SKIP_DEP_CHECK=1 BUILD_DIR="$W/image/gen" "$W/image/gen/generated/ghoti.io/image/libver_gen.h" > "$W/logs/image-libver.log" 2>&1 || { echo "shape.sh: image libver-gen failed (see $W/logs/image-libver.log)" >&2; exit 2; }
 rm -rf "$W/scene"
-mkdir -p "$W/scene/tools" "$W/scene/gen"
+mkdir -p "$W/scene/tools" "$W/scene/gen" "$W/scene/tests"
 cp -r "$SCENE/include" "$W/scene/include"
 cp -r "$SCENE/src" "$W/scene/src"
 cp "$SCENE/tools/corpus-hash.c" "$W/scene/tools/"
+cp "$SCENE/tests/glyph_test_provider.h" "$W/scene/tests/"
 make -s -C "$SCENE" libver-gen BUILD_DIR="$W/scene/gen" > "$W/logs/scene-libver.log" 2>&1 || { echo "shape.sh: libver-gen failed (see $W/logs/scene-libver.log)" >&2; exit 2; }
 scene_hash=$(awk '$1=="hash"{print $2}' "$SCENE/tests/corpus/scene.hash")
 scene_count=$(awk '$1=="count"{print $2}' "$SCENE/tests/corpus/scene.hash")

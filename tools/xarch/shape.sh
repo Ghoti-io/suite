@@ -77,7 +77,9 @@
 #      of the 26.6 range, and hashes every coverage in the library's own
 #      spelling, so a byte-order slip, a 32-bit size assumption or a
 #      host-dependent division shows.  The render part draws the fixture set of
-#      tests/render_fixtures.h on the four formats the sink writes and prints
+#      tests/render_fixtures.h (since story 14a with runs from a font, drawn by
+#      both routes through shape-scene's test glyph provider) on the four
+#      formats the sink writes and prints
 #      each render's hash (the goldens) and their fold.  Controls: a probe that
 #      folds its results in the host's byte order must print the committed
 #      hashes on a little-endian target and others on a big-endian one; and,
@@ -95,7 +97,11 @@
 #      hash, count, expansion and picture depth and the store's counters in
 #      shape-geometry's spelling, and (story 13a) renders every list through the
 #      test sink on a stream under a scale and on a raster, folding in the
-#      results, the output and report hashes and the stamped pixels.  The maps
+#      results, the output and report hashes and the stamped pixels; and (story
+#      14a) runs from faces of the test glyph provider: each route's decision,
+#      the fast tier's device paths, the general route's maps and outlines, and
+#      the check, on every target, that with hinting off the fast tier is the
+#      general route under the snapped map (AD-5).  The maps
 #      are the composition of two general maps with entries over 1000, so their
 #      entries are sums of two products of inexact doubles:
 #      the two controls of section 4 (i686 without SSE, aarch64 with contraction
@@ -778,7 +784,11 @@ ch_want="$ch_hash $ch_count $cr_hash $cr_count"
 # flattener, the device path, the maps, the hash) and, because those call math, math's; with cutil's real
 # allocator.c and atomic.c (the scene's mutex and counts are cutil's), color's gamut.c and image's raster.c,
 # as the shape-scene probe of section 8 is.
-CPUFLAGS="-std=c17 -O2 -pedantic-errors -Wall -Wextra -Werror -ffp-contract=off -pthread -DGSHCPU_BUILD -DGSHSCENE_BUILD -DGSHGEOM_BUILD -DGMATH_BUILD -DGCOL_BUILD -DGIMG_BUILD -I$CPU/include -I$gc/generated $CPU_DEP_INCLUDES -I$GEOM/include -I$gg/generated -I$MATH/include -I$mg/generated"
+# Since story 14a the fixture set holds runs from a font, drawn through shape-scene's test glyph provider, which
+# shape-scene installs as <ghoti.io/shape-scene/testing/glyph_test_provider.h>: the same path is laid out here.
+mkdir -p "$B/gen/scene-testing/ghoti.io/shape-scene/testing"
+cp "$ROOT/libs/shape-scene/tests/glyph_test_provider.h" "$B/gen/scene-testing/ghoti.io/shape-scene/testing/"
+CPUFLAGS="-std=c17 -O2 -pedantic-errors -Wall -Wextra -Werror -ffp-contract=off -pthread -DGSHCPU_BUILD -DGSHSCENE_BUILD -DGSHGEOM_BUILD -DGMATH_BUILD -DGCOL_BUILD -DGIMG_BUILD -I$CPU/include -I$gc/generated $CPU_DEP_INCLUDES -I$B/gen/scene-testing -I$GEOM/include -I$gg/generated -I$MATH/include -I$mg/generated"
 
 # cpu_run TRIPLE CC QEMU TAG FLAGS... -> prints "HASH COUNT RENDER-HASH RENDER-COUNT"
 cpu_run() {
