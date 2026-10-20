@@ -1,0 +1,18 @@
+# The shape benchmark's reference images, pinned.
+#
+# One line per reference, tab-separated: <name> <image-ref> <version> <what it
+# answers>. run-evo.sh names the same tags; keep the two in step.
+#
+# Both images are built here (on the EVO-X2, through `tools/evo image build`),
+# so there is no registry digest to trust. What is pinned is everything a
+# Containerfile reads (the base by digest, packages by a dated
+# snapshot.debian.org archive, the reference by commit, checked with `git
+# rev-parse`), and each run records the built image's ID (`docker image
+# inspect --format '{{.Id}}'`) beside every number it produced, so a result
+# names the exact bytes that ran. The tag's suffix is a revision that moves
+# when the contents do; `:latest` is never a tag here.
+#
+# They supply timing and pixels only (spine AD-28). No code of either is read
+# or ported.
+blend2d	localhost/ghoti-shape-bench-blend2d:0.21.3-2	Blend2D 0.21.3 (58ca946), AsmJit 6a6cca8, clang 19.1.7	Fill rate, path count, text throughput and immediate-mode frame time, CPU, one thread
+skia	localhost/ghoti-shape-bench-skia:m156-2	Skia chrome/m156 (886e42f), clang 19.1.7, system FreeType 2.13.3	Fill rate, path count, text throughput, and SkPicture record and playback time, CPU raster backend

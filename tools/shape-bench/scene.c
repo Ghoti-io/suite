@@ -1,0 +1,488 @@
+/*
+ * SPDX-License-Identifier: LGPL-3.0-only
+ *
+ * Copyright (C) 2026 Corey Pennycuff
+ *
+ * This file is part of the Ghoti.io suite's shape benchmark harness.
+ *
+ * It is free software: you can redistribute it and/or modify it under the
+ * terms of the GNU Lesser General Public License version 3 as published by
+ * the Free Software Foundation.
+ *
+ * It is distributed in the hope that it will be useful, but WITHOUT ANY
+ * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+ * FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public License for
+ * more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+#define _POSIX_C_SOURCE 200809L
+
+#include "scene.h"
+
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
+
+void sb_scene_init(SB_Scene * scene) {
+  memset(scene, 0, sizeof *scene);
+}
+
+void sb_scene_free(SB_Scene * scene) {
+  free(scene->items);
+  free(scene->cmds);
+  free(scene->glyphs);
+  sb_scene_init(scene);
+}
+
+static int grow(void ** data, size_t * cap, size_t need, size_t size) {
+  if (need <= *cap) {
+    return 0;
+  }
+  size_t n = *cap ? *cap * 2 : 64;
+  while (n < need) {
+    n *= 2;
+  }
+  void * p = realloc(*data, n * size);
+  if (!p) {
+    return -1;
+  }
+  *data = p;
+  *cap = n;
+  return 0;
+}
+
+int sb_scene_add_item(SB_Scene * scene, const SB_Item * item) {
+  if (grow((void **)&scene->items, &scene->cap_items, scene->n_items + 1, sizeof *item)) {
+    return -1;
+  }
+  scene->items[scene->n_items++] = *item;
+  return 0;
+}
+
+int sb_scene_add_cmd(SB_Scene * scene, char op, const double * p) {
+  if (grow((void **)&scene->cmds, &scene->cap_cmds, scene->n_cmds + 1, sizeof(SB_Cmd))) {
+    return -1;
+  }
+  SB_Cmd * c = &scene->cmds[scene->n_cmds++];
+  memset(c, 0, sizeof *c);
+  c->op = op;
+  int n = op == 'M' || op == 'L' ? 2 : op == 'Q' ? 4 : op == 'C' ? 6 : 0;
+  for (int i = 0; i < n; i++) {
+    c->p[i] = p[i];
+  }
+  return 0;
+}
+
+int sb_scene_add_glyph(SB_Scene * scene, uint32_t id, double x, double y) {
+  if (grow((void **)&scene->glyphs, &scene->cap_glyphs, scene->n_glyphs + 1, sizeof(SB_Glyph))) {
+    return -1;
+  }
+  SB_Glyph * g = &scene->glyphs[scene->n_glyphs++];
+  g->id = id;
+  g->x = x;
+  g->y = y;
+  return 0;
+}
+
+size_t sb_scene_drawables(const SB_Scene * scene) {
+  size_t n = 0;
+  for (size_t i = 0; i < scene->n_items; i++) {
+    n += scene->items[i].kind == SB_FILL || scene->items[i].kind == SB_RUN;
+  }
+  return n;
+}
+
+static int cmd_arity(char op) {
+  switch (op) {
+  case 'M':
+  case 'L':
+    return 2;
+  case 'Q':
+    return 4;
+  case 'C':
+    return 6;
+  case 'Z':
+    return 0;
+  default:
+    return -1;
+  }
+}
+
+static int fail(char * err, size_t len, int line, const char * what) {
+  if (err && len) {
+    snprintf(err, len, "line %d: %s", line, what);
+  }
+  return -1;
+}
+
+static int read_color(const char * s, SB_Color * c, unsigned * count) {
+  unsigned r, g, b, a;
+  if (sscanf(s, "%u %u %u %u %u", &r, &g, &b, &a, count) != 5 || r > 255 || g > 255 || b > 255 || a > 255) {
+    return -1;
+  }
+  c->r = (uint8_t)r;
+  c->g = (uint8_t)g;
+  c->b = (uint8_t)b;
+  c->a = (uint8_t)a;
+  return 0;
+}
+
+int sb_scene_load(const char * path, SB_Scene * out, char * err, size_t errlen) {
+  FILE * f = fopen(path, "r");
+  if (!f) {
+    return fail(err, errlen, 0, "cannot open");
+  }
+  SB_Scene s;
+  sb_scene_init(&s);
+  char buf[512];
+  int line = 0, header = 0, ended = 0;
+  int status = 0;
+  while (fgets(buf, sizeof buf, f)) {
+    line++;
+    char * nl = strchr(buf, '\n');
+    if (!nl) {
+      status = fail(err, errlen, line, "line too long");
+      break;
+    }
+    *nl = 0;
+    if (!header) {
+      if (strcmp(buf, "shape-bench-scene 1") != 0) {
+        status = fail(err, errlen, line, "not a version 1 scene");
+        break;
+      }
+      header = 1;
+      continue;
+    }
+    if (ended) {
+      status = fail(err, errlen, line, "text after end");
+      break;
+    }
+    char word[16] = {0};
+    int used = 0;
+    if (sscanf(buf, "%15s%n", word, &used) != 1) {
+      status = fail(err, errlen, line, "empty line");
+      break;
+    }
+    const char * rest = buf + used;
+    if (!strcmp(word, "name")) {
+      if (sscanf(rest, " %63s", s.name) != 1) {
+        status = fail(err, errlen, line, "bad name");
+        break;
+      }
+    } else if (!strcmp(word, "metric")) {
+      if (sscanf(rest, " %15s", s.metric) != 1) {
+        status = fail(err, errlen, line, "bad metric");
+        break;
+      }
+    } else if (!strcmp(word, "extent")) {
+      if (sscanf(rest, "%d %d", &s.width, &s.height) != 2 || s.width <= 0 || s.height <= 0 || s.width > 16384 ||
+          s.height > 16384) {
+        status = fail(err, errlen, line, "bad extent");
+        break;
+      }
+    } else if (!strcmp(word, "background")) {
+      unsigned r, g, b, a;
+      if (sscanf(rest, "%u %u %u %u", &r, &g, &b, &a) != 4 || r > 255 || g > 255 || b > 255 || a > 255) {
+        status = fail(err, errlen, line, "bad background");
+        break;
+      }
+      s.background.r = (uint8_t)r;
+      s.background.g = (uint8_t)g;
+      s.background.b = (uint8_t)b;
+      s.background.a = (uint8_t)a;
+    } else if (!strcmp(word, "work")) {
+      if (sscanf(rest, " %15s %lf", s.work_unit, &s.work) != 2) {
+        status = fail(err, errlen, line, "bad work");
+        break;
+      }
+    } else if (!strcmp(word, "font")) {
+      if (sscanf(rest, " %255s %lf", s.font, &s.font_size) != 2 || s.font_size <= 0) {
+        status = fail(err, errlen, line, "bad font");
+        break;
+      }
+    } else if (!strcmp(word, "clip")) {
+      SB_Item it;
+      memset(&it, 0, sizeof it);
+      it.kind = SB_CLIP;
+      if (sscanf(rest, "%lf %lf %lf %lf", &it.rect[0], &it.rect[1], &it.rect[2], &it.rect[3]) != 4 ||
+          sb_scene_add_item(&s, &it)) {
+        status = fail(err, errlen, line, "bad clip");
+        break;
+      }
+    } else if (!strcmp(word, "unclip")) {
+      SB_Item it;
+      memset(&it, 0, sizeof it);
+      it.kind = SB_UNCLIP;
+      if (sb_scene_add_item(&s, &it)) {
+        status = fail(err, errlen, line, "out of memory");
+        break;
+      }
+    } else if (!strcmp(word, "fill") || !strcmp(word, "run")) {
+      SB_Item it;
+      memset(&it, 0, sizeof it);
+      unsigned count = 0;
+      it.kind = word[0] == 'f' ? SB_FILL : SB_RUN;
+      if (read_color(rest, &it.color, &count) || count == 0) {
+        status = fail(err, errlen, line, "bad fill or run");
+        break;
+      }
+      it.first = it.kind == SB_FILL ? s.n_cmds : s.n_glyphs;
+      it.count = count;
+      for (unsigned k = 0; k < count && status == 0; k++) {
+        if (!fgets(buf, sizeof buf, f) || !strchr(buf, '\n')) {
+          status = fail(err, errlen, line + 1, "truncated item");
+          break;
+        }
+        line++;
+        if (it.kind == SB_FILL) {
+          double p[6] = {0};
+          char op = buf[0];
+          int arity = cmd_arity(op);
+          int got = arity <= 0 ? 0 : sscanf(buf + 1, "%lf %lf %lf %lf %lf %lf", &p[0], &p[1], &p[2], &p[3], &p[4], &p[5]);
+          if (arity < 0 || got != arity || (k == 0 && op != 'M') || sb_scene_add_cmd(&s, op, p)) {
+            status = fail(err, errlen, line, "bad path command");
+          }
+        } else {
+          unsigned id;
+          double x, y;
+          if (sscanf(buf, "g %u %lf %lf", &id, &x, &y) != 3 || sb_scene_add_glyph(&s, id, x, y)) {
+            status = fail(err, errlen, line, "bad glyph");
+          }
+        }
+      }
+      if (status == 0 && sb_scene_add_item(&s, &it)) {
+        status = fail(err, errlen, line, "out of memory");
+      }
+      if (status) {
+        break;
+      }
+    } else if (!strcmp(word, "end")) {
+      ended = 1;
+    } else {
+      status = fail(err, errlen, line, "unknown record");
+      break;
+    }
+  }
+  fclose(f);
+  if (status == 0 && (!ended || !s.name[0] || !s.metric[0] || !s.width || !s.work_unit[0])) {
+    status = fail(err, errlen, line, "incomplete scene");
+  }
+  if (status == 0 && !strcmp(s.metric, "text") && !s.font[0]) {
+    status = fail(err, errlen, line, "a text scene names no font");
+  }
+  int depth = 0;
+  for (size_t i = 0; status == 0 && i < s.n_items; i++) {
+    depth += s.items[i].kind == SB_CLIP ? 1 : s.items[i].kind == SB_UNCLIP ? -1 : 0;
+    if (depth < 0) {
+      status = fail(err, errlen, line, "unclip without clip");
+    }
+  }
+  if (status == 0 && depth != 0) {
+    status = fail(err, errlen, line, "clip left open");
+  }
+  if (status) {
+    sb_scene_free(&s);
+    return -1;
+  }
+  *out = s;
+  return 0;
+}
+
+/* Coordinates are multiples of 1/64, which %.6f writes exactly. */
+int sb_scene_save(const char * path, const SB_Scene * s) {
+  FILE * f = fopen(path, "w");
+  if (!f) {
+    return -1;
+  }
+  fprintf(f, "shape-bench-scene 1\nname %s\nmetric %s\nextent %d %d\nbackground %u %u %u %u\nwork %s %.6f\n", s->name,
+      s->metric, s->width, s->height, s->background.r, s->background.g, s->background.b, s->background.a, s->work_unit,
+      s->work);
+  if (s->font[0]) {
+    fprintf(f, "font %s %.6f\n", s->font, s->font_size);
+  }
+  for (size_t i = 0; i < s->n_items; i++) {
+    const SB_Item * it = &s->items[i];
+    const SB_Color * c = &it->color;
+    switch (it->kind) {
+    case SB_CLIP:
+      fprintf(f, "clip %.6f %.6f %.6f %.6f\n", it->rect[0], it->rect[1], it->rect[2], it->rect[3]);
+      break;
+    case SB_UNCLIP:
+      fprintf(f, "unclip\n");
+      break;
+    case SB_FILL:
+      fprintf(f, "fill %u %u %u %u %zu\n", c->r, c->g, c->b, c->a, it->count);
+      for (size_t k = 0; k < it->count; k++) {
+        const SB_Cmd * m = &s->cmds[it->first + k];
+        int n = cmd_arity(m->op);
+        fputc(m->op, f);
+        for (int j = 0; j < n; j++) {
+          fprintf(f, " %.6f", m->p[j]);
+        }
+        fputc('\n', f);
+      }
+      break;
+    case SB_RUN:
+      fprintf(f, "run %u %u %u %u %zu\n", c->r, c->g, c->b, c->a, it->count);
+      for (size_t k = 0; k < it->count; k++) {
+        const SB_Glyph * g = &s->glyphs[it->first + k];
+        fprintf(f, "g %u %.6f %.6f\n", g->id, g->x, g->y);
+      }
+      break;
+    }
+  }
+  fprintf(f, "end\n");
+  return fclose(f) == 0 ? 0 : -1;
+}
+
+double sb_now(void) {
+  struct timespec ts;
+  clock_gettime(CLOCK_MONOTONIC, &ts);
+  return (double)ts.tv_sec + (double)ts.tv_nsec * 1e-9;
+}
+
+static int cmp_double(const void * a, const void * b) {
+  double x = *(const double *)a, y = *(const double *)b;
+  return x < y ? -1 : x > y ? 1 : 0;
+}
+
+static double quantile(const double * sorted, int n, double q) {
+  double pos = q * (double)(n - 1);
+  int i = (int)pos;
+  if (i >= n - 1) {
+    return sorted[n - 1];
+  }
+  double frac = pos - (double)i;
+  return sorted[i] + (sorted[i + 1] - sorted[i]) * frac;
+}
+
+void sb_stats(double * samples, int n, SB_Stats * out) {
+  qsort(samples, (size_t)n, sizeof *samples, cmp_double);
+  out->min = samples[0];
+  out->max = samples[n - 1];
+  out->median = quantile(samples, n, 0.5);
+  out->p25 = quantile(samples, n, 0.25);
+  out->p75 = quantile(samples, n, 0.75);
+}
+
+int sb_measure(const SB_Engine * e, SB_Measure * out) {
+  double build[SB_TIMED_FRAMES], submit[SB_TIMED_FRAMES], frame[SB_TIMED_FRAMES];
+  int rc;
+  memset(out, 0, sizeof *out);
+  out->has_build = e->build != NULL;
+  double start = sb_now();
+  int warm = 0;
+  while (warm < SB_WARMUP_FRAMES || sb_now() - start < SB_WARMUP_SECONDS) {
+    if ((rc = e->clear(e->ctx)) || (e->build && (rc = e->build(e->ctx))) || (rc = e->submit(e->ctx))) {
+      return rc;
+    }
+    warm++;
+  }
+  for (int i = 0; i < SB_TIMED_FRAMES; i++) {
+    if ((rc = e->clear(e->ctx))) {
+      return rc;
+    }
+    double t0 = sb_now();
+    if (e->build && (rc = e->build(e->ctx))) {
+      return rc;
+    }
+    double t1 = sb_now();
+    if ((rc = e->submit(e->ctx))) {
+      return rc;
+    }
+    double t2 = sb_now();
+    build[i] = t1 - t0;
+    submit[i] = t2 - t1;
+    frame[i] = t2 - t0;
+  }
+  out->warmup_frames = warm;
+  out->frames = SB_TIMED_FRAMES;
+  sb_stats(build, SB_TIMED_FRAMES, &out->build);
+  sb_stats(submit, SB_TIMED_FRAMES, &out->submit);
+  sb_stats(frame, SB_TIMED_FRAMES, &out->frame);
+  return 0;
+}
+
+static void stats_json(FILE * out, const char * key, const SB_Stats * s) {
+  fprintf(out, "\"%s\":{\"median\":%.9g,\"p25\":%.9g,\"p75\":%.9g,\"min\":%.9g,\"max\":%.9g}", key, s->median, s->p25,
+      s->p75, s->min, s->max);
+}
+
+void sb_report(FILE * out, const char * engine, const SB_Scene * scene, const SB_Measure * m, const char * output,
+    const char * note) {
+  fprintf(out,
+      "{\"engine\":\"%s\",\"scene\":\"%s\",\"metric\":\"%s\",\"extent\":[%d,%d],\"work_unit\":\"%s\",\"work\":%.9g,"
+      "\"warmup_frames\":%d,\"frames\":%d,",
+      engine, scene->name, scene->metric, scene->width, scene->height, scene->work_unit, scene->work, m->warmup_frames,
+      m->frames);
+  if (m->has_build) {
+    stats_json(out, "build", &m->build);
+  } else {
+    fprintf(out, "\"build\":null");
+  }
+  fputc(',', out);
+  stats_json(out, "submit", &m->submit);
+  fputc(',', out);
+  stats_json(out, "frame", &m->frame);
+  fprintf(out, ",\"output\":\"%s\",\"note\":", output);
+  if (note) {
+    fputc('"', out);
+    for (const char * p = note; *p; p++) {
+      if (*p == '"' || *p == '\\') {
+        fputc('\\', out);
+      }
+      fputc(*p, out);
+    }
+    fputc('"', out);
+  } else {
+    fprintf(out, "null");
+  }
+  fprintf(out, "}\n");
+  fflush(out);
+}
+
+int sb_write_pam(const char * path, int width, int height, const uint8_t * pixels, size_t stride, int bgra) {
+  FILE * f = fopen(path, "wb");
+  if (!f) {
+    return -1;
+  }
+  fprintf(f, "P7\nWIDTH %d\nHEIGHT %d\nDEPTH 4\nMAXVAL 255\nTUPLTYPE RGB_ALPHA\nENDHDR\n", width, height);
+  uint8_t * row = malloc((size_t)width * 4);
+  if (!row) {
+    fclose(f);
+    return -1;
+  }
+  for (int y = 0; y < height; y++) {
+    const uint8_t * src = pixels + (size_t)y * stride;
+    for (int x = 0; x < width; x++) {
+      row[4 * x + 0] = src[4 * x + (bgra ? 2 : 0)];
+      row[4 * x + 1] = src[4 * x + 1];
+      row[4 * x + 2] = src[4 * x + (bgra ? 0 : 2)];
+      row[4 * x + 3] = src[4 * x + 3];
+    }
+    fwrite(row, 4, (size_t)width, f);
+  }
+  free(row);
+  return fclose(f) == 0 ? 0 : -1;
+}
+
+void sb_background_bytes(const SB_Scene * scene, int bgra, uint8_t out[4]) {
+  const SB_Color * c = &scene->background;
+  unsigned r = (c->r * c->a + 127u) / 255u, g = (c->g * c->a + 127u) / 255u, b = (c->b * c->a + 127u) / 255u;
+  out[0] = (uint8_t)(bgra ? b : r);
+  out[1] = (uint8_t)g;
+  out[2] = (uint8_t)(bgra ? r : b);
+  out[3] = c->a;
+}
+
+void sb_clear(uint8_t * pixels, int width, int height, size_t stride, const uint8_t px[4]) {
+  for (int y = 0; y < height; y++) {
+    uint8_t * row = pixels + (size_t)y * stride;
+    for (int x = 0; x < width; x++) {
+      memcpy(row + 4 * x, px, 4);
+    }
+  }
+}

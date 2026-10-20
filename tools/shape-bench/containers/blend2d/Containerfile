@@ -1,0 +1,72 @@
+# Blend2D, as a black-box reference for the shape family's benchmarks (spine AD-28).
+#
+# Built here from a pinned upstream commit and used only through its public C++
+# API by refs/bench-blend2d.cpp, which is this repository's own code and is
+# compiled inside this image at run time (so a change to the driver does not
+# need the image rebuilt). No Blend2D source is read or ported: the image is the
+# only place it exists.
+#
+# Pins, all checked while building, so a moved pin stops the build:
+#   * the base, by digest (the Debian 13 slim image the oracle images use);
+#   * every package, by a dated snapshot.debian.org archive, so a rebuild gets
+#     the same compiler;
+#   * Blend2D and AsmJit (its JIT's assembler), by commit; the commit hash is a
+#     digest of the tree, and `git rev-parse HEAD` must equal it.
+#
+# Blend2D publishes no tags. The commit is the one whose message is
+# "[ver] Blend2D v0.21.3" (2026-09-05); AsmJit is the last commit of the same
+# morning, "ABI tag updated to v1_22", which is the AsmJit that release was
+# adapted to.
+#
+# Build (on the EVO-X2, through tools/evo; never on the workstation):
+#   tools/evo image build localhost/ghoti-shape-bench-blend2d:0.21.3-2 \
+#       suite/tools/shape-bench/containers/blend2d \
+#       suite/tools/shape-bench/containers/blend2d/Containerfile
+ARG BASE=docker.io/library/debian:13-slim@sha256:7792b1f7702a86946cd518db72b6a407302c3e9bc1635634368b878189e8221c
+FROM ${BASE}
+
+# Declared again so the build can write it into PROVENANCE: a result names its base.
+ARG BASE
+
+ARG SNAPSHOT=20261012T000000Z
+ARG BLEND2D_COMMIT=58ca9460b4138af6e793184682e9324e0a8053b2
+ARG ASMJIT_COMMIT=6a6cca88d6dccef4c5c1d258b9e12d8699dff842
+
+ENV LANG=C.UTF-8 LC_ALL=C.UTF-8
+
+RUN rm -f /etc/apt/sources.list.d/debian.sources \
+ && printf 'Types: deb\nURIs: http://snapshot.debian.org/archive/debian/%s/\nSuites: trixie trixie-updates\nComponents: main\nSigned-By: /usr/share/keyrings/debian-archive-keyring.gpg\n' "$SNAPSHOT" \
+      > /etc/apt/sources.list.d/snapshot.sources \
+ && printf 'Acquire::Check-Valid-Until "false";\nAcquire::Retries "5";\n' > /etc/apt/apt.conf.d/99snapshot \
+ && apt-get update \
+ && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+      ca-certificates git clang-19 cmake make libc6-dev libstdc++-14-dev procps \
+ && rm -rf /var/lib/apt/lists/*
+
+RUN set -e; \
+    fetch() { mkdir -p "$1" && cd "$1" && git init -q && \
+      git fetch -q --depth 1 "$2" "$3" && git checkout -q FETCH_HEAD && \
+      test "$(git rev-parse HEAD)" = "$3" || { echo "pin moved: $2 $3" >&2; exit 1; }; }; \
+    fetch /src/blend2d https://github.com/blend2d/blend2d "$BLEND2D_COMMIT"; \
+    fetch /src/blend2d/3rdparty/asmjit https://github.com/asmjit/asmjit "$ASMJIT_COMMIT"
+
+# Blend2D's own release configuration: CMake's Release type, its own flags
+# (the project adds -O2 and its SIMD dispatch itself), a static library with
+# the JIT on. compile_commands.json is kept so the flags are a recorded fact.
+RUN cmake -S /src/blend2d -B /build \
+      -DCMAKE_BUILD_TYPE=Release -DBLEND2D_STATIC=ON \
+      -DCMAKE_C_COMPILER=clang-19 -DCMAKE_CXX_COMPILER=clang++-19 \
+      -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_INSTALL_PREFIX=/opt/blend2d \
+ && cmake --build /build -j"$(nproc)" \
+ && cmake --install /build \
+ && mkdir -p /opt/blend2d/share \
+ && cp /build/compile_commands.json /opt/blend2d/share/compile_commands.json \
+ && { echo "blend2d $BLEND2D_COMMIT"; echo "asmjit $ASMJIT_COMMIT"; \
+      echo "base $BASE"; echo "snapshot $SNAPSHOT"; clang++-19 --version | head -n 1; \
+      printf 'flags '; grep -o '"command": "[^"]*context.cpp[^"]*"' /build/compile_commands.json | head -n 1; } \
+      > /opt/blend2d/share/PROVENANCE \
+ && cat /opt/blend2d/share/PROVENANCE \
+ && rm -rf /build /src/blend2d/.git /src/blend2d/3rdparty/asmjit/.git
+
+ENTRYPOINT []
+CMD ["cat", "/opt/blend2d/share/PROVENANCE"]

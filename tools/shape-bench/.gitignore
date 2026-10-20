@@ -1,0 +1,3 @@
+# Build output of `make` here (the job builds into its own directory instead).
+/build/
+__pycache__/

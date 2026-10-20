@@ -1,0 +1,68 @@
+# Skia's raster backend, as a black-box reference for the shape family's
+# benchmarks (spine AD-28).
+#
+# Built here from a pinned upstream commit and used only through its public C++
+# API by refs/bench-skia.cpp, which is this repository's own code and is
+# compiled inside this image at run time. No Skia source is read or ported.
+#
+# Pins, all checked while building:
+#   * the base, by digest (the Debian 13 slim image the oracle images use);
+#   * every package, by a dated snapshot.debian.org archive (the compiler, and
+#     FreeType, which Skia's custom font manager reads a font file with);
+#   * Skia, by commit: the head of its chrome/m156 branch on 2026-10-16. The
+#     commit hash is a digest of the tree and `git rev-parse HEAD` must equal it;
+#   * gn, by the revision Skia's own bin/fetch-gn names at that commit.
+#
+# The configuration is Skia's official release build (`is_official_build`,
+# -O3 and its own SIMD dispatch), reduced to the CPU raster backend: no GPU, no
+# codecs, no PDF, SVG or Skottie, no ICU or HarfBuzz, a FreeType font manager
+# with no system fonts. Everything left out is a dependency that would need a
+# pin of its own and that no benchmark here calls. The gn arguments are kept in
+# the image so the flags are a recorded fact.
+#
+# Build (on the EVO-X2, through tools/evo; never on the workstation, it is
+# heavy):
+#   tools/evo image build localhost/ghoti-shape-bench-skia:m156-2 \
+#       suite/tools/shape-bench/containers/skia \
+#       suite/tools/shape-bench/containers/skia/Containerfile -m 24G -t 2h
+ARG BASE=docker.io/library/debian:13-slim@sha256:7792b1f7702a86946cd518db72b6a407302c3e9bc1635634368b878189e8221c
+FROM ${BASE}
+
+# Declared again so the build can write it into PROVENANCE: a result names its base.
+ARG BASE
+
+ARG SNAPSHOT=20261012T000000Z
+ARG SKIA_COMMIT=886e42fda11610a56dd1b22e8697e27f9d1e34f2
+
+ENV LANG=C.UTF-8 LC_ALL=C.UTF-8
+
+RUN rm -f /etc/apt/sources.list.d/debian.sources \
+ && printf 'Types: deb\nURIs: http://snapshot.debian.org/archive/debian/%s/\nSuites: trixie trixie-updates\nComponents: main\nSigned-By: /usr/share/keyrings/debian-archive-keyring.gpg\n' "$SNAPSHOT" \
+      > /etc/apt/sources.list.d/snapshot.sources \
+ && printf 'Acquire::Check-Valid-Until "false";\nAcquire::Retries "5";\n' > /etc/apt/apt.conf.d/99snapshot \
+ && apt-get update \
+ && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+      ca-certificates git python3 clang-19 lld-19 ninja-build pkg-config \
+      libfreetype-dev libc6-dev libstdc++-14-dev procps \
+ && rm -rf /var/lib/apt/lists/*
+
+RUN mkdir -p /opt/skia && cd /opt/skia && git init -q \
+ && git fetch -q --depth 1 https://skia.googlesource.com/skia "$SKIA_COMMIT" \
+ && git checkout -q FETCH_HEAD \
+ && test "$(git rev-parse HEAD)" = "$SKIA_COMMIT" \
+ && python3 bin/fetch-gn
+
+RUN cd /opt/skia \
+ && bin/gn gen out/Release --args='is_official_build=true is_debug=false cc="clang-19" cxx="clang++-19" target_cpu="x64" skia_enable_ganesh=false skia_enable_graphite=false skia_use_gl=false skia_use_vulkan=false skia_use_dawn=false skia_enable_pdf=false skia_enable_svg=false skia_enable_skottie=false skia_enable_skshaper=false skia_enable_skparagraph=false skia_enable_tools=false skia_use_expat=false skia_use_icu=false skia_use_harfbuzz=false skia_use_fontconfig=false skia_use_freetype=true skia_use_system_freetype2=true skia_enable_fontmgr_custom_empty=true skia_enable_fontmgr_custom_directory=false skia_enable_fontmgr_custom_embedded=false skia_enable_fontmgr_empty=false skia_use_libjpeg_turbo_decode=false skia_use_libjpeg_turbo_encode=false skia_use_libpng_decode=false skia_use_libpng_encode=false skia_use_libwebp_decode=false skia_use_libwebp_encode=false skia_use_wuffs=false skia_use_zlib=false skia_use_dng_sdk=false skia_use_piex=false skia_use_xps=false skia_use_x11=false skia_use_perfetto=false skia_use_partition_alloc=false' \
+ && ninja -j 16 -C out/Release skia \
+ && mkdir -p share \
+ && bin/gn args out/Release --list --short --overrides-only > share/GN_ARGS \
+ && bin/gn desc out/Release //:skia cflags_cc > share/CFLAGS_CC \
+ && bin/gn desc out/Release //:skia defines > share/DEFINES \
+ && { echo "skia $SKIA_COMMIT"; echo "base $BASE"; echo "snapshot $SNAPSHOT"; clang++-19 --version | head -n 1; \
+      echo "freetype $(pkg-config --modversion freetype2)"; } > share/PROVENANCE \
+ && cat share/PROVENANCE share/GN_ARGS \
+ && rm -rf .git out/Release/obj
+
+ENTRYPOINT []
+CMD ["cat", "/opt/skia/share/PROVENANCE"]
