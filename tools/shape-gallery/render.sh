@@ -45,9 +45,13 @@ done
 echo "== build the gallery"
 PC="ghoti.io-font-0 ghoti.io-shape-cpu-0 ghoti.io-shape-scene-0 ghoti.io-shape-geometry-0 ghoti.io-image-0
     ghoti.io-color-0 ghoti.io-math-0 ghoti.io-cutil-0"
+# The rpath comes from each -L directory: the .pc files define no libdir
+# variable, and without an rpath the program finds its libraries only where
+# the install could run ldconfig, which needs root.
 RPATH=
-for p in $PC; do
-  RPATH="$RPATH -Wl,-rpath,$(pkg-config --variable=libdir "$p")"
+# shellcheck disable=SC2086 # PC is a word list
+for d in $(pkg-config --libs-only-L $PC); do
+  RPATH="$RPATH -Wl,-rpath,${d#-L}"
 done
 CFLAGS="-std=c17 -D_DEFAULT_SOURCE -O2 -Wall -Wextra"
 BIN=${TMPDIR:-/tmp}/shape-gallery-$$
