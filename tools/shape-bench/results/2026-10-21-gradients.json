@@ -51,7 +51,8 @@
    "driver_log": [
     "compiler: gcc (GCC) 16.2.0"
    ],
-   "cpu": "x86-64",
+   "cpu_model": "AMD RYZEN AI MAX+ 395 w/ Radeon 8060S",
+   "arch": "x86_64",
    "build": {
     "compiler": "gcc (GCC) 16.2.0",
     "harness_flags": "cc -std=c17 -O2 -g -Wall -Wextra -Werror -ffp-contract=off",
@@ -84,7 +85,8 @@
    "asmjit": "6a6cca88d6dccef4c5c1d258b9e12d8699dff842",
    "base": "docker.io/library/debian:13-slim@sha256:7792b1f7702a86946cd518db72b6a407302c3e9bc1635634368b878189e8221c",
    "snapshot": "20261012T000000Z",
-   "cpu": "x86-64"
+   "cpu_model": "AMD RYZEN AI MAX+ 395 w/ Radeon 8060S",
+   "arch": "x86_64"
   },
   "skia": {
    "engine": "skia",
@@ -149,7 +151,8 @@
    "base": "docker.io/library/debian:13-slim@sha256:7792b1f7702a86946cd518db72b6a407302c3e9bc1635634368b878189e8221c",
    "snapshot": "20261012T000000Z",
    "freetype": "26.2.20",
-   "cpu": "x86-64"
+   "cpu_model": "AMD RYZEN AI MAX+ 395 w/ Radeon 8060S",
+   "arch": "x86_64"
   },
   "font": {
    "runs_in": "shape-cpu (the same process and image)",
