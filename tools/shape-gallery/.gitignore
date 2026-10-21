@@ -1,0 +1,3 @@
+# Each run's pictures, logs and manifest, and the stage a run builds from;
+# kept on this machine to compare against, never committed.
+/runs/
