@@ -35,6 +35,28 @@
  * contrast is 0 and gamma 1, so that glyph coverage is linear alpha as in every
  * other engine here. Skia keeps rendered glyph masks in its strike cache, which
  * is its design and is left as it is.
+ *
+ * Gradients (the gradients scene) are SkShaders built once, before timing,
+ * like the paths, through m156's SkShaders gradient factories and an
+ * SkGradient (include/effects/SkGradient.h), on paints whose dithering is
+ * turned off explicitly.  Each stop is the 8-bit sRGB color as an SkColor4f
+ * (SkColor4f::FromColor) at its offset; the interpolation is
+ * Interpolation{InPremul::kNo, ColorSpace::kDestination}, the destination
+ * being a surface with no color space, so no color is converted and the stops
+ * are interpolated in the target's encoded values, unpremultiplied (for
+ * opaque stops the same as premultiplied).  The scene's kinds map as:
+ *
+ *   linear  SkShaders::LinearGradient with the same two points.
+ *   radial  SkShaders::TwoPointConicalGradient(start, r0, end, r1): the
+ *           scene's two-circle cone (offset 0 on the start circle, 1 on the
+ *           end circle, the largest offset whose radius is positive), which is
+ *           the HTML canvas's radial gradient, as Skia documents it.
+ *   sweep   SkShaders::SweepGradient(center, startAngle a0, endAngle a1):
+ *           degrees from the +x axis, clockwise on this y-down canvas, offset 0
+ *           at a0 and 1 at a1, the angles sampled in [0, 360) and the tile mode
+ *           applied outside [a0, a1], as the scene's.
+ *
+ * pad, repeat and reflect are SkTileMode kClamp, kRepeat and kMirror.
  */
 
 #include "include/core/SkCanvas.h"
@@ -52,6 +74,7 @@
 #include "include/core/SkSurfaceProps.h"
 #include "include/core/SkTextBlob.h"
 #include "include/core/SkTypeface.h"
+#include "include/effects/SkGradient.h"
 #include "include/ports/SkFontMgr_empty.h"
 
 #include <cstdio>
@@ -102,6 +125,37 @@ void draw(Engine & e, SkCanvas * c) {
   }
 }
 
+sk_sp<SkShader> make_gradient(const SB_Scene & s, const SB_Gradient & g) {
+  SkColor4f colors[SB_GRADIENT_STOPS_MAX];
+  float pos[SB_GRADIENT_STOPS_MAX];
+  size_t n = g.n_stops;
+  for (size_t k = 0; k < n; k++) {
+    const SB_Stop & st = s.stops[g.first_stop + k];
+    colors[k] = SkColor4f::FromColor(SkColorSetARGB(st.color.a, st.color.r, st.color.g, st.color.b));
+    pos[k] = float(st.offset);
+  }
+  SkTileMode mode = g.extend == SB_EXTEND_REPEAT ? SkTileMode::kRepeat
+      : g.extend == SB_EXTEND_REFLECT            ? SkTileMode::kMirror
+                                                 : SkTileMode::kClamp;
+  SkGradient::Interpolation interp;
+  interp.fInPremul = SkGradient::Interpolation::InPremul::kNo;
+  interp.fColorSpace = SkGradient::Interpolation::ColorSpace::kDestination;
+  SkGradient grad(SkGradient::Colors(SkSpan<const SkColor4f>(colors, n), SkSpan<const float>(pos, n), mode), interp);
+  auto v = [&](int j) { return SkScalar(g.g[j]); };
+  switch (g.kind) {
+  case SB_GRADIENT_LINEAR: {
+    SkPoint pts[2] = {SkPoint::Make(v(0), v(1)), SkPoint::Make(v(2), v(3))};
+    return SkShaders::LinearGradient(pts, grad, nullptr);
+  }
+  case SB_GRADIENT_RADIAL:
+    return SkShaders::TwoPointConicalGradient(SkPoint::Make(v(0), v(1)), v(2), SkPoint::Make(v(3), v(4)), v(5), grad,
+        nullptr);
+  case SB_GRADIENT_SWEEP:
+    return SkShaders::SweepGradient(SkPoint::Make(v(0), v(1)), v(2), v(3), grad, nullptr);
+  }
+  return nullptr;
+}
+
 int setup(Engine & e, const SB_Scene & s, const std::string & dir) {
   e.scene = &s;
   e.stride = size_t(s.width) * 4;
@@ -142,6 +196,15 @@ int setup(Engine & e, const SB_Scene & s, const std::string & dir) {
     p.setAntiAlias(true);
     p.setColor(SkColorSetARGB(it.color.a, it.color.r, it.color.g, it.color.b));
     p.setBlendMode(SkBlendMode::kSrcOver);
+    p.setDither(false);
+    if (it.kind == SB_FILL && it.gradient) {
+      // The color's alpha is the gradient's multiplier; its r, g, b are 0 and unused under a shader.
+      p.setShader(make_gradient(s, s.gradients[it.gradient - 1]));
+      if (!p.getShader()) {
+        std::fprintf(stderr, "bench-skia: cannot make the gradient of item %zu\n", i);
+        return -1;
+      }
+    }
     if (it.kind == SB_FILL) {
       SkPathBuilder b(SkPathFillType::kWinding);
       for (size_t k = 0; k < it.count; k++) {
@@ -207,7 +270,7 @@ int main(int argc, char ** argv) {
     std::fprintf(stderr, "usage: bench-skia DIR OUT\n");
     return 2;
   }
-  static const char * const scenes[] = {"fill-rect", "fill-circle", "paths", "text", "ui"};
+  static const char * const scenes[] = {"fill-rect", "fill-circle", "paths", "text", "ui", "gradients"};
   int failures = 0;
   for (const char * name : scenes) {
     std::string path = std::string(argv[1]) + "/" + name + ".scene";
@@ -233,6 +296,7 @@ int main(int argc, char ** argv) {
         sb_report(stdout, "skia", &s, &m, out.c_str(),
             e.record                              ? "build: SkPictureRecorder; submit: drawPicture"
                 : std::strcmp(s.metric, "text") == 0 ? "SkTextBlob built once; glyph masks cached by Skia's strike cache; text contrast 0 and gamma 1 (linear coverage)"
+                : s.n_gradients ? "SkShaders gradient shaders built once; paint dither off; 8-bit sRGB stops, destination interpolation on a surface with no color space, unpremultiplied"
                                                      : nullptr);
       } else {
         std::fprintf(stderr, "bench-skia: %s failed (%d)\n", s.name, rc);

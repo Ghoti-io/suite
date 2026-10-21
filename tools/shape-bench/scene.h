@@ -39,11 +39,33 @@
  *     fill <r> <g> <b> <a> <count>        a path filled non-zero, then <count> commands:
  *     M x y | L x y | Q x1 y1 x y | C x1 y1 x2 y2 x y | Z
  *     run <r> <g> <b> <a> <count>         a glyph run, then <count> lines "g <id> <x> <y>" (baseline origin)
+ *     gradient <kind> <extend> <geometry> <count>
+ *                                         the paint of the fill that follows it, then <count> stops
+ *                                         "s <offset> <r> <g> <b> <a>"
  *     end
  *
  * Coordinates are pixels, y down, and multiples of 1/64 written exactly.
  * Colors are straight 8-bit sRGB; every engine composites source-over in the
  * target's own (sRGB-encoded) values.
+ *
+ * A gradient record paints the fill record that comes next, and nothing else:
+ * any other record after it is an error.  That fill's color is then `0 0 0 a`,
+ * `a` the alpha multiplier.  `<kind>` and its `<geometry>`:
+ *
+ *     linear x0 y0 x1 y1                  offset 0 at (x0, y0), 1 at (x1, y1), isolines perpendicular
+ *     radial x0 y0 r0 x1 y1 r1            the two-circle cone: offset 0 on the circle (x0, y0, r0), 1 on
+ *                                         (x1, y1, r1), the largest offset whose radius is positive wins
+ *     sweep cx cy a0 a1                   angles in degrees from +x toward +y (clockwise on this y-down
+ *                                         raster), offset 0 at a0 and 1 at a1
+ *
+ * `<extend>` is `pad`, `repeat` or `reflect`.  There are 2 to SB_GRADIENT_STOPS_MAX
+ * stops, their offsets non-decreasing from exactly 0 to exactly 1: a first
+ * offset above 0 or a last below 1 means different periods to different
+ * engines under repeat and reflect, so the format does not carry one.  Every
+ * engine interpolates the stops in the target's own encoded values, unpremultiplied
+ * and undithered.  These are shape-scene's G7 to G9 (its paint.h) restricted to
+ * what the references can also say; a scene states in its generator which of
+ * them it uses and why.
  */
 
 #ifndef GHOTI_IO_SHAPE_BENCH_SCENE_H
@@ -74,12 +96,33 @@ typedef struct SB_Glyph {
   double x, y;
 } SB_Glyph;
 
+typedef enum SB_Gradient_Kind { SB_GRADIENT_LINEAR = 1, SB_GRADIENT_RADIAL = 2, SB_GRADIENT_SWEEP = 3 } SB_Gradient_Kind;
+typedef enum SB_Extend { SB_EXTEND_PAD = 0, SB_EXTEND_REPEAT = 1, SB_EXTEND_REFLECT = 2 } SB_Extend;
+
+/** The most stops a gradient record carries. */
+#define SB_GRADIENT_STOPS_MAX 16
+
+typedef struct SB_Stop {
+  double offset;
+  SB_Color color;
+} SB_Stop;
+
+typedef struct SB_Gradient {
+  SB_Gradient_Kind kind;
+  SB_Extend extend;
+  /** linear: x0 y0 x1 y1; radial: x0 y0 r0 x1 y1 r1; sweep: cx cy a0 a1 (degrees). */
+  double g[6];
+  size_t first_stop; ///< into SB_Scene.stops
+  size_t n_stops;
+} SB_Gradient;
+
 typedef struct SB_Item {
   SB_Kind kind;
-  SB_Color color;  ///< fill, run
+  SB_Color color;  ///< fill, run; a gradient fill's is 0 0 0 and its alpha multiplier
   size_t first;    ///< fill: the first command; run: the first glyph
   size_t count;    ///< fill: commands; run: glyphs
   double rect[4];  ///< clip: x0, y0, x1, y1
+  size_t gradient; ///< fill: 1 + the index of its paint in SB_Scene.gradients; 0 for a solid color
 } SB_Item;
 
 typedef struct SB_Scene {
@@ -97,6 +140,10 @@ typedef struct SB_Scene {
   size_t n_cmds, cap_cmds;
   SB_Glyph * glyphs;
   size_t n_glyphs, cap_glyphs;
+  SB_Gradient * gradients;
+  size_t n_gradients, cap_gradients;
+  SB_Stop * stops;
+  size_t n_stops, cap_stops;
 } SB_Scene;
 
 /** Zero a scene. */
@@ -107,6 +154,9 @@ void sb_scene_free(SB_Scene * scene);
 int sb_scene_add_item(SB_Scene * scene, const SB_Item * item);
 int sb_scene_add_cmd(SB_Scene * scene, char op, const double * p);
 int sb_scene_add_glyph(SB_Scene * scene, uint32_t id, double x, double y);
+/** Append a gradient (its stops already appended, from first_stop); 0 on success. */
+int sb_scene_add_gradient(SB_Scene * scene, const SB_Gradient * gradient);
+int sb_scene_add_stop(SB_Scene * scene, double offset, SB_Color color);
 /** Items that draw (fills and runs). */
 size_t sb_scene_drawables(const SB_Scene * scene);
 

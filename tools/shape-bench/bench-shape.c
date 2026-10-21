@@ -31,7 +31,8 @@
  * files into OUT.
  *
  * shape-cpu is driven as an application would drive it: path resources (and,
- * for text, one path a glyph and one glyph run a line) interned once into a
+ * for text, one path a glyph and one glyph run a line; for a gradient fill,
+ * its gradient) interned once into a
  * shape-scene store; each frame records a list (the build) and renders it
  * through the CPU sink (the submit), strict, into a borrowed premultiplied
  * RGBA8 raster.
@@ -320,6 +321,130 @@ static int gen_ui(SB_Scene * s) {
   return 0;
 }
 
+/* One gradient stop as the generator's table gives it: offset, then an opaque color. */
+typedef struct Gen_Stop {
+  double offset;
+  uint8_t r, g, b;
+} Gen_Stop;
+
+typedef struct Gen_Gradient {
+  int circle;         ///< the shape: 0 a rectangle, 1 a circle, both centered on the cell
+  SB_Gradient_Kind kind;
+  SB_Extend extend;
+  double g[6];        ///< the geometry relative to the shape's center (sweep angles absolute, degrees)
+  int n;
+  Gen_Stop stops[5];
+} Gen_Gradient;
+
+/*
+ * Fill rate, gradients (color-paint story P2, decision D9): twelve opaque shapes on a 4 by 3 grid of 480 by 360
+ * cells, each overlapping its neighbors, edges off the pixel grid; rows 0 and 2 rectangles of 580.5 by 431 (clamped
+ * to the frame), row 1 circles of radius 236.75.  Each is painted with its own gradient of 2 to 5 opaque stops,
+ * offsets from 0 to 1, alpha multiplier 1, in the target's own encoded values, so that premultiplied and straight
+ * interpolation agree and no conversion happens anywhere.
+ *
+ * The sub-cases are the ones every engine here draws by the same definition (shape-scene's G7 to G9); the drivers
+ * state their mappings.  Linear: pad, repeat and reflect.  Radial: concentric with a start circle of radius 0, pad,
+ * repeat and reflect, and one focal gradient, pad, whose start circle is a point inside the end circle (the
+ * two-circle cone that SVG's focal point, Blend2D's focal point and Skia's two-point conical all are there).
+ * Sweep: only what Blend2D's conic gradient, which always spans whole turns, can say: a full turn from 0 degrees
+ * (pad), a full turn from 30 degrees (repeat, so that the angles below 30 wrap as Blend2D's do), and a third of a turn
+ * repeated (Blend2D's repeat count 3).  Left out, because a reference cannot express them: a sweep over a part of a
+ * turn under pad or reflect, a radial start circle of nonzero radius, and a focal point outside the end circle.
+ */
+static const Gen_Gradient GRADIENTS[12] = {
+    /* row 0: rectangles */
+    {0, SB_GRADIENT_LINEAR, SB_EXTEND_PAD, {-200, -60, 180, 70}, 2,
+        {{0, 230, 40, 40}, {1, 30, 60, 220}}},
+    {0, SB_GRADIENT_LINEAR, SB_EXTEND_REPEAT, {-40, -30, 60, 50}, 3,
+        {{0, 250, 220, 40}, {0.5, 40, 160, 80}, {1, 20, 20, 90}}},
+    {0, SB_GRADIENT_LINEAR, SB_EXTEND_REFLECT, {-90, 0, 30, -110}, 4,
+        {{0, 255, 255, 255}, {0.25, 200, 30, 120}, {0.625, 10, 120, 200}, {1, 0, 0, 0}}},
+    {0, SB_GRADIENT_RADIAL, SB_EXTEND_PAD, {0, 0, 0, 0, 0, 170}, 3,
+        {{0, 255, 240, 200}, {0.5, 220, 100, 20}, {1, 60, 10, 40}}},
+    /* row 1: circles */
+    {1, SB_GRADIENT_LINEAR, SB_EXTEND_PAD, {0, -200, 0, 180}, 5,
+        {{0, 240, 20, 20}, {0.25, 240, 200, 20}, {0.5, 20, 200, 60}, {0.75, 20, 120, 240}, {1, 140, 20, 200}}},
+    {1, SB_GRADIENT_RADIAL, SB_EXTEND_REPEAT, {0, 0, 0, 0, 0, 75.5}, 3,
+        {{0, 10, 30, 80}, {0.4375, 120, 220, 230}, {1, 250, 250, 240}}},
+    {1, SB_GRADIENT_SWEEP, SB_EXTEND_PAD, {0, 0, 0, 360}, 5,
+        {{0, 255, 0, 0}, {0.25, 255, 255, 0}, {0.5, 0, 200, 80}, {0.75, 0, 80, 255}, {1, 160, 0, 200}}},
+    {1, SB_GRADIENT_RADIAL, SB_EXTEND_PAD, {-90.5, -60.25, 0, 0, 0, 230}, 4,
+        {{0, 255, 255, 230}, {0.375, 250, 160, 60}, {0.75, 150, 30, 30}, {1, 30, 10, 20}}},
+    /* row 2: rectangles */
+    {0, SB_GRADIENT_RADIAL, SB_EXTEND_REFLECT, {0, 0, 0, 0, 0, 95.25}, 2,
+        {{0, 20, 80, 40}, {1, 200, 240, 120}}},
+    {0, SB_GRADIENT_SWEEP, SB_EXTEND_REPEAT, {0, 0, 30, 390}, 4,
+        {{0, 30, 30, 30}, {0.25, 230, 230, 230}, {0.5, 200, 40, 40}, {1, 40, 40, 200}}},
+    {0, SB_GRADIENT_SWEEP, SB_EXTEND_REPEAT, {0, 0, 0, 120}, 3,
+        {{0, 250, 200, 0}, {0.5, 0, 150, 150}, {1, 100, 0, 60}}},
+    {0, SB_GRADIENT_LINEAR, SB_EXTEND_REPEAT, {-30, 40, 45, -20}, 2,
+        {{0, 255, 128, 0}, {1, 0, 64, 128}}},
+};
+
+static int gen_gradients(SB_Scene * s) {
+  begin(s, "gradients", "fill", 1920, 1080, "pixels");
+  for (int k = 0; k < 12; k++) {
+    const Gen_Gradient * gg = &GRADIENTS[k];
+    int col = k % 4, row = k / 4;
+    double cx = 240 + 480 * col + 0.40625, cy = 180 + 360 * row + 0.28125;
+    SB_Gradient g;
+    memset(&g, 0, sizeof g);
+    g.kind = gg->kind;
+    g.extend = gg->extend;
+    g.first_stop = s->n_stops;
+    g.n_stops = (size_t)gg->n;
+    switch (gg->kind) {
+    case SB_GRADIENT_LINEAR:
+      g.g[0] = cx + gg->g[0];
+      g.g[1] = cy + gg->g[1];
+      g.g[2] = cx + gg->g[2];
+      g.g[3] = cy + gg->g[3];
+      break;
+    case SB_GRADIENT_RADIAL:
+      g.g[0] = cx + gg->g[0];
+      g.g[1] = cy + gg->g[1];
+      g.g[2] = gg->g[2];
+      g.g[3] = cx + gg->g[3];
+      g.g[4] = cy + gg->g[4];
+      g.g[5] = gg->g[5];
+      break;
+    case SB_GRADIENT_SWEEP:
+      g.g[0] = cx;
+      g.g[1] = cy;
+      g.g[2] = gg->g[2];
+      g.g[3] = gg->g[3];
+      break;
+    }
+    for (int j = 0; j < gg->n; j++) {
+      SB_Color c = {gg->stops[j].r, gg->stops[j].g, gg->stops[j].b, 255};
+      if (sb_scene_add_stop(s, gg->stops[j].offset, c)) {
+        return -1;
+      }
+    }
+    if (sb_scene_add_gradient(s, &g)) {
+      return -1;
+    }
+    SB_Color paint = {0, 0, 0, 255};
+    if (gg->circle) {
+      double r = 236.75;
+      if (circle(s, paint, cx, cy, r)) {
+        return -1;
+      }
+      s->work += 3.14159265358979323846 * r * r;
+    } else {
+      double x0 = fmax(cx - 290.25, 2.25), x1 = fmin(cx + 290.25, 1920 - 2.375);
+      double y0 = fmax(cy - 215.5, 2.25), y1 = fmin(cy + 215.5, 1080 - 2.375);
+      if (rect(s, paint, x0, y0, x1, y1)) {
+        return -1;
+      }
+      s->work += (x1 - x0) * (y1 - y0);
+    }
+    s->items[s->n_items - 1].gradient = s->n_gradients;
+  }
+  return 0;
+}
+
 static const char TEXT[] =
     "The quick brown fox jumps over the lazy dog while a benchmark counts every glyph it draws. "
     "Speed is measured, never assumed: each engine renders the same page, at the same size, onto the same pixels. "
@@ -384,7 +509,9 @@ done:
   return status;
 }
 
-static const char * const SCENES[] = {"fill-rect", "fill-circle", "paths", "text", "ui"};
+/* The gradients scene comes last, so that the generator's random stream, and with it every earlier scene, is as
+ * it was before it existed (it draws nothing from that stream either). */
+static const char * const SCENES[] = {"fill-rect", "fill-circle", "paths", "text", "ui", "gradients"};
 #define N_SCENES (sizeof SCENES / sizeof SCENES[0])
 
 static int emit(const char * dir, const char * font_path) {
@@ -395,7 +522,8 @@ static int emit(const char * dir, const char * font_path) {
         : i == 1    ? gen_fill_circle(&s)
         : i == 2    ? gen_paths(&s)
         : i == 3    ? gen_text(&s, font_path, font_name)
-                    : gen_ui(&s);
+        : i == 4    ? gen_ui(&s)
+                    : gen_gradients(&s);
     char path[1024];
     snprintf(path, sizeof path, "%s/%s.scene", dir, SCENES[i]);
     if (rc || sb_scene_save(path, &s)) {
@@ -429,6 +557,7 @@ typedef struct Shape {
   const GSHSCENE_Resource ** glyph_paths;
   size_t n_glyph_paths;
   GSHSCENE_Paint * paint; ///< per item
+  const GSHSCENE_Resource ** grad; ///< per item: a gradient fill's gradient
 } Shape;
 
 static GSHGEOM_Point pt(double x, double y) {
@@ -523,6 +652,67 @@ static const GSHSCENE_Resource * intern_glyph(GSHSCENE_Store * store, const GFNT
   return r;
 }
 
+/*
+ * A scene gradient as shape-scene's resource (paint.h, G1 to G9): the geometry as the scene gives it, the identity
+ * map, the target's space (zero) for the interpolation and for every stop, straight interpolation; the sweep's angles
+ * in degrees, which is the scene's unit.  Interned once, before timing, like the paths.
+ */
+static const GSHSCENE_Resource * intern_gradient(GSHSCENE_Store * store, const SB_Scene * s, const SB_Gradient * sg) {
+  GSHSCENE_Gradient_Stop stops[SB_GRADIENT_STOPS_MAX];
+  GSHSCENE_Gradient g;
+  const GSHSCENE_Resource * r = NULL;
+  memset(&g, 0, sizeof g);
+  memset(stops, 0, sizeof stops);
+  if (sg->n_stops > SB_GRADIENT_STOPS_MAX || gshgeom_map_identity(2, &g.map) != GSHGEOM_OK) {
+    return NULL;
+  }
+  switch (sg->kind) {
+  case SB_GRADIENT_LINEAR:
+    g.kind = GSHSCENE_GRADIENT_LINEAR;
+    g.p0[0] = sg->g[0];
+    g.p0[1] = sg->g[1];
+    g.p1[0] = sg->g[2];
+    g.p1[1] = sg->g[3];
+    break;
+  case SB_GRADIENT_RADIAL:
+    g.kind = GSHSCENE_GRADIENT_RADIAL;
+    g.c0[0] = sg->g[0];
+    g.c0[1] = sg->g[1];
+    g.r0 = sg->g[2];
+    g.c1[0] = sg->g[3];
+    g.c1[1] = sg->g[4];
+    g.r1 = sg->g[5];
+    break;
+  case SB_GRADIENT_SWEEP:
+    g.kind = GSHSCENE_GRADIENT_SWEEP;
+    g.center[0] = sg->g[0];
+    g.center[1] = sg->g[1];
+    g.angle_unit = GSHGEOM_ANGLE_DEGREES;
+    g.a0 = sg->g[2];
+    g.a1 = sg->g[3];
+    break;
+  }
+  g.extend = sg->extend == SB_EXTEND_REPEAT ? GSHSCENE_EXTEND_REPEAT
+      : sg->extend == SB_EXTEND_REFLECT     ? GSHSCENE_EXTEND_REFLECT
+                                            : GSHSCENE_EXTEND_PAD;
+  g.premultiplied = 0;
+  for (size_t k = 0; k < sg->n_stops; k++) {
+    const SB_Stop * st = &s->stops[sg->first_stop + k];
+    stops[k].offset = st->offset;
+    stops[k].color.kind = GSHSCENE_PAINT_SOLID;
+    stops[k].color.rgba[0] = st->color.r / 255.0;
+    stops[k].color.rgba[1] = st->color.g / 255.0;
+    stops[k].color.rgba[2] = st->color.b / 255.0;
+    stops[k].color.rgba[3] = st->color.a / 255.0;
+  }
+  g.stop_count = sg->n_stops;
+  g.stops = stops;
+  if (gshscene_store_intern_gradient(store, &g, &r) != GSHSCENE_OK) {
+    r = NULL;
+  }
+  return r;
+}
+
 static int shape_setup(Shape * e, const SB_Scene * s, const char * dir, int control) {
   memset(e, 0, sizeof *e);
   e->scene = s;
@@ -532,10 +722,11 @@ static int shape_setup(Shape * e, const SB_Scene * s, const char * dir, int cont
   e->pixels = malloc(e->stride * (size_t)s->height);
   e->res = calloc(s->n_items ? s->n_items : 1, sizeof *e->res);
   e->paint = calloc(s->n_items ? s->n_items : 1, sizeof *e->paint);
+  e->grad = calloc(s->n_items ? s->n_items : 1, sizeof *e->grad);
   sb_background_bytes(s, 0, e->bg);
   GIMG_Pixel_Format format = GIMG_PIXEL_RGBA8;
   format.alpha_form = GIMG_ALPHA_PREMULTIPLIED;
-  if (!e->pixels || !e->res || !e->paint || gshscene_store_create(NULL, NULL, &e->store) != GSHSCENE_OK ||
+  if (!e->pixels || !e->res || !e->paint || !e->grad || gshscene_store_create(NULL, NULL, &e->store) != GSHSCENE_OK ||
       gshscene_list_create(NULL, NULL, e->store, &e->list) != GSHSCENE_OK ||
       gshcpu_sink_create(NULL, NULL, NULL, &e->sink) != GSHCPU_OK ||
       gshscene_report_create(NULL, NULL, &e->report) != GSHSCENE_OK ||
@@ -578,6 +769,17 @@ static int shape_setup(Shape * e, const SB_Scene * s, const char * dir, int cont
       p->rgba[1] = it->color.g / 255.0;
       p->rgba[2] = it->color.b / 255.0;
       p->rgba[3] = it->color.a / 255.0;
+      if (it->gradient) {
+        e->grad[i] = intern_gradient(e->store, s, &s->gradients[it->gradient - 1]);
+        if (!e->grad[i]) {
+          fprintf(stderr, "bench-shape: cannot intern the gradient of item %zu of %s\n", i, s->name);
+          status = -1;
+          break;
+        }
+        p->kind = GSHSCENE_PAINT_GRADIENT;
+        p->rgba[0] = p->rgba[1] = p->rgba[2] = 0.0;
+        p->gradient = e->grad[i];
+      }
     }
     if (it->kind == SB_FILL) {
       e->res[i] = intern_cmds(e->store, s->cmds + it->first, it->count);
@@ -629,6 +831,7 @@ static int shape_setup(Shape * e, const SB_Scene * s, const char * dir, int cont
 static void shape_teardown(Shape * e) {
   for (size_t i = 0; e->res && i < e->scene->n_items; i++) {
     gshscene_resource_release(e->res[i]);
+    gshscene_resource_release(e->grad ? e->grad[i] : NULL);
   }
   for (size_t i = 0; i < e->n_glyph_paths; i++) {
     gshscene_resource_release(e->glyph_paths[i]);
@@ -641,6 +844,7 @@ static void shape_teardown(Shape * e) {
   free(e->glyph_paths);
   free(e->res);
   free(e->paint);
+  free(e->grad);
   free(e->pixels);
   memset(e, 0, sizeof *e);
 }
@@ -827,6 +1031,8 @@ static int run(const char * dir, const char * out) {
     if (rc == 0) {
       sb_report(stdout, "shape-cpu", &s, &m, name,
           !strcmp(s.metric, "text") ? "glyph outlines from font, decoded and interned once; one outline glyph run a line"
+              : s.n_gradients       ? "gradients interned once with the paths; evaluated per pixel in double at the pixel "
+                                      "center, straight, in the target's space, undithered"
                                     : NULL);
     }
     shape_teardown(&e);

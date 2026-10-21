@@ -20,6 +20,7 @@ it. A figure quoted anywhere else is read from there, with its date and host.
 | `paths` | path count (paths/s) | 10,000 small paths: triangles, quadratic blobs, cubic circles, stars |
 | `text` | text throughput (glyphs/s) | a page of 16-pixel DejaVu Sans 2.37, unhinted, quarter-pixel positions |
 | `ui` | list build and submit time per frame | 24 panels of rounded rectangles, icons, bars and rectangular clips, 1280x800 |
+| `gradients` | fill rate | 12 opaque rectangles and circles overlapping on a 4x3 grid, each a gradient of 2 to 5 opaque stops: linear pad, repeat and reflect; radial concentric pad, repeat and reflect, and one focal pad; sweep over a whole turn (pad, and repeat from 30 degrees) and a third of a turn repeated, 1920x1080 |
 
 `bench-shape emit` writes the scenes once (`scene.h` gives the format); every
 driver reads the same files through the same reader (`scene.c`, compiled into
@@ -34,9 +35,16 @@ the C++ drivers too).
   cleared to the background outside the timed region by the same loop.
 - Source-over of straight 8-bit sRGB colors in the target's own encoded values,
   non-zero winding, anti-aliasing on as each engine does it.
+- Gradients are interpolated in the same encoded values, straight, with no
+  dithering anywhere: Skia's paint has dithering turned off, and Blend2D's
+  gradient quality hint is set to its undithered `BL_GRADIENT_QUALITY_NEAREST`.
+  The `gradients` scene holds only the sub-cases every engine draws by one
+  definition (shape-scene's G7 to G9); the generator (`bench-shape.c`) names
+  what is left out and why, and each driver states its mapping. Its stops are
+  opaque, so premultiplied and straight interpolation agree.
 - Resources are built before timing in every engine: `shape-cpu`'s interned
-  paths and glyph runs, Blend2D's `BLPath`s and glyph arrays, Skia's `SkPath`s
-  and `SkTextBlob`s.
+  paths, glyph runs and gradients, Blend2D's `BLPath`s, glyph arrays and
+  `BLGradient`s, Skia's `SkPath`s, `SkTextBlob`s and gradient `SkShader`s.
 - A frame is timed from the engine's first call until its output is complete.
   For `shape-cpu` that is recording the list (the build) and rendering it (the
   submit); for Skia on the `ui` scene, recording an `SkPicture` and playing it
@@ -65,8 +73,10 @@ Every result carries the image reference and its image ID, the base image's
 digest, the reference's version and commit (`containers/IMAGES` and the image's
 own `PROVENANCE`), the compiler and its flags (the library's flag stamp for
 `shape-cpu`, Blend2D's compile command, Skia's gn arguments and defines), the
-host, the CPU model, the kernel, the governor and boost, the pinned CPU, and the
-box's load and busiest processes before and after each engine ran.
+CPU model and the number of CPUs online, the governor and boost, the pinned CPU,
+and the machine's load average, how many other containers ran and the busiest
+commands before and after each engine ran. The record does not carry the
+machine's name, its kernel string or process owners; `report.py` drops them.
 
 ## Running it
 
@@ -114,5 +124,7 @@ python3 suite/tools/shape-bench/report.py --results .evo/"$job"/results --pamdif
 `--reuse` names the fetched results of the run whose Blend2D and Skia figures
 are kept (raw, prov, logs and frames); their frames are cross-checked again,
 against the new `shape-cpu` frames, and the record names the run they came
-from. `PAMDIFF` is `pamdiff.c` compiled on its own (it needs no library), and `--tag`
-keeps a second run on one date from overwriting the first.
+from. A run from before a scene existed has no reference figures for it, so
+that scene's table then shows `shape-cpu` alone. `PAMDIFF` is `pamdiff.c`
+compiled on its own (it needs no library), and `--tag` keeps a second run on
+one date from overwriting the first.

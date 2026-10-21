@@ -30,6 +30,27 @@
  * when the pixels are written.  Blend2D has no recorded list, so there is no
  * build step to time.  Its only premultiplied 32-bit format is BGRA in memory
  * (PRGB32 on a little-endian host); the PAM writer swaps it back to RGBA.
+ *
+ * Gradients (the gradients scene) are BLGradient objects built once, before
+ * timing, like the paths, and drawn with the context's gradient quality hint
+ * set to BL_GRADIENT_QUALITY_NEAREST, its undithered setting (the hint also
+ * offers dithering, which no engine here does).  The scene's kinds map as:
+ *
+ *   linear  BLLinearGradientValues(x0, y0, x1, y1): the same two points.
+ *   radial  BLRadialGradientValues(x0, y0, x1, y1, r0) is a circle (x0, y0, r0),
+ *           offset 1, and a focal point (x1, y1), offset 0.  The scene's cone
+ *           with a start circle of radius 0 inside its end circle is exactly
+ *           that: the end circle is (x0, y0, r0), the start point (x1, y1).
+ *           A start radius other than 0, or a start point on or outside the
+ *           end circle, is refused here rather than approximated.
+ *   sweep   BLConicGradientValues(x0, y0, angle, repeat) spans whole turns: the
+ *           color line runs `repeat` times a turn from `angle`.  The scene's
+ *           sweep from a0 to a1 is that when 360 / (a1 - a0) is a whole number
+ *           n and either the extend is repeat (the angles below a0 then wrap as
+ *           Blend2D's do) or n is 1, a0 is 0 and the extend is pad (no angle is
+ *           outside the line).  Anything else is refused.  BL_CONIC_SIGN below
+ *           is the direction Blend2D's angle runs on this y-down raster
+ *           relative to the scene's (+x toward +y), as measured.
  */
 
 #if __has_include(<blend2d/blend2d.h>)
@@ -56,11 +77,57 @@ struct Engine {
   uint8_t bg[4] = {0, 0, 0, 0};
   BLImage image;
   std::vector<BLPath> paths;                 // per item
+  std::vector<BLGradient> gradients;         // per item, gradient fills
   std::vector<std::vector<uint32_t>> ids;    // per item, runs
   std::vector<std::vector<BLPoint>> places;  // per item, runs
   BLFontFace face;
   BLFont font;
 };
+
+// +1: Blend2D's conic angle grows from +x toward +y on a y-down raster, as the scene's does; -1: the other way.
+constexpr double BL_CONIC_SIGN = 1.0;
+
+int make_gradient(const SB_Scene & s, const SB_Gradient & g, BLGradient & out) {
+  BLExtendMode mode = g.extend == SB_EXTEND_REPEAT ? BL_EXTEND_MODE_REPEAT
+      : g.extend == SB_EXTEND_REFLECT              ? BL_EXTEND_MODE_REFLECT
+                                                   : BL_EXTEND_MODE_PAD;
+  bool reversed = false;
+  switch (g.kind) {
+  case SB_GRADIENT_LINEAR:
+    out = BLGradient(BLLinearGradientValues(g.g[0], g.g[1], g.g[2], g.g[3]), mode);
+    break;
+  case SB_GRADIENT_RADIAL: {
+    double dx = g.g[0] - g.g[3], dy = g.g[1] - g.g[4];
+    if (g.g[2] != 0.0 || !(g.g[5] > 0.0) || !(std::sqrt(dx * dx + dy * dy) < g.g[5])) {
+      std::fprintf(stderr, "bench-blend2d: a radial gradient Blend2D cannot draw as the scene defines it\n");
+      return -1;
+    }
+    out = BLGradient(BLRadialGradientValues(g.g[3], g.g[4], g.g[0], g.g[1], g.g[5]), mode);
+    break;
+  }
+  case SB_GRADIENT_SWEEP: {
+    double span = g.g[3] - g.g[2], n = span > 0.0 ? 360.0 / span : 0.0;
+    if (!(n >= 1.0) || n != std::floor(n) ||
+        !(g.extend == SB_EXTEND_REPEAT || (n == 1.0 && g.g[2] == 0.0 && g.extend == SB_EXTEND_PAD))) {
+      std::fprintf(stderr, "bench-blend2d: a sweep gradient Blend2D's conic gradient cannot draw\n");
+      return -1;
+    }
+    out = BLGradient(BLConicGradientValues(g.g[0], g.g[1], BL_CONIC_SIGN * g.g[2] * (3.14159265358979323846 / 180.0), n),
+        mode);
+    reversed = BL_CONIC_SIGN < 0.0;
+    break;
+  }
+  }
+  for (size_t k = 0; k < g.n_stops; k++) {
+    // Reversed: Blend2D's offset u at the scene's angle is 1 - t, so the stop at t goes to 1 - t, in reverse order.
+    const SB_Stop & st = s.stops[g.first_stop + (reversed ? g.n_stops - 1 - k : k)];
+    if (out.add_stop(reversed ? 1.0 - st.offset : st.offset, BLRgba32(st.color.r, st.color.g, st.color.b, st.color.a)) !=
+        BL_SUCCESS) {
+      return -1;
+    }
+  }
+  return 0;
+}
 
 int setup(Engine & e, const SB_Scene & s, const std::string & dir) {
   e.scene = &s;
@@ -81,6 +148,7 @@ int setup(Engine & e, const SB_Scene & s, const std::string & dir) {
     }
   }
   e.paths.resize(s.n_items);
+  e.gradients.resize(s.n_items);
   e.ids.resize(s.n_items);
   e.places.resize(s.n_items);
   for (size_t i = 0; i < s.n_items; i++) {
@@ -96,6 +164,9 @@ int setup(Engine & e, const SB_Scene & s, const std::string & dir) {
         case 'C': p.cubic_to(c.p[0], c.p[1], c.p[2], c.p[3], c.p[4], c.p[5]); break;
         default: p.close(); break;
         }
+      }
+      if (it.gradient && make_gradient(s, s.gradients[it.gradient - 1], e.gradients[i])) {
+        return -1;
       }
     } else if (it.kind == SB_RUN) {
       for (size_t k = 0; k < it.count; k++) {
@@ -125,12 +196,19 @@ int submit(void * ctx) {
   }
   c.set_comp_op(BL_COMP_OP_SRC_OVER);
   c.set_fill_rule(BL_FILL_RULE_NON_ZERO);
+  c.set_hint(BL_CONTEXT_HINT_GRADIENT_QUALITY, BL_GRADIENT_QUALITY_NEAREST);
   for (size_t i = 0; i < s.n_items; i++) {
     const SB_Item & it = s.items[i];
     BLRgba32 color(it.color.r, it.color.g, it.color.b, it.color.a);
     switch (it.kind) {
     case SB_FILL:
-      c.fill_path(e.paths[i], color);
+      if (it.gradient) {
+        c.set_fill_alpha(it.color.a / 255.0);
+        c.fill_path(e.paths[i], e.gradients[i]);
+        c.set_fill_alpha(1.0);
+      } else {
+        c.fill_path(e.paths[i], color);
+      }
       break;
     case SB_CLIP:
       c.save();
@@ -160,7 +238,7 @@ int main(int argc, char ** argv) {
     std::fprintf(stderr, "usage: bench-blend2d DIR OUT\n");
     return 2;
   }
-  static const char * const scenes[] = {"fill-rect", "fill-circle", "paths", "text", "ui"};
+  static const char * const scenes[] = {"fill-rect", "fill-circle", "paths", "text", "ui", "gradients"};
   int failures = 0;
   for (const char * name : scenes) {
     std::string path = std::string(argv[1]) + "/" + name + ".scene";
@@ -185,7 +263,8 @@ int main(int argc, char ** argv) {
       if (rc == 0) {
         sb_report(stdout, "blend2d", &s, &m, out.c_str(),
             std::strcmp(s.metric, "list") == 0 ? "immediate mode: no recorded list, the build step does not exist"
-                                               : nullptr);
+                : s.n_gradients ? "BLGradient objects built once; gradient quality hint BL_GRADIENT_QUALITY_NEAREST (undithered)"
+                                : nullptr);
       } else {
         std::fprintf(stderr, "bench-blend2d: %s failed (%d)\n", s.name, rc);
         failures++;

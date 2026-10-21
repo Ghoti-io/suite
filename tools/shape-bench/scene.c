@@ -22,6 +22,7 @@
 
 #include "scene.h"
 
+#include <math.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
@@ -34,6 +35,8 @@ void sb_scene_free(SB_Scene * scene) {
   free(scene->items);
   free(scene->cmds);
   free(scene->glyphs);
+  free(scene->gradients);
+  free(scene->stops);
   sb_scene_init(scene);
 }
 
@@ -85,6 +88,32 @@ int sb_scene_add_glyph(SB_Scene * scene, uint32_t id, double x, double y) {
   g->x = x;
   g->y = y;
   return 0;
+}
+
+int sb_scene_add_gradient(SB_Scene * scene, const SB_Gradient * gradient) {
+  if (grow((void **)&scene->gradients, &scene->cap_gradients, scene->n_gradients + 1, sizeof *gradient)) {
+    return -1;
+  }
+  scene->gradients[scene->n_gradients++] = *gradient;
+  return 0;
+}
+
+int sb_scene_add_stop(SB_Scene * scene, double offset, SB_Color color) {
+  if (grow((void **)&scene->stops, &scene->cap_stops, scene->n_stops + 1, sizeof(SB_Stop))) {
+    return -1;
+  }
+  SB_Stop * s = &scene->stops[scene->n_stops++];
+  s->offset = offset;
+  s->color = color;
+  return 0;
+}
+
+static const char * const KIND_NAMES[] = {"", "linear", "radial", "sweep"};
+static const char * const EXTEND_NAMES[] = {"pad", "repeat", "reflect"};
+
+/** The number of geometry values a gradient kind carries. */
+static int gradient_arity(SB_Gradient_Kind kind) {
+  return kind == SB_GRADIENT_LINEAR ? 4 : kind == SB_GRADIENT_RADIAL ? 6 : 4;
 }
 
 size_t sb_scene_drawables(const SB_Scene * scene) {
@@ -140,6 +169,7 @@ int sb_scene_load(const char * path, SB_Scene * out, char * err, size_t errlen) 
   char buf[512];
   int line = 0, header = 0, ended = 0;
   int status = 0;
+  size_t pending = 0; /* 1 + the gradient the next record, a fill, paints with */
   while (fgets(buf, sizeof buf, f)) {
     line++;
     char * nl = strchr(buf, '\n');
@@ -167,6 +197,10 @@ int sb_scene_load(const char * path, SB_Scene * out, char * err, size_t errlen) 
       break;
     }
     const char * rest = buf + used;
+    if (pending && strcmp(word, "fill") != 0) {
+      status = fail(err, errlen, line, "a gradient not followed by a fill");
+      break;
+    }
     if (!strcmp(word, "name")) {
       if (sscanf(rest, " %63s", s.name) != 1) {
         status = fail(err, errlen, line, "bad name");
@@ -231,6 +265,14 @@ int sb_scene_load(const char * path, SB_Scene * out, char * err, size_t errlen) 
       }
       it.first = it.kind == SB_FILL ? s.n_cmds : s.n_glyphs;
       it.count = count;
+      if (it.kind == SB_FILL && pending) {
+        if (it.color.r || it.color.g || it.color.b) {
+          status = fail(err, errlen, line, "a gradient fill's color is not 0 0 0 a");
+          break;
+        }
+        it.gradient = pending;
+        pending = 0;
+      }
       for (unsigned k = 0; k < count && status == 0; k++) {
         if (!fgets(buf, sizeof buf, f) || !strchr(buf, '\n')) {
           status = fail(err, errlen, line + 1, "truncated item");
@@ -259,6 +301,65 @@ int sb_scene_load(const char * path, SB_Scene * out, char * err, size_t errlen) 
       if (status) {
         break;
       }
+    } else if (!strcmp(word, "gradient")) {
+      SB_Gradient g;
+      memset(&g, 0, sizeof g);
+      char kind[16] = {0}, extend[16] = {0};
+      int used2 = 0;
+      double v[7];
+      if (sscanf(rest, " %15s %15s%n", kind, extend, &used2) != 2) {
+        status = fail(err, errlen, line, "bad gradient");
+        break;
+      }
+      for (int k = 1; k <= 3; k++) {
+        g.kind = !strcmp(kind, KIND_NAMES[k]) ? (SB_Gradient_Kind)k : g.kind;
+      }
+      int e = -1;
+      for (int k = 0; k < 3; k++) {
+        e = !strcmp(extend, EXTEND_NAMES[k]) ? k : e;
+      }
+      int arity = g.kind ? gradient_arity(g.kind) : 0;
+      int got = sscanf(rest + used2, "%lf %lf %lf %lf %lf %lf %lf", &v[0], &v[1], &v[2], &v[3], &v[4], &v[5], &v[6]);
+      if (!g.kind || e < 0 || got != arity + 1 || v[arity] != floor(v[arity]) || v[arity] < 2 ||
+          v[arity] > SB_GRADIENT_STOPS_MAX) {
+        status = fail(err, errlen, line, "bad gradient");
+        break;
+      }
+      for (int k = 0; k < arity; k++) {
+        if (!isfinite(v[k])) {
+          status = fail(err, errlen, line, "bad gradient geometry");
+        }
+        g.g[k] = v[k];
+      }
+      g.extend = (SB_Extend)e;
+      g.first_stop = s.n_stops;
+      g.n_stops = (size_t)v[arity];
+      for (size_t k = 0; k < g.n_stops && status == 0; k++) {
+        double offset;
+        unsigned r, gg, b, a;
+        if (!fgets(buf, sizeof buf, f) || !strchr(buf, '\n')) {
+          status = fail(err, errlen, line + 1, "truncated gradient");
+          break;
+        }
+        line++;
+        if (sscanf(buf, "s %lf %u %u %u %u", &offset, &r, &gg, &b, &a) != 5 || r > 255 || gg > 255 || b > 255 ||
+            a > 255 || !(offset >= 0 && offset <= 1) || (k == 0 && offset != 0) ||
+            (k + 1 == g.n_stops && offset != 1) || (k > 0 && offset < s.stops[s.n_stops - 1].offset)) {
+          status = fail(err, errlen, line, "bad stop");
+          break;
+        }
+        SB_Color c = {(uint8_t)r, (uint8_t)gg, (uint8_t)b, (uint8_t)a};
+        if (sb_scene_add_stop(&s, offset, c)) {
+          status = fail(err, errlen, line, "out of memory");
+        }
+      }
+      if (status == 0 && sb_scene_add_gradient(&s, &g)) {
+        status = fail(err, errlen, line, "out of memory");
+      }
+      if (status) {
+        break;
+      }
+      pending = s.n_gradients;
     } else if (!strcmp(word, "end")) {
       ended = 1;
     } else {
@@ -267,7 +368,10 @@ int sb_scene_load(const char * path, SB_Scene * out, char * err, size_t errlen) 
     }
   }
   fclose(f);
-  if (status == 0 && (!ended || !s.name[0] || !s.metric[0] || !s.width || !s.work_unit[0])) {
+  if (status == 0 && pending) {
+    status = fail(err, errlen, line, "a gradient not followed by a fill");
+  }
+  if (status == 0 && (!ended ||!s.name[0] || !s.metric[0] || !s.width || !s.work_unit[0])) {
     status = fail(err, errlen, line, "incomplete scene");
   }
   if (status == 0 && !strcmp(s.metric, "text") && !s.font[0]) {
@@ -314,6 +418,18 @@ int sb_scene_save(const char * path, const SB_Scene * s) {
       fprintf(f, "unclip\n");
       break;
     case SB_FILL:
+      if (it->gradient) {
+        const SB_Gradient * g = &s->gradients[it->gradient - 1];
+        fprintf(f, "gradient %s %s", KIND_NAMES[g->kind], EXTEND_NAMES[g->extend]);
+        for (int j = 0; j < gradient_arity(g->kind); j++) {
+          fprintf(f, " %.6f", g->g[j]);
+        }
+        fprintf(f, " %zu\n", g->n_stops);
+        for (size_t k = 0; k < g->n_stops; k++) {
+          const SB_Stop * st = &s->stops[g->first_stop + k];
+          fprintf(f, "s %.6f %u %u %u %u\n", st->offset, st->color.r, st->color.g, st->color.b, st->color.a);
+        }
+      }
       fprintf(f, "fill %u %u %u %u %zu\n", c->r, c->g, c->b, c->a, it->count);
       for (size_t k = 0; k < it->count; k++) {
         const SB_Cmd * m = &s->cmds[it->first + k];
