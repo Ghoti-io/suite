@@ -21,7 +21,7 @@
 /**
  * @file gallery.c
  *
- * A gallery of six PNGs drawn entirely by the suite's own libraries, for a
+ * A gallery of seven PNGs drawn entirely by the suite's own libraries, for a
  * person to look at (README.md says what each shows).  Every pixel comes from
  * shape-cpu rendering shape-scene lists; text is font's paragraph layout and
  * shaping, its glyphs reaching the scene through font's glyph path provider;
@@ -31,7 +31,7 @@
  *
  * FONTDIR is font's tests/data/fonts, DEJAVU the pinned DejaVuSans.ttf that
  * suite/tools/shape-success/fetch.sh fetches.  Writes shapes.png,
- * compositing.png, color.png, gradients.png, text.png and color-glyphs.png
+ * compositing.png, blend-modes.png, color.png, gradients.png, text.png and color-glyphs.png
  * into OUTDIR and a log on stdout: each render's result and its report entries
  * tallied by class and reason, the diagnostics of a few fixture fonts, and what
  * the color-glyph page refused.  Exits nonzero when any step failed.
@@ -606,7 +606,8 @@ static void image_compositing(void) {
     }
   }
   const GSHSCENE_Resource * checker = intern(cp);
-  for (int op = 0; op < GSHSCENE_COMPOSITE_COUNT; op++) {
+  /* The thirteen of N4: the blend modes have blend-modes.png. */
+  for (int op = 0; op <= GSHSCENE_COMPOSITE_PLUS; op++) {
     int cx = x0 + (op % cols) * cw, cy = y0 + (op / cols) * ch;
     GSHGEOM_Map at;
     gshgeom_map_translate(2, cx, cy, 0, &at);
@@ -746,6 +747,20 @@ static GSHSCENE_Gradient_Stop stop(double offset, double r, double g, double b, 
   return s;
 }
 
+/** The hue sweep a blend tile stands on: red at 0 degrees around to red again, a whole turn. */
+static const GSHSCENE_Gradient_Stop * hue_stops(void) {
+  static GSHSCENE_Gradient_Stop hue[7];
+  static int made;
+  if (!made) {
+    static const double rgb[7][3] = {{1, 0, 0}, {1, 1, 0}, {0, 1, 0}, {0, 1, 1}, {0, 0, 1}, {1, 0, 1}, {1, 0, 0}};
+    for (int i = 0; i < 7; i++) {
+      hue[i] = stop(i / 6.0, rgb[i][0], rgb[i][1], rgb[i][2], 1);
+    }
+    made = 1;
+  }
+  return hue;
+}
+
 /** Fill `res` (released) under `map` with the gradient `g` and its `n` stops, interned for this fill. */
 static void fill_gradient(GSHSCENE_List * L, const GSHSCENE_Resource * res, const GSHGEOM_Map * map, GSHSCENE_Gradient g,
     const GSHSCENE_Gradient_Stop * stops, size_t n) {
@@ -783,6 +798,165 @@ static void checker(GSHSCENE_List * L, double x0, double y0, double x1, double y
 /** A thin dark mark across a tile, where a gradient's geometry puts a point. */
 static void tick(GSHSCENE_List * L, double x, double y0, double y1) {
   fill_rect(L, x - 1, y0, x + 1, y1, solid(0.1, 0.1, 0.1, 1));
+}
+
+/* --- 2b: blend modes (color-paint story P3) ------------------------------------------------------------------- */
+
+/** A tile's backdrop: a hue sweep about its center, under a lightness ramp (white at the top to black at the bottom,
+ *  each half transparent toward the middle). */
+static void blend_backdrop(GSHSCENE_List * L, double x, double y, double w, double h) {
+  GSHSCENE_Gradient g = grad_new(GSHSCENE_GRADIENT_SWEEP);
+  g.center[0] = x + w / 2;
+  g.center[1] = y + h / 2;
+  g.angle_unit = GSHGEOM_ANGLE_DEGREES;
+  g.a0 = 0;
+  g.a1 = 360;
+  fill_gradient(L, rect(x, y, x + w, y + h), NULL, g, hue_stops(), 7);
+  GSHSCENE_Gradient ramp = grad_new(GSHSCENE_GRADIENT_LINEAR);
+  ramp.p0[0] = x;
+  ramp.p0[1] = y;
+  ramp.p1[0] = x;
+  ramp.p1[1] = y + h;
+  const GSHSCENE_Gradient_Stop light[3] = {stop(0, 1, 1, 1, 0.85), stop(0.5, 0.5, 0.5, 0.5, 0), stop(1, 0, 0, 0, 0.85)};
+  fill_gradient(L, rect(x, y, x + w, y + h), NULL, ramp, light, 3);
+}
+
+/** A tile's source: saturated red, green and blue and a grey, at full alpha (top row) and half (bottom row). */
+static void blend_source(GSHSCENE_List * L, double x, double y, double w, double h, const double (*colors)[3], int n) {
+  double pw = (w - 40) / n, ph = (h - 30) / 2;
+  for (int row = 0; row < 2; row++) {
+    for (int i = 0; i < n; i++) {
+      double px = x + 30 + i * pw, py = y + 15 + row * ph;
+      fill_rect(L, px, py, px + pw - 3, py + ph - 3, solid(colors[i][0], colors[i][1], colors[i][2], row ? 0.5 : 1.0));
+    }
+  }
+}
+
+static const double kPatches[4][3] = {{1, 0, 0}, {0, 0.8, 0.1}, {0.1, 0.2, 1}, {0.5, 0.5, 0.5}};
+
+/** One tile: the backdrop, then a group of blend mode `op` holding the source; `parent` the group the tile lives
+ *  in (zero: the target's space). */
+static void blend_tile(GSHSCENE_List * L, uint32_t op, double x, double y, double w, double h,
+    const double (*colors)[3], int n, GSHSCENE_Color_Space parent) {
+  GSHSCENE_Group outer = group_props(1.0, GSHSCENE_COMPOSITE_SRC_OVER);
+  outer.blend_space = parent;
+  group_push(L, outer);
+  blend_backdrop(L, x, y, w, h);
+  group_push(L, group_props(1.0, op));
+  blend_source(L, x, y, w, h, colors, n);
+  group_pop(L);
+  group_pop(L);
+}
+
+/** The 8-bit values of the tile's middle pixel, read back, under it. */
+static void tile_readback(GSHSCENE_List * L, GIMG_Raster * R, double x, double y, double w, double h) {
+  const unsigned char * c = pixel(R, (int)(x + w / 2), (int)(y + h / 2));
+  char buf[64];
+  snprintf(buf, sizeof buf, "mid %d,%d,%d,%d", c[0], c[1], c[2], c[3]);
+  label_c(L, buf, 12, x + w / 2, y + h + 22, 0.35);
+}
+
+static void image_blend_modes(void) {
+  const int W = 1240, H = 1640;
+  GIMG_Raster * R = raster_new(W, H);
+  GSHSCENE_List * L = list_new();
+  background(L, W, H, 0.95);
+  const double tw = 200, th = 110, dx = 240, dy = 158, x0 = 30;
+  const GSHSCENE_Color_Space encoded = space(GCOL_PRIMARIES_SRGB, GCOL_TRANSFER_SRGB);
+  const GSHSCENE_Color_Space linear = space(GCOL_PRIMARIES_SRGB, GCOL_TRANSFER_LINEAR);
+  /* Two sections of the fifteen modes: blended in sRGB-encoded values, then in linear light (B5: the space of the
+   * layer the group composites onto). */
+  for (int sec = 0; sec < 2; sec++) {
+    double y0 = 92 + sec * 520;
+    for (int i = 0; i < 15; i++) {
+      double x = x0 + (i % 5) * dx, y = y0 + (i / 5) * dy;
+      blend_tile(L, (uint32_t)(GSHSCENE_COMPOSITE_SCREEN + i), x, y, tw, th, kPatches, 4, sec ? linear : encoded);
+    }
+  }
+  /* Out of range (B10): sources with negative components and components above 1, never clamped before blending. */
+  static const double wide[4][3] = {{1.5, -0.25, 0.2}, {-0.5, 1.25, 0.5}, {2.0, 2.0, 2.0}, {-0.5, -0.5, -0.5}};
+  static const uint32_t oor[5] = {GSHSCENE_COMPOSITE_MULTIPLY, GSHSCENE_COMPOSITE_SCREEN, GSHSCENE_COMPOSITE_COLOR_DODGE,
+      GSHSCENE_COMPOSITE_SOFT_LIGHT, GSHSCENE_COMPOSITE_LUMINOSITY};
+  for (int i = 0; i < 5; i++) {
+    blend_tile(L, oor[i], x0 + i * dx, 1158, tw, th, wide, 4, encoded);
+  }
+  /* Isolation (B6): the same multiply group drawn straight onto the backdrop, and inside an isolated group of its own,
+   * where there is nothing beneath it to multiply; then PDF's two other kinds of group, which shape-cpu refuses. */
+  const double iy = 1400;
+  blend_backdrop(L, x0, iy, tw, th);
+  group_push(L, group_props(1.0, GSHSCENE_COMPOSITE_MULTIPLY));
+  blend_source(L, x0, iy, tw, th, kPatches, 4);
+  group_pop(L);
+  blend_backdrop(L, x0 + dx, iy, tw, th);
+  group_push(L, group_props(1.0, GSHSCENE_COMPOSITE_SRC_OVER));
+  group_push(L, group_props(1.0, GSHSCENE_COMPOSITE_MULTIPLY));
+  blend_source(L, x0 + dx, iy, tw, th, kPatches, 4);
+  group_pop(L);
+  group_pop(L);
+  for (int k = 0; k < 2; k++) {
+    double x = x0 + (2 + k) * dx;
+    fill_rect(L, x, iy, x + tw, iy + th, solid(0.82, 0.82, 0.82, 1));
+    fill_rect(L, x + 3, iy + 3, x + tw - 3, iy + th - 3, solid(0.9, 0.9, 0.9, 1));
+  }
+  render("blend modes (tiles)", L, R);
+
+  /* PDF's non-isolated and knockout groups (T1 to T7): drawn by no sink yet.  Each is recorded and rendered over its
+   * placeholder, so the log shows shape-cpu's refusal (S19) and the placeholder shows it drew nothing. */
+  for (int k = 0; k < 2; k++) {
+    L = list_new();
+    double x = x0 + (2 + k) * dx;
+    GSHSCENE_Group g = group_props(1.0, GSHSCENE_COMPOSITE_MULTIPLY);
+    if (k == 0) {
+      g.isolation = GSHSCENE_ISOLATION_NON_ISOLATED;
+    } else {
+      g.knockout = 1;
+    }
+    group_push(L, g);
+    blend_source(L, x, iy, tw, th, kPatches, 4);
+    group_pop(L);
+    render(k == 0 ? "blend modes (a non-isolated group, refused)" : "blend modes (a knockout group, refused)", L, R);
+  }
+
+  /* Labels, and each tile's middle pixel read back. */
+  L = list_new();
+  static const char * names[15] = {"screen", "overlay", "darken", "lighten", "color-dodge", "color-burn", "hard-light",
+      "soft-light", "difference", "exclusion", "multiply", "hue", "saturation", "color", "luminosity"};
+  label(L, "Blend modes: W3C Compositing and Blending Level 1, numbered as COLRv1's (13 to 27), a group of the mode around the source",
+      19, 30, 12, 0.1);
+  label(L, "Backdrop: a hue sweep under a lightness ramp.  Source: red, green, blue and grey, full alpha (top) and half (bottom).",
+      14, 30, 40, 0.35);
+  for (int sec = 0; sec < 2; sec++) {
+    double y0 = 92 + sec * 520;
+    label(L, sec ? "Blended in linear light (the parent group is linear sRGB)" : "Blended in sRGB-encoded values (the parent is the sRGB target)",
+        16, 30, y0 - 26, 0.15);
+    for (int i = 0; i < 15; i++) {
+      double x = x0 + (i % 5) * dx, y = y0 + (i / 5) * dy;
+      char buf[64];
+      snprintf(buf, sizeof buf, "%d %s", 13 + i, names[i]);
+      label_c(L, buf, 14, x + tw / 2, y + th + 4, 0.15);
+      tile_readback(L, R, x, y, tw, th);
+    }
+  }
+  label(L, "Out of range (B10): sources (1.5, -0.25, 0.2), (-0.5, 1.25, 0.5), (2, 2, 2) and (-0.5, -0.5, -0.5), blended literally",
+      16, 30, 1132, 0.15);
+  for (int i = 0; i < 5; i++) {
+    double x = x0 + i * dx;
+    label_c(L, gshscene_composite_string((GSHSCENE_Composite)oor[i]), 14, x + tw / 2, 1158 + th + 4, 0.15);
+    tile_readback(L, R, x, 1158, tw, th);
+  }
+  label(L, "Isolation (B6): multiply at the root, and inside an isolated group of its own; PDF's other groups are refused (S19)",
+      16, 30, iy - 26, 0.15);
+  label_c(L, "multiply onto the backdrop", 14, x0 + tw / 2, iy + th + 4, 0.15);
+  label_c(L, "inside an isolated group", 14, x0 + dx + tw / 2, iy + th + 4, 0.15);
+  tile_readback(L, R, x0, iy, tw, th);
+  tile_readback(L, R, x0 + dx, iy, tw, th);
+  label_c(L, "non-isolated group:", 14, x0 + 2 * dx + tw / 2, iy + 34, 0.3);
+  label_c(L, "refused by shape-cpu", 14, x0 + 2 * dx + tw / 2, iy + 56, 0.3);
+  label_c(L, "knockout group:", 14, x0 + 3 * dx + tw / 2, iy + 34, 0.3);
+  label_c(L, "refused by shape-cpu", 14, x0 + 3 * dx + tw / 2, iy + 56, 0.3);
+  render("blend modes (labels)", L, R);
+  save_png(R, "blend-modes.png");
+  gimg_raster_destroy(R);
 }
 
 static void image_gradients(void) {
@@ -1547,6 +1721,7 @@ int main(int argc, char ** argv) {
   }
   image_shapes();
   image_compositing();
+  image_blend_modes();
   image_color();
   image_gradients();
   image_text(argv[1]);
