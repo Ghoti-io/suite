@@ -921,7 +921,7 @@ static void image_blend_modes(void) {
   L = list_new();
   static const char * names[15] = {"screen", "overlay", "darken", "lighten", "color-dodge", "color-burn", "hard-light",
       "soft-light", "difference", "exclusion", "multiply", "hue", "saturation", "color", "luminosity"};
-  label(L, "Blend modes: W3C Compositing and Blending Level 1, numbered as COLRv1's (13 to 27), a group of the mode around the source",
+  label(L, "Blend modes 13 to 27 (W3C Compositing and Blending Level 1, numbered as COLRv1's): each a group around the source",
       19, 30, 12, 0.1);
   label(L, "Backdrop: a hue sweep under a lightness ramp.  Source: red, green, blue and grey, full alpha (top) and half (bottom).",
       14, 30, 40, 0.35);
