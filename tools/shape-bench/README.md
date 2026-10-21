@@ -73,10 +73,11 @@ Every result carries the image reference and its image ID, the base image's
 digest, the reference's version and commit (`containers/IMAGES` and the image's
 own `PROVENANCE`), the compiler and its flags (the library's flag stamp for
 `shape-cpu`, Blend2D's compile command, Skia's gn arguments and defines), the
-CPU model and the number of CPUs online, the governor and boost, the pinned CPU,
-and the machine's load average, how many other containers ran and the busiest
-commands before and after each engine ran. The record does not carry the
-machine's name, its kernel string or process owners; `report.py` drops them.
+CPU's architecture and the number of CPUs online, the governor and boost, the
+pinned CPU, and the machine's load average, how many other containers ran and
+the CPU shares of the busiest processes before and after each engine ran. The
+record does not name the machine: `report.py` drops its host name, kernel
+string and CPU model name, and the names and owners of other processes.
 
 ## Running it
 

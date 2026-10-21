@@ -5,7 +5,7 @@
     report.py --results DIR --pamdiff PAMDIFF --shipped SHIPPED [--reuse EARLIER] [--tag TAG]
 
 Reads what run-evo.sh left in DIR (raw/<engine>.jsonl, frames/*.pam, prov/*.txt)
-and writes DIR/report/<date>-evo.json, the record, and DIR/report/<date>-evo.md,
+and writes DIR/report/<date>.json, the record, and DIR/report/<date>.md,
 generated from it. Nothing in the Markdown is typed: every figure is read from
 the JSON as it is written.
 
@@ -14,7 +14,7 @@ run's results directory instead of DIR: their measurements, provenance and
 frames are that run's, and they are cross-checked here against this run's
 shape-cpu frames. It is for re-measuring shape-cpu alone (run-evo.sh with
 SHAPE_BENCH_ENGINES=shape-cpu); the record names the run they came from. --tag
-names the files <date>-evo-<tag>.json and .md, for a second run on one date.
+names the files <date>-<tag>.json and .md, for a second run on one date.
 
 The cross-check's bound is stated here and nowhere else (the story's spec gives
 the same numbers): against shape-cpu's last frame, the mean absolute difference
@@ -32,6 +32,7 @@ import argparse
 import datetime
 import json
 import os
+import re
 import subprocess
 import sys
 
@@ -77,10 +78,11 @@ def read_prov(path):
     return prov
 
 
-# What a record may not carry: the build host's name and its kernel string. The CPU model, the compilers and their
-# flags stay; the load blocks keep the time, the load average, how many other containers ran and the busiest
-# commands with their CPU share, without process IDs or user names.
-SCRUBBED_KEYS = ("host", "kernel")
+# What a record may not carry, because it names the machine it ran on: its host name, its kernel string, its CPU's
+# model name (kept as its architecture and its number of CPUs online), and the processes beside the run (kept as
+# their CPU shares only, without names, IDs or owners). The compilers and their flags, the governor, boost and the
+# load average stay.
+SCRUBBED_KEYS = ("host", "kernel", "cpu_model")
 
 
 def scrub_state(block):
@@ -92,16 +94,19 @@ def scrub_state(block):
         elif line.startswith("containers:"):
             out.append("other containers running: %d" % len(line.split(":", 1)[1].split()))
         elif line == "busiest:":
-            out.append("busiest (command, %CPU):")
+            out.append("busiest processes' %CPU:")
         elif line:
             f = line.split()
             # top -b: PID USER PR NI VIRT RES SHR S %CPU %MEM TIME+ COMMAND
             if len(f) >= 12:
-                out.append("  %s %s" % (" ".join(f[11:]), f[8]))
+                out[-1] += " " + f[8]
     return "\n".join(out) + "\n"
 
 
 def scrub(prov):
+    model = prov.get("cpu_model") or ""
+    if model:
+        prov["cpu"] = "x86-64" if re.search(r"\b(AMD|Intel)\b", model) else "not x86-64"
     for k in SCRUBBED_KEYS:
         prov.pop(k, None)
     for k in ("before", "after"):
@@ -137,7 +142,7 @@ def main():
     ap.add_argument("--pamdiff", required=True)
     ap.add_argument("--shipped", required=True)
     ap.add_argument("--reuse", help="an earlier run's results directory, for the reference engines")
-    ap.add_argument("--tag", help="names the files <date>-evo-<tag>.*")
+    ap.add_argument("--tag", help="names the files <date>-<tag>.*")
     args = ap.parse_args()
     root = args.results
     frames = os.path.join(root, "frames")
@@ -215,7 +220,7 @@ def main():
         scenes[name] = entry
 
     date = datetime.date.today().isoformat()
-    stem = "%s-evo%s" % (date, "-" + args.tag if args.tag else "")
+    stem = "%s%s" % (date, "-" + args.tag if args.tag else "")
     reuse = None
     if reused:
         earlier = sorted(f for f in os.listdir(os.path.join(args.reuse, "report")) if f.endswith(".json"))
@@ -273,7 +278,7 @@ def write_markdown(rec, path, jname):
              "Do not edit by hand." % jname)
     L.append("")
     L.append("CPU %s (%s online), governor %s, boost %s; every engine pinned to CPU %s, one thread."
-             % (sc.get("cpu_model"), sc.get("cpus_online"), sc.get("governor"), sc.get("boost"), sc.get("pinned_cpu")))
+             % (sc.get("cpu"), sc.get("cpus_online"), sc.get("governor"), sc.get("boost"), sc.get("pinned_cpu")))
     L.append("")
     if rec.get("reused"):
         L.append("%s: not re-run here; their measurements, provenance and frames are those of `%s` (%s)." % (
