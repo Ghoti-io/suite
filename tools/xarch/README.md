@@ -562,11 +562,11 @@ the source and rebuild, natively, in each `make test`), and
 `defiant-storage-postgres` is not built (it needs libpq for the target and a
 server). The image is `localhost/ghoti-xarch-defiant:sid-gcc16-gtest-bison`,
 `Containerfile.defiant` over `Containerfile.archive`'s image with bison and
-flex (lang-tang's parser); build both on the EVO and run there:
+flex (lang-tang's parser); build both, in that order:
 
 ```bash
-tools/evo image build localhost/ghoti-xarch-archive:sid-gcc16-gtest suite/tools/xarch suite/tools/xarch/Containerfile.archive
-tools/evo image build localhost/ghoti-xarch-defiant:sid-gcc16-gtest-bison suite/tools/xarch suite/tools/xarch/Containerfile.defiant
+podman build -t localhost/ghoti-xarch-archive:sid-gcc16-gtest -f suite/tools/xarch/Containerfile.archive suite/tools/xarch
+podman build -t localhost/ghoti-xarch-defiant:sid-gcc16-gtest-bison -f suite/tools/xarch/Containerfile.defiant suite/tools/xarch
 ```
 
 `DEFIANT_XARCH_TARGETS`, `_DEPS`, `_LIBS` and `_TESTS` narrow a run to one
@@ -594,7 +594,7 @@ failure; a gate run leaves them unset.
 Not built, with the reason, and outside these libraries: `ctang` on every
 target (its `macros.h` knows no calling convention but x86 and a
 non-standard `ARM` macro; on i686 its generated `libver_gen.h` names an
-unknown type), and on real arm64 too (the Pi 4 for the same story), which
+unknown type), and on real arm64 too, which
 only lang-tang's tests need; `runtime-core` on i686 (a
 static assertion on `GRCORE_CodeLocation`'s layout) and `runtime-heap` on
 32-bit PowerPC (a static assertion on 8-byte slots), so `defiant-core`,
@@ -602,8 +602,8 @@ static assertion on `GRCORE_CodeLocation`'s layout) and `runtime-heap` on
 qemu: `Inst.Effective`, which runs the built `effective-config` example as a
 child, and qemu-user cannot exec a foreign binary without binfmt.
 
-The run that stands (2026-10-21, `cutil-s10-xarchd-20261021-1146` on the
-EVO-X2, with `Site.Readable` re-run alone after its exclusion was added):
+The run that stands (2026-10-21, with `Site.Readable` re-run alone after its
+exclusion was added):
 i686 and PowerPC 16 programs, 720 tests passed, the storage libraries only
 (core, test and web expected unbuilt, above); s390x and SPARC64 48 programs
 and 1,255 tests each (storage, core and defiant-test), defiant-web built and
