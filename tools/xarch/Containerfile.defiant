@@ -1,0 +1,22 @@
+# The Defiant libraries' cross-architecture image: the archive image (the
+# four cross g++ 16.2.0 and a googletest for each target) with bison and flex,
+# which generate lang-tang's parser on the build host. Tag
+# ghoti-xarch-defiant:sid-gcc16-gtest-bison; defiant.sh runs in it.
+#
+# The parent pins the base by digest and apt to a dated snapshot, and this
+# image installs from the same snapshot.  Build the parents first:
+#
+#   ghoti-xarch:sid-gcc16              Containerfile.gcc16
+#   ghoti-xarch-archive:sid-gcc16-gtest  Containerfile.archive
+#
+# The tag names what is inside (notes/suite/CONTAINERS.md section 6).  Never :latest.
+FROM localhost/ghoti-xarch-archive:sid-gcc16-gtest
+
+RUN apt-get update \
+ && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+      bison \
+      flex \
+ && rm -rf /var/lib/apt/lists/* \
+ && bison --version | head -1 && flex --version
+
+WORKDIR /work

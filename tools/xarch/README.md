@@ -545,6 +545,73 @@ tests, s390x, PowerPC and SPARC64 766 each, green. The Windows counterpart is
 `ghoti-xwin-wine:deb13-mingw-win32-wine10`; its non-ASCII names needed the wine
 shim's `LANG=C.UTF-8`.
 
+## Defiant: `defiant.sh` and `Containerfile.defiant` (storage spec story S10, 2026-10-21)
+
+`defiant.sh i686|s390x|powerpc|sparc64|all` builds the Defiant storage
+libraries (`defiant-storage`, `-memory`, `-sql`, `-sqlite`), `defiant-core`,
+`defiant-test` and `defiant-web`, and the stack under them, for the target
+with the image's cross GCC 16, then builds every test program of each and
+runs it under qemu-user from the library's directory. `all` runs the four
+targets at once. A library that does not build is named with its distinct
+error lines, and one whose dependency did not build names that dependency;
+either fails the target unless the script's per-target table expects it, and
+an expectation that stops being true fails too. A program that passes no tests
+is a failure; skips and the tests excluded under qemu are listed by name. The
+libraries' `check-*` gates are not run here (they plant defects in a copy of
+the source and rebuild, natively, in each `make test`), and
+`defiant-storage-postgres` is not built (it needs libpq for the target and a
+server). The image is `localhost/ghoti-xarch-defiant:sid-gcc16-gtest-bison`,
+`Containerfile.defiant` over `Containerfile.archive`'s image with bison and
+flex (lang-tang's parser); build both on the EVO and run there:
+
+```bash
+tools/evo image build localhost/ghoti-xarch-archive:sid-gcc16-gtest suite/tools/xarch suite/tools/xarch/Containerfile.archive
+tools/evo image build localhost/ghoti-xarch-defiant:sid-gcc16-gtest-bison suite/tools/xarch suite/tools/xarch/Containerfile.defiant
+```
+
+`DEFIANT_XARCH_TARGETS`, `_DEPS`, `_LIBS` and `_TESTS` narrow a run to one
+failure; a gate run leaves them unset.
+
+**What the first runs found** (2026-10-21, story S10):
+
+- every Defiant Makefile gave gtest's cflags only to the link, so no test
+  program compiled for any target (fixed as archive's was, with
+  `TEST_COMPILE_FLAGS`);
+- cutil has fibers only on x86-64 and arm64 ELF, so on all four targets the
+  storage port's two parking tests, core's fiber and scheduler tests and
+  defiant-test's cross-tenant test asserted a fiber that cannot be made (and
+  the scheduler tests left schedulers running, so `testMatrix` never exited);
+  they now skip there after seeing the refusal, and `defiant-web`, whose
+  server runs on fibers, has its tests built and not run;
+- two seeded sweeps (`defiant-storage-sql`'s agreement sweep, with its copies
+  in `-sqlite` and `-postgres`, and core's condition sweep) drew random values
+  as arguments of one call, whose order GCC chooses per target: the
+  big-endian targets swept other populations and fell under coverage floors;
+- a test freed through an allocator in a dead stack frame
+  (`Relations.AFailureWhileReadingGrantsNothing`), harmless on x86-64 and a
+  SIGSEGV on s390x.
+
+Not built, with the reason, and outside these libraries: `ctang` on every
+target (its `macros.h` knows no calling convention but x86 and a
+non-standard `ARM` macro; on i686 its generated `libver_gen.h` names an
+unknown type), and on real arm64 too (the Pi 4 for the same story), which
+only lang-tang's tests need; `runtime-core` on i686 (a
+static assertion on `GRCORE_CodeLocation`'s layout) and `runtime-heap` on
+32-bit PowerPC (a static assertion on 8-byte slots), so `defiant-core`,
+`-test` and `-web` are not built on the two 32-bit targets. Excluded under
+qemu: `Inst.Effective`, which runs the built `effective-config` example as a
+child, and qemu-user cannot exec a foreign binary without binfmt.
+
+The run that stands (2026-10-21, `cutil-s10-xarchd-20261021-1146` on the
+EVO-X2, with `Site.Readable` re-run alone after its exclusion was added):
+i686 and PowerPC 16 programs, 720 tests passed, the storage libraries only
+(core, test and web expected unbuilt, above); s390x and SPARC64 48 programs
+and 1,255 tests each (storage, core and defiant-test), defiant-web built and
+not run. Skipped by name on every target: the two parking tests in each
+conformance run; on the 64-bit ones also core's four fiber tests, nine
+scheduler tests, `Templates.DeepTreeOnTheSmallestFiber`, and the Postgres
+suites, which run only under `make test-*-postgres`.
+
 ## The shape family's cross-target gates: `shape.sh` (shape-family milestone 1, story 2)
 
 The shape libraries (`math`, `shape-geometry`, `shape-scene`, `shape-cpu`) must
