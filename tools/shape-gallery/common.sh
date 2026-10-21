@@ -64,13 +64,14 @@ stage() {
 }
 
 # The run's directory name: the UTC time it started and the short commits of
-# the four libraries whose changes the pictures are about.
+# the four libraries whose changes the pictures are about.  START is the
+# caller's start time, 2026-10-21T13:57:48Z, which names it as 20261021T135748Z.
 run_name() {
   h=
   for l in shape-geometry shape-scene shape-cpu font; do
     h="$h${h:+-}$(git -C "$1/libs/$l" rev-parse --short=7 HEAD)"
   done
-  echo "$(date -u +%Y%m%dT%H%M%SZ)_$h"
+  echo "$(echo "$START" | tr -d ':-')_$h"
 }
 
 # Warn about what was left out, so a run is never mistaken for the working tree.
