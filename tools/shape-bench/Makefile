@@ -5,7 +5,7 @@
 #
 # Built against an installed suite through pkg-config only, like every library
 # here. The reference drivers (refs/) are not built here: they are compiled
-# inside their own pinned images, by run-evo.sh.
+# inside their own pinned images, by run.sh.
 #
 # Release flags: -O2, as the libraries ship (their own Makefiles decide their
 # objects' flags; these are only the harness's).

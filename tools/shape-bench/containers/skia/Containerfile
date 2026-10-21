@@ -1,5 +1,5 @@
 # Skia's raster backend, as a black-box reference for the shape family's
-# benchmarks (spine AD-28).
+# benchmarks: timing and pixels only, through its public API.
 #
 # Built here from a pinned upstream commit and used only through its public C++
 # API by refs/bench-skia.cpp, which is this repository's own code and is
@@ -20,11 +20,11 @@
 # pin of its own and that no benchmark here calls. The gn arguments are kept in
 # the image so the flags are a recorded fact.
 #
-# Build (on the EVO-X2, through tools/evo; never on the workstation, it is
-# heavy):
-#   tools/evo image build localhost/ghoti-shape-bench-skia:m156-2 \
-#       suite/tools/shape-bench/containers/skia \
-#       suite/tools/shape-bench/containers/skia/Containerfile -m 24G -t 2h
+# Build, from the suite's checkout (it is heavy: give it up to 24 GB of memory
+# and two hours):
+#   docker build -t localhost/ghoti-shape-bench-skia:m156-2 \
+#       -f tools/shape-bench/containers/skia/Containerfile \
+#       tools/shape-bench/containers/skia
 ARG BASE=docker.io/library/debian:13-slim@sha256:7792b1f7702a86946cd518db72b6a407302c3e9bc1635634368b878189e8221c
 FROM ${BASE}
 

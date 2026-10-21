@@ -1,7 +1,6 @@
 # The shape benchmark
 
-How fast the shape family draws, measured against Blend2D and Skia (spine
-AD-28, CAP-17 of the shape milestone). The engines measured are `shape-cpu`
+How fast the shape family draws, measured against Blend2D and Skia. The engines measured are `shape-cpu`
 (through `shape-scene`'s lists and its sink) and, for text, `font`'s glyph
 rendering; the references are Blend2D and Skia's CPU raster backend, each
 built from a pinned upstream commit inside a pinned image and used only as a
@@ -9,7 +8,7 @@ black box through its public API.
 
 **This file holds no numbers.** The results are in `results/`, one JSON
 record per run with the full provenance and a Markdown table generated from
-it. A figure quoted anywhere else is read from there, with its date and host.
+it. A figure quoted anywhere else is read from there, with its date and CPU.
 
 ## What is measured
 
@@ -73,40 +72,58 @@ Every result carries the image reference and its image ID, the base image's
 digest, the reference's version and commit (`containers/IMAGES` and the image's
 own `PROVENANCE`), the compiler and its flags (the library's flag stamp for
 `shape-cpu`, Blend2D's compile command, Skia's gn arguments and defines), the
-CPU's architecture and the number of CPUs online, the governor and boost, the
-pinned CPU, and the machine's load average, how many other containers ran and
-the CPU shares of the busiest processes before and after each engine ran. The
-record does not name the machine: `report.py` drops its host name, kernel
-string and CPU model name, and the names and owners of other processes.
+CPU's model name, its architecture and the number of CPUs online, the governor
+and boost, the pinned CPU, and the machine's load average, how many other
+containers ran and the CPU shares of the busiest processes before and after
+each engine ran. The record does not name the machine: `run.sh` does not
+record its host name, its kernel string or the names and owners of other
+processes, and `report.py` drops them from a record that has them.
 
 ## Running it
 
-On the EVO-X2 only, through `tools/evo`; nothing here is built or run on the
-workstation. From the workspace root:
+Everything runs in containers: the libraries and the harness are built in the
+suite's build image, `ghoti-build:gcc16` (`suite/Containerfile.build`), and each
+engine is timed in its own image. It wants a machine with a container engine
+(docker, or podman through `SHAPE_BENCH_CLI=podman`), a few GB of memory for
+the build, and a CPU that nothing else is using for the timing.
+
+The references' images, once, from the suite's checkout (Skia's build is heavy:
+up to 24 GB of memory and two hours):
 
 ```bash
-# The references' images, once (each is a capped, time-limited job of its own):
-tools/evo image build localhost/ghoti-shape-bench-blend2d:0.21.3-2 \
-    suite/tools/shape-bench/containers/blend2d suite/tools/shape-bench/containers/blend2d/Containerfile -m 8G -t 1h
-tools/evo image build localhost/ghoti-shape-bench-skia:m156-2 \
-    suite/tools/shape-bench/containers/skia suite/tools/shape-bench/containers/skia/Containerfile -m 24G -t 2h
-
-# The run: the libraries and this directory shipped, built in ghoti-build:gcc16,
-# then every engine timed in its own image on the box:
-job=$(tools/evo new --ws shape-bench cutil security compress unicode color image math \
-      shape-geometry shape-scene shape-cpu font)
-tools/evo run "$job" -m 24G -t 2h \
-    --host-after 'sh ws/suite/tools/shape-bench/run-evo.sh host' \
-    -- 'sh ws/suite/tools/shape-bench/run-evo.sh container'
-tools/evo status "$job"          # until it has exited
-tools/evo fetch "$job"           # results land in .evo/<job>/
-cp .evo/"$job"/results/report/*-evo.* suite/tools/shape-bench/results/
-tools/evo clean "$job"
+docker build -t localhost/ghoti-shape-bench-blend2d:0.21.3-2 \
+    -f tools/shape-bench/containers/blend2d/Containerfile tools/shape-bench/containers/blend2d
+docker build -t localhost/ghoti-shape-bench-skia:m156-2 \
+    -f tools/shape-bench/containers/skia/Containerfile tools/shape-bench/containers/skia
 ```
 
-The container phase also runs `shape-cpu`'s `make test`, before anything is
-timed. Run it on a quiet box: the results record what else was running, and a
-loaded box is a reason to run again, not a footnote.
+A run lives in one directory, `WORK`, which holds the sources under `ws/`
+(`libs/<lib>` beside `suite/`, as `suite/clone.sh` lays them out; clones of the
+commits you want measured), the install prefix, the build and the results.
+`run.sh` gives the layout. Its two phases:
+
+```bash
+# Build: install the libraries, build the harness, write the scenes, and run
+# shape-cpu's make test before anything is timed. Inside the build image, with
+# WORK mounted:
+docker run --rm --user "$(id -u):$(id -g)" -v "$WORK:/work" -w /work ghoti-build:gcc16 \
+    sh ws/suite/tools/shape-bench/run.sh build /work 8
+
+# Time: on the machine itself, every engine in its own image, pinned to one CPU,
+# then the cross-check and the results files:
+SHAPE_BENCH_CPU=8 sh "$WORK/ws/suite/tools/shape-bench/run.sh" time "$WORK"
+```
+
+The results files land in `WORK/results/report/`, named `<date>.json` and
+`<date>.md` (or `<date>-<tag>.*`, from `report.py --tag`); a run worth keeping
+is copied into `results/` here:
+
+```bash
+cp "$WORK"/results/report/<date>*.json "$WORK"/results/report/<date>*.md tools/shape-bench/results/
+```
+
+Run it on a quiet machine: the results record what else was running, and a
+loaded machine is a reason to run again, not a footnote.
 
 ### Re-measuring shape-cpu alone
 
@@ -114,18 +131,16 @@ A change to `shape-cpu` does not move the references, so their numbers can stay
 and only `shape-cpu` (and `font`, which runs in its process) is timed again:
 
 ```bash
-tools/evo run "$job" -m 24G -t 2h \
-    --host-after 'SHAPE_BENCH_ENGINES=shape-cpu sh ws/suite/tools/shape-bench/run-evo.sh host' \
-    -- 'sh ws/suite/tools/shape-bench/run-evo.sh container'
-tools/evo fetch "$job"
-python3 suite/tools/shape-bench/report.py --results .evo/"$job"/results --pamdiff PAMDIFF \
-    --shipped .evo/"$job"/SHIPPED --reuse .evo/EARLIER/results --tag TAG
+SHAPE_BENCH_ENGINES=shape-cpu sh "$WORK/ws/suite/tools/shape-bench/run.sh" time "$WORK"
+cc -O2 -o pamdiff tools/shape-bench/pamdiff.c     # it needs no library
+python3 tools/shape-bench/report.py --results "$WORK"/results --pamdiff ./pamdiff \
+    --shipped "$WORK"/SHIPPED --reuse EARLIER/results --tag TAG
 ```
 
-`--reuse` names the fetched results of the run whose Blend2D and Skia figures
+`--reuse` names the results directory of the run whose Blend2D and Skia figures
 are kept (raw, prov, logs and frames); their frames are cross-checked again,
 against the new `shape-cpu` frames, and the record names the run they came
 from. A run from before a scene existed has no reference figures for it, so
-that scene's table then shows `shape-cpu` alone. `PAMDIFF` is `pamdiff.c`
-compiled on its own (it needs no library), and `--tag` keeps a second run on
-one date from overwriting the first.
+that scene's table then shows `shape-cpu` alone. `--tag` keeps a second run on
+one date from overwriting the first. `report.py --markdown RECORD.json` writes
+a record's Markdown again from the record alone.

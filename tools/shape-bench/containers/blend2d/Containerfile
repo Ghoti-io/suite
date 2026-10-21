@@ -1,4 +1,5 @@
-# Blend2D, as a black-box reference for the shape family's benchmarks (spine AD-28).
+# Blend2D, as a black-box reference for the shape family's benchmarks: timing
+# and pixels only, through its public API.
 #
 # Built here from a pinned upstream commit and used only through its public C++
 # API by refs/bench-blend2d.cpp, which is this repository's own code and is
@@ -18,10 +19,10 @@
 # morning, "ABI tag updated to v1_22", which is the AsmJit that release was
 # adapted to.
 #
-# Build (on the EVO-X2, through tools/evo; never on the workstation):
-#   tools/evo image build localhost/ghoti-shape-bench-blend2d:0.21.3-2 \
-#       suite/tools/shape-bench/containers/blend2d \
-#       suite/tools/shape-bench/containers/blend2d/Containerfile
+# Build, from the suite's checkout (it needs about 8 GB of memory):
+#   docker build -t localhost/ghoti-shape-bench-blend2d:0.21.3-2 \
+#       -f tools/shape-bench/containers/blend2d/Containerfile \
+#       tools/shape-bench/containers/blend2d
 ARG BASE=docker.io/library/debian:13-slim@sha256:7792b1f7702a86946cd518db72b6a407302c3e9bc1635634368b878189e8221c
 FROM ${BASE}
 
