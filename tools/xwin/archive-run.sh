@@ -2,7 +2,7 @@
 # Cross-builds the archive library and its dependencies for win64 and runs them under wine.
 #
 #   suite/tools/xwin/archive-run.sh [scratch-dir]      (default /tmp/xwin-archive)
-#   M1_IN_IMAGE=1 suite/tools/xwin/archive-run.sh /w   inside Containerfile.wine's image (EVO-X2)
+#   M1_IN_IMAGE=1 suite/tools/xwin/archive-run.sh /w   inside Containerfile.wine's image
 #
 # cutil, security and compress are built with their own Makefiles in the mingw image and installed
 # into a prefix in the scratch tree; then m1-lib.sh builds archive, installs it, runs `make test`
