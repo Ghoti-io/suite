@@ -17,7 +17,7 @@ unicode    https://github.com/Ghoti-io/unicode.git    master cutil
 chron      https://github.com/Ghoti-io/chron.git      master cutil
 compress   https://github.com/Ghoti-io/compress.git   master cutil,security
 regex      https://github.com/Ghoti-io/regex.git      master cutil,unicode,?text
-text       https://github.com/Ghoti-io/text.git       master cutil,chron,unicode,regex
+text       https://github.com/Ghoti-io/text.git       master cutil,security,chron,unicode,regex
 color      https://github.com/Ghoti-io/color.git      master cutil,security
 image      https://github.com/Ghoti-io/image.git      master cutil,compress,color
 math       https://github.com/Ghoti-io/math.git       master cutil
@@ -25,6 +25,7 @@ shape-geometry https://github.com/Ghoti-io/shape-geometry.git master cutil,math
 shape-scene https://github.com/Ghoti-io/shape-scene.git master cutil,color,math,image,shape-geometry
 shape-cpu  https://github.com/Ghoti-io/shape-cpu.git  master cutil,color,math,image,shape-geometry,shape-scene
 font       https://github.com/Ghoti-io/font.git       master cutil,compress,unicode,image,shape-geometry,shape-scene,shape-cpu
+vector     https://github.com/Ghoti-io/vector.git     master cutil,compress,text,shape-scene
 model      https://github.com/Ghoti-io/model.git      master cutil
 archive    https://github.com/Ghoti-io/archive.git    master cutil,compress,security
 audio      https://github.com/Ghoti-io/audio.git      master cutil,security,?compress,?image
