@@ -16,6 +16,8 @@ render_hash=${10:?usage: shape-win.sh ... SCENE_HASH SCENE_COUNT RENDER_HASH REN
 render_count=${11:?usage: shape-win.sh ... SCENE_HASH SCENE_COUNT RENDER_HASH RENDER_COUNT}
 font_hash=${12:?usage: shape-win.sh ... RENDER_HASH RENDER_COUNT FONT_HASH FONT_COUNT}
 font_count=${13:?usage: shape-win.sh ... RENDER_HASH RENDER_COUNT FONT_HASH FONT_COUNT}
+stroke_hash=${14:?usage: shape-win.sh ... FONT_HASH FONT_COUNT STROKE_HASH STROKE_COUNT}
+stroke_count=${15:?usage: shape-win.sh ... FONT_HASH FONT_COUNT STROKE_HASH STROKE_COUNT}
 P=/tools/xarch/shape-hash-probe.c
 cd /w || exit 2
 
@@ -42,8 +44,8 @@ fi
 # The math corpus hash: the committed value, and a planted bit that must differ.
 M=/w/math
 MF="-std=c17 -O2 -pedantic-errors -Wall -Wextra -Werror -ffp-contract=off -DGMATH_STATIC -I$M/include -I$M/gen/generated"
-x86_64-w64-mingw32-gcc $MF "$M/tools/corpus-hash.c" "$M"/src/elementary/*.c -o math-probe.exe -lm || { echo "shape-win: the math probe did not build" >&2; exit 2; }
-x86_64-w64-mingw32-gcc $MF -DGMATH_PLANT_BIT "$M/tools/corpus-hash.c" "$M"/src/elementary/*.c -o math-plant.exe -lm || { echo "shape-win: the planted math probe did not build" >&2; exit 2; }
+x86_64-w64-mingw32-gcc $MF "$M/tools/corpus-hash.c" "$M"/src/elementary/*.c "$M"/src/decimal/*.c -o math-probe.exe -lm || { echo "shape-win: the math probe did not build" >&2; exit 2; }
+x86_64-w64-mingw32-gcc $MF -DGMATH_PLANT_BIT "$M/tools/corpus-hash.c" "$M"/src/elementary/*.c "$M"/src/decimal/*.c -o math-plant.exe -lm || { echo "shape-win: the planted math probe did not build" >&2; exit 2; }
 mgot=$(./math-probe.exe math/tests/corpus 2>/dev/null | tr -d '\r' | awk '/^math.trig.hash/{h=$2} /^math.trig.count/{c=$2} END{if (h != "") print h, c}')
 mplant=$(./math-plant.exe math/tests/corpus 2>/dev/null | tr -d '\r' | awk '/^math.trig.hash/{h=$2} /^math.trig.count/{c=$2} END{if (h != "") print h, c}')
 echo "windows (wine) math hash: ${mgot:-none}   planted: ${mplant:-none}   committed: $math_hash $math_count"
@@ -59,8 +61,8 @@ else
 fi
 # The portable square root (story 4a, AD-17): the same sources built with -DGMATH_SQRT_PORTABLE must print the
 # same hash, and the probe, which runs both square roots over the corpus, must report a planted variant mismatch.
-x86_64-w64-mingw32-gcc $MF -DGMATH_SQRT_PORTABLE "$M/tools/corpus-hash.c" "$M"/src/elementary/*.c -o math-port.exe -lm || { echo "shape-win: the portable math probe did not build" >&2; exit 2; }
-x86_64-w64-mingw32-gcc $MF -DGMATH_PLANT_VARIANT "$M/tools/corpus-hash.c" "$M"/src/elementary/*.c -o math-varplant.exe -lm || { echo "shape-win: the variant-planted math probe did not build" >&2; exit 2; }
+x86_64-w64-mingw32-gcc $MF -DGMATH_SQRT_PORTABLE "$M/tools/corpus-hash.c" "$M"/src/elementary/*.c "$M"/src/decimal/*.c -o math-port.exe -lm || { echo "shape-win: the portable math probe did not build" >&2; exit 2; }
+x86_64-w64-mingw32-gcc $MF -DGMATH_PLANT_VARIANT "$M/tools/corpus-hash.c" "$M"/src/elementary/*.c "$M"/src/decimal/*.c -o math-varplant.exe -lm || { echo "shape-win: the variant-planted math probe did not build" >&2; exit 2; }
 mport=$(./math-port.exe math/tests/corpus 2>/dev/null | tr -d '\r' | awk '/^math.trig.hash/{h=$2} /^math.trig.count/{c=$2} END{if (h != "") print h, c}')
 echo "windows (wine) math hash, portable square root: ${mport:-none}"
 if [ -n "$mport" ] && [ "$mport" = "$math_hash $math_count" ]; then
@@ -100,15 +102,18 @@ I=/w/image
 NF="-std=c17 -O2 -pedantic-errors -Wall -Wextra -Werror -ffp-contract=off -DGSHSCENE_BUILD -DGSHGEOM_BUILD -DGMATH_STATIC -DGHOTIIO_CUTIL_STATIC -DGCOL_BUILD -DGIMG_BUILD -I$N/include -I$N/gen/generated -I$G/include -I$G/gen/generated -I$M/include -I$M/gen/generated -I$C/include -I$C/gen/include -I$K/include -I$K/gen/generated -I$I/include -I$I/gen/generated"
 x86_64-w64-mingw32-gcc $NF "$N/tools/corpus-hash.c" $(find "$N/src" -name '*.c' | sort) $(find "$G/src" -name '*.c' | sort) "$M"/src/elementary/*.c "$C/src/allocator.c" "$C/src/atomic.c" "$K/src/gamut.c" "$I/src/raster.c" "$I/core/allocator.c" -o scene-probe.exe || { echo "shape-win: the shape-scene probe did not build" >&2; exit 2; }
 x86_64-w64-mingw32-gcc $NF -DSHAPE_SCENE_PLANT_BIT "$N/tools/corpus-hash.c" $(find "$N/src" -name '*.c' | sort) $(find "$G/src" -name '*.c' | sort) "$M"/src/elementary/*.c "$C/src/allocator.c" "$C/src/atomic.c" "$K/src/gamut.c" "$I/src/raster.c" "$I/core/allocator.c" -o scene-plant.exe || { echo "shape-win: the planted shape-scene probe did not build" >&2; exit 2; }
-sgot=$(./scene-probe.exe 2>/dev/null | tr -d '\r' | awk '/^shape-scene.hash/{h=$2} /^shape-scene.count/{c=$2} END{if (h != "") print h, c}')
-splant=$(./scene-plant.exe 2>/dev/null | tr -d '\r' | awk '/^shape-scene.hash/{h=$2} /^shape-scene.count/{c=$2} END{if (h != "") print h, c}')
-echo "windows (wine) shape-scene hash: ${sgot:-none}   planted: ${splant:-none}   committed: $scene_hash $scene_count"
-if [ -n "$sgot" ] && [ "$sgot" = "$scene_hash $scene_count" ]; then
+# Strokes story S1: the stroke section's pair is compared with the first.
+spick='$1=="shape-scene.hash"{h=$2} $1=="shape-scene.count"{c=$2} $1=="shape-scene.stroke-hash"{sh=$2} $1=="shape-scene.stroke-count"{sc=$2} END{if (h != "" && sh != "") print h, c, sh, sc}'
+swant="$scene_hash $scene_count $stroke_hash $stroke_count"
+sgot=$(./scene-probe.exe 2>/dev/null | tr -d '\r' | awk "$spick")
+splant=$(./scene-plant.exe 2>/dev/null | tr -d '\r' | awk "$spick")
+echo "windows (wine) shape-scene hash: ${sgot:-none}   planted: ${splant:-none}   committed: $swant"
+if [ -n "$sgot" ] && [ "$sgot" = "$swant" ]; then
   echo "   ok    win64 prints the committed shape-scene hash"
 else
   echo "   FAIL  win64 does not print the committed shape-scene hash"; rc=1
 fi
-if [ -n "$splant" ] && [ "$splant" != "$scene_hash $scene_count" ]; then
+if [ -n "$splant" ] && [ "$splant" != "$swant" ]; then
   echo "   ok    planted: one differing bit in a shape-scene result on win64 is not the committed hash"
 else
   echo "   FAIL  planted: the win64 shape-scene probe with a flipped bit still matches (or did not run)"; rc=1

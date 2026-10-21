@@ -35,7 +35,8 @@
 #   4. The math corpus hash gate (CAP-1, AD-17).  libs/math/tools/corpus-hash.c,
 #      built with every libs/math/src/elementary/*.c (sin, cos, tan, atan2, exp,
 #      log, pow, hypot, sqrt, floor, ceil, trunc, round, rint, fabs, copysign,
-#      scalbn, frexp and ilogb) for each target (same flags,
+#      scalbn, frexp and ilogb) and src/decimal/*.c (the probe also prints the
+#      decimal conversions' hashes, outside the total) for each target (same flags,
 #      xarch_fp_cflags), reads libs/math/tests/corpus and must print the hash
 #      committed in libs/math/tests/corpus/trig.hash on every target.  The
 #      controls are the same two (i686 without SSE, aarch64 with contraction
@@ -101,7 +102,11 @@
 #      14a) runs from faces of the test glyph provider: each route's decision,
 #      the fast tier's device paths, the general route's maps and outlines, and
 #      the check, on every target, that with hinting off the fast tier is the
-#      general route under the snapped map (AD-5).  The maps
+#      general route under the snapped map (AD-5); and (strokes story S1) a
+#      stroke section, printed as a hash and count of its own beside the first
+#      pair (stroke styles read back canonical, SK10's bounds under composed
+#      maps, strokes' notices and features, renders by sinks that draw, expand
+#      or refuse them, a retained scene's diff of stroke nodes).  The maps
 #      are the composition of two general maps with entries over 1000, so their
 #      entries are sums of two products of inexact doubles:
 #      the two controls of section 4 (i686 without SSE, aarch64 with contraction
@@ -462,7 +467,7 @@ MFLAGS="-std=c17 -O2 -pedantic-errors -Wall -Wextra -Werror -ffp-contract=off -D
 math_run() {
   local triple=$1 cc=$2 qemu=$3 tag=$4 out
   shift 4
-  "$cc" $MFLAGS "$@" "$MATH/tools/corpus-hash.c" "$MATH"/src/elementary/*.c \
+  "$cc" $MFLAGS "$@" "$MATH/tools/corpus-hash.c" "$MATH"/src/elementary/*.c "$MATH"/src/decimal/*.c \
     -o "$B/math-$tag-$triple" 2> "$B/math-$tag-$triple.err" || return 1
   xarch_run "$triple" "$qemu" "$B/math-$tag-$triple" "$CORPUS" > "$B/math-$tag-$triple.txt" 2>> "$B/math-$tag-$triple.err" || return 1
   awk '/^math.trig.hash/{h=$2} /^math.trig.count/{c=$2} END{if (h != "") print h, c}' "$B/math-$tag-$triple.txt"
@@ -959,13 +964,17 @@ if ! make -s -C "$SCENE" libver-gen BUILD_DIR="$gsc" > "$B/gen-scene-hash.log" 2
 fi
 sh_hash=$(awk '$1=="hash"{print $2}' "$SCENE/tests/corpus/scene.hash")
 sh_count=$(awk '$1=="count"{print $2}' "$SCENE/tests/corpus/scene.hash")
-[ -n "$sh_hash" ] && [ -n "$sh_count" ] || { echo "   FAIL  no committed hash in $SCENE/tests/corpus/scene.hash"; status=1; }
+# Strokes story S1: the stroke section's hash and count, a pair of their own, compared with the others.
+st_hash=$(awk '$1=="stroke-hash"{print $2}' "$SCENE/tests/corpus/scene.hash")
+st_count=$(awk '$1=="stroke-count"{print $2}' "$SCENE/tests/corpus/scene.hash")
+[ -n "$sh_hash" ] && [ -n "$sh_count" ] && [ -n "$st_hash" ] && [ -n "$st_count" ] || { echo "   FAIL  no committed hash in $SCENE/tests/corpus/scene.hash"; status=1; }
+sh_want="$sh_hash $sh_count $st_hash $st_count"
 # The probe is built with shape-scene's sources, shape-geometry's (the paths, the maps, the hash) and, because
 # those call math, math's, and cutil's real allocator.c and atomic.c (the scene's mutex is cutil's header-only GCU_MUTEX_T and its
 # reference counts are cutil's GCU_Atomic_Size, on every target; no stand-in is used here).
 SCFLAGS="-std=c17 -O2 -pedantic-errors -Wall -Wextra -Werror -ffp-contract=off -pthread -DGSHSCENE_BUILD -DGSHGEOM_BUILD -DGMATH_BUILD -DGCOL_BUILD -DGIMG_BUILD -I$SCENE/include -I$gsc/generated -I$GEOM/include -I$gg/generated -I$MATH/include -I$mg/generated -I$ROOT/libs/cutil/include -I$B/gen/cutil/include -I$ROOT/libs/color/include -I$B/gen/color/generated -I$ROOT/libs/image/include -I$B/gen/image/generated"
 
-# scene_run TRIPLE CC QEMU TAG FLAGS... -> prints "HASH COUNT"
+# scene_run TRIPLE CC QEMU TAG FLAGS... -> prints "HASH COUNT STROKE_HASH STROKE_COUNT"
 scene_run() {
   local triple=$1 cc=$2 qemu=$3 tag=$4 out
   shift 4
@@ -974,7 +983,8 @@ scene_run() {
     "$ROOT/libs/cutil/src/allocator.c" "$ROOT/libs/cutil/src/atomic.c" "$ROOT/libs/color/src/gamut/gamut.c" \
     "$ROOT/libs/image/src/raster/raster.c" "$ROOT/libs/image/src/core/allocator.c" -o "$B/scene-$tag-$triple" 2> "$B/scene-$tag-$triple.err" || return 1
   xarch_run "$triple" "$qemu" "$B/scene-$tag-$triple" > "$B/scene-$tag-$triple.txt" 2>> "$B/scene-$tag-$triple.err" || return 1
-  awk '/^shape-scene.hash/{h=$2} /^shape-scene.count/{c=$2} END{if (h != "") print h, c}' "$B/scene-$tag-$triple.txt"
+  awk '$1=="shape-scene.hash"{h=$2} $1=="shape-scene.count"{c=$2} $1=="shape-scene.stroke-hash"{sh=$2} $1=="shape-scene.stroke-count"{sc=$2}
+       END{if (h != "" && sh != "") print h, c, sh, sc}' "$B/scene-$tag-$triple.txt"
 }
 
 declare -A SOK SPLANT
@@ -999,10 +1009,10 @@ scene_gate() {
     triple=$(echo "$triple" | tr -d ' ')
     [ -z "$triple" ] && continue
     if [ "$triple" = "$planted" ]; then got=${SPLANT[$triple]:-}; else got=${SOK[$triple]:-}; fi
-    if [ -n "$got" ] && [ "$got" = "$sh_hash $sh_count" ]; then
+    if [ -n "$got" ] && [ "$got" = "$sh_want" ]; then
       printf "   ok    %-22s %s\n" "$triple" "$got"
     else
-      printf "   FAIL  %-22s %s  (want %s %s)\n" "$triple" "${got:-none}" "$sh_hash" "$sh_count"
+      printf "   FAIL  %-22s %s  (want %s)\n" "$triple" "${got:-none}" "$sh_want"
       rc=1
     fi
   done <<EOT2
@@ -1016,14 +1026,14 @@ scene_gate "" || status=1
 
 echo " b. the controls: the probe sees what the flags prevent (its maps are products and sums of inexact doubles)"
 sbare=$(scene_run i686-linux-gnu i686-linux-gnu-gcc qemu-i386 bare) || sbare=""
-if [ -n "$sbare" ] && [ "$sbare" != "$sh_hash $sh_count" ]; then
+if [ -n "$sbare" ] && [ "$sbare" != "$sh_want" ]; then
   echo "   ok    i686 without -msse2 -mfpmath=sse prints $sbare, not the committed hash"
 else
   echo "   FAIL  i686 without the SSE flags printed '${sbare:-nothing}': the hash cannot see x87"
   status=1
 fi
 sfused=$(scene_run aarch64-linux-gnu aarch64-linux-gnu-gcc qemu-aarch64 fused -ffp-contract=fast) || sfused=""
-if [ -n "$sfused" ] && [ "$sfused" != "$sh_hash $sh_count" ]; then
+if [ -n "$sfused" ] && [ "$sfused" != "$sh_want" ]; then
   echo "   ok    aarch64 with -ffp-contract=fast prints $sfused, not the committed hash"
 else
   echo "   FAIL  aarch64 with contraction on printed '${sfused:-nothing}': the hash cannot see a fused multiply-add"

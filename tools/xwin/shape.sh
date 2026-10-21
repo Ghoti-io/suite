@@ -66,6 +66,7 @@ rm -rf "$W/math"
 mkdir -p "$W/math/tools" "$W/math/tests" "$W/math/src" "$W/math/gen"
 cp -r "$MATH/include" "$W/math/include"
 cp -r "$MATH/src/elementary" "$W/math/src/elementary"
+cp -r "$MATH/src/decimal" "$W/math/src/decimal" # the probe prints the decimal conversions' hashes too (outside the total)
 cp "$MATH/tools/corpus-hash.c" "$W/math/tools/"
 cp "$MATH/tests/corpus_hash.h" "$W/math/tests/"
 cp -r "$MATH/tests/corpus" "$W/math/tests/corpus"
@@ -145,8 +146,10 @@ cp "$SCENE/tests/glyph_test_provider.h" "$W/scene/tests/"
 make -s -C "$SCENE" libver-gen BUILD_DIR="$W/scene/gen" > "$W/logs/scene-libver.log" 2>&1 || { echo "shape.sh: libver-gen failed (see $W/logs/scene-libver.log)" >&2; exit 2; }
 scene_hash=$(awk '$1=="hash"{print $2}' "$SCENE/tests/corpus/scene.hash")
 scene_count=$(awk '$1=="count"{print $2}' "$SCENE/tests/corpus/scene.hash")
-[ -n "$scene_hash" ] && [ -n "$scene_count" ] || { echo "shape.sh: no committed shape-scene hash" >&2; exit 2; }
-echo "committed shape-scene hash: $scene_hash over $scene_count results"
+stroke_hash=$(awk '$1=="stroke-hash"{print $2}' "$SCENE/tests/corpus/scene.hash")
+stroke_count=$(awk '$1=="stroke-count"{print $2}' "$SCENE/tests/corpus/scene.hash")
+[ -n "$scene_hash" ] && [ -n "$scene_count" ] && [ -n "$stroke_hash" ] && [ -n "$stroke_count" ] || { echo "shape.sh: no committed shape-scene hash" >&2; exit 2; }
+echo "committed shape-scene hash: $scene_hash over $scene_count results; strokes $stroke_hash over $stroke_count"
 # The font provider's probe (story 14b) also takes cutil's file.c: a blob's destroy frees through it.
 cp "$CUTIL/src/file.c" "$CUTIL/src/file_internal.h" "$CUTIL/src/path_internal.h" "$W/cutil/src/"
 # The font provider's probe (story 14b): font's sources, its tools/scene-hash.c, the fixtures it renders and the
@@ -178,4 +181,4 @@ font_hash=$(awk '$1=="hash"{print $2}' "$FONT/tests/data/golden/scene.hash")
 font_count=$(awk '$1=="count"{print $2}' "$FONT/tests/data/golden/scene.hash")
 [ -n "$font_hash" ] && [ -n "$font_count" ] || { echo "shape.sh: no committed font provider hash" >&2; exit 2; }
 echo "committed font provider hash: $font_hash over $font_count renders"
-"$HERE/m1-win.sh" "$W" "bash /tools/xwin/shape-win.sh $want $math_hash $math_count $geom_hash $geom_count $cpu_hash $cpu_count $scene_hash $scene_count $render_hash $render_count $font_hash $font_count"
+"$HERE/m1-win.sh" "$W" "bash /tools/xwin/shape-win.sh $want $math_hash $math_count $geom_hash $geom_count $cpu_hash $cpu_count $scene_hash $scene_count $render_hash $render_count $font_hash $font_count $stroke_hash $stroke_count"
