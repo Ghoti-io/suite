@@ -7,9 +7,9 @@ layout and shaping, its glyphs reaching the scene through `font`'s glyph path
 provider; the PNG encoding is `image`'s own writer. It lives in the suite, beside
 `shape-success` and `shape-bench`, because it is a consumer of the whole stack:
 it includes and links `color`, `math`, `image`, the three shape libraries and
-`font` together, and under the shape spine's AD-2 a library's manifest line
-lists every library whose header it includes or links, so hosting it in any one
-library would add edges to that library.
+`font` together, and a library's line in `suite/libraries.txt` lists every
+library whose header it includes or links, so hosting it in any one library
+would add edges to that library.
 
 | Image | What it shows |
 | --- | --- |
