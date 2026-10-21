@@ -75,6 +75,8 @@ The default install is the sibling `.local/` directory.  This method does not ne
 
 To test as well, add `--test`. Each library's `make test` then runs once every library is installed, because a library's tests can need one that comes after it (regex's need text). Data the tests measure against, which is fetched and never committed, is fetched first by each library's `tools/*/fetch.sh`. `--test=runtime-core,lang-tang` tests only the libraries named (every library is still built and installed). A failure stops the run and names the log, `.bootstrap-<library>.log` in the parent directory.
 
+`defiant-storage-postgres` builds in the image (libpq comes with its compiler's base image) but its tests need a Postgres server, which `install.sh` does not start: under `--test` its programs stop, naming the fix. Add `GDEFSPG_TEST_SKIP_SERVER=1` to the command line to skip that arm (it is then reported as `SKIPPED: postgres`, never as passed) and run it on its own through that library's `tools/pg-test.sh`, which starts a throwaway server (its `documentation/postgres.md`).
+
 ```bash
 ./install.sh --test
 ```

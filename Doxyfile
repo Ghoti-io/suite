@@ -163,9 +163,18 @@ INPUT                  = suite/suite.md \
                          libs/defiant-storage-memory/src \
                          libs/defiant-storage-memory/documentation \
                          libs/defiant-storage-memory/CONTRIBUTING.md \
+                         libs/defiant-storage-sql/include \
+                         libs/defiant-storage-sql/src \
+                         libs/defiant-storage-sql/documentation \
+                         libs/defiant-storage-sql/CONTRIBUTING.md \
                          libs/defiant-storage-sqlite/include \
                          libs/defiant-storage-sqlite/src \
+                         libs/defiant-storage-sqlite/documentation \
                          libs/defiant-storage-sqlite/CONTRIBUTING.md \
+                         libs/defiant-storage-postgres/include \
+                         libs/defiant-storage-postgres/src \
+                         libs/defiant-storage-postgres/documentation \
+                         libs/defiant-storage-postgres/CONTRIBUTING.md \
                          libs/defiant-core/include \
                          libs/defiant-core/src \
                          libs/defiant-core/documentation \

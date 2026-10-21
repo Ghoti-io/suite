@@ -21,8 +21,10 @@ Clone the libraries, build them, and build this manual from
 | [CTang](@ref ctang) | A template language for a host program, with an x86-64 JIT and a bytecode fallback. |
 | [CUtil](@ref cutil) | An allocator, containers, checked arithmetic, threads, and the filesystem. |
 | [Defiant Core](@ref defiant-core) | The Defiant request context, fiber scheduler, offload pool, and yield watchdog; it coordinates tenant work with the storage port. |
-| [Defiant Storage](@ref defiant-storage) | The port for immutable revisions, blobs, projections, outbox rows, entity histories, and tenant-scoped serializable writes. |
-| [Defiant Storage Memory](@ref defiant-storage-memory) | An in-memory backend for the Defiant storage port, including its reference scan for projection and entity queries. |
+| [Defiant Storage](@ref defiant-storage) | The Defiant storage port: declared entity types with one linear revision history each, drafts, a typed query form, records, counters and an outbox in the same write, logical snapshots, the blind index, a key store port, and tenant-scoped serializable writes. |
+| [Defiant Storage Memory](@ref defiant-storage-memory) | An in-memory backend for the Defiant storage port, whose entity queries are answered by the port's reference scan. |
+| [Defiant Storage Postgres](@ref defiant-storage-postgres) | A Postgres backend for the Defiant storage port over libpq, with a schema per tenant, a pool that carries no tenant state, and index builds outside the step that declares them. |
+| [Defiant Storage SQL](@ref defiant-storage-sql) | The engine-independent part of every SQL backend for the Defiant storage port: the schema a declaration becomes, additive schema steps, every statement, and the query compiler, with every value bound. |
 | [Defiant Storage SQLite](@ref defiant-storage-sqlite) | A SQLite backend for the Defiant storage port, with one database file per tenant and forward-only schema steps. |
 | [Defiant Test](@ref defiant-test) | The milestone harness for isolation, access control, erasure, backend round trips, unsafe-list linting, and rendered-id scanning. |
 | [Defiant Web](@ref defiant-web) | The HTTP/1.1 adapter for Defiant, including readiness endpoints and server-rendered administration pages. |
