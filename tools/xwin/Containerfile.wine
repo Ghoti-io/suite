@@ -6,8 +6,8 @@
 # /gt resolve to the image's own /usr and /usr/src/googletest, so the scripts
 # run unchanged when M1_IN_IMAGE=1 (see m1-win.sh).
 #
-# Built on the EVO-X2 with `tools/evo image build`; see suite/tools/xarch/README.md
-# section "Running the cross-architecture gates on the EVO-X2".  The tag names
+# Built on the machine that runs the gate; see suite/tools/xarch/README.md
+# section "Running the cross-architecture gates on a build host without qemu".  The tag names
 # what is inside: base, thread model of the mingw gcc, wine major version.
 # wine64 is installed WITH its recommends (fonts-wine, gnutls, dbus, ...): without them the
 # wine of this image aborts with "free(): invalid pointer" while creating a prefix.

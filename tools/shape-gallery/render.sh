@@ -1,8 +1,8 @@
 #!/bin/sh
 # SPDX-License-Identifier: LGPL-3.0-only
 #
-# The gallery's build-and-render step, run inside ghoti-build:gcc16 by
-# run-evo.sh (on the EVO-X2) and run-local.sh (here, under podman):
+# The gallery's build-and-render step, run inside ghoti-build:gcc16 (README.md
+# says how):
 #
 #   render.sh WS PREFIX OUT JOBS LIB...
 #

@@ -161,8 +161,8 @@ that works under wine has not been shown to work under SEH on Windows. A
 `TODO(windows)` marker is discharged by a branch running, and under wine it
 has run; the source says "wine", not "Windows", where it says anything.
 
-The full EVO-X2 Wine gate `xgates-wasm-win64-final-20261018-0211` finished
-green on 2026-10-18, was fetched, and was cleaned. Its six library summaries
+The full Wine gate, run in the image on a build host, finished
+green on 2026-10-18. Its six library summaries
 reported no compiler warnings or failed make targets:
 
 | library | tests / passed / named skips | examples run / skipped |
@@ -311,7 +311,7 @@ WITH_SECURITY=1 suite/tools/xwin/certificate.sh        # and security's 120
 ```
 
 Cross-builds cutil, `security` and `certificate` for win64 with **their own
-Makefiles**, all three as committed (`git archive HEAD`, so another session's
+Makefiles**, all three as committed (`git archive HEAD`, so a working tree's
 half-edit is not what is tested), and runs the unit tests under wine. It checks
 that an object carries `-export:` directives and the DLL exports the API, and
 plants a conversion that turns a bad signature into success and requires the
@@ -386,8 +386,8 @@ prefix in the scratch tree (`m1-lib.sh deps` with `M1_DEPS` set), then `text-lib
 builds the test programs whose names start with `Html`, `Xml`, `Xhtml`, `Encoding`, `Markup` or `Quadratic` with text's own
 Makefile and runs each from the library directory under wine. It exits 0 only if every program passed, ran at least one
 test, and the build had no warning; the skips are listed by name, not asserted. Like the rest of this directory it imitates
-MSYS2 and is not Windows. On the EVO-X2: `M1_IN_IMAGE=1 bash /work/suite/tools/xwin/text-run.sh /w` in the image of
-`Containerfile.wine`, the mounts of `m1-run.sh`'s job.
+MSYS2 and is not Windows. On a host without podman: `M1_IN_IMAGE=1 bash /work/suite/tools/xwin/text-run.sh /w` in the image of
+`Containerfile.wine`, with the mounts `m1-run.sh` has there (suite/tools/xarch/README.md).
 
 ## The shape family's hash on win64: `shape.sh` (shape-family milestone 1, story 2)
 

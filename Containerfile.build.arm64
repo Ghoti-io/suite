@@ -1,4 +1,4 @@
-# Build image for the arm64 box (the Raspberry Pi 4, see tools/evo). Tag ghoti-build:gcc16,
+# Build image for an arm64 build host. Tag ghoti-build:gcc16,
 # the same tag as Containerfile.build, because the two never meet on one host.
 #
 # Same base image as Containerfile.build, GCC 16.2.0 and glibc: the digest here is the arm64

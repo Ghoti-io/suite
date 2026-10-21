@@ -44,7 +44,7 @@ W=${1:-/tmp/xwin-shape}
 
 mkdir -p "$W/logs"
 if [ -n "${M1_IN_IMAGE:-}" ]; then
-  # Inside ghoti-xwin-wine (the EVO-X2 runs it that way, with the workspace at
+  # Inside ghoti-xwin-wine (a host without podman runs it that way, with the tree at
   # /work, the scratch tree at /w and suite/tools at /tools): there is no
   # podman and no native compiler, so the native x86-64 hash of the placeholder
   # fixture is given (xarch/shape.sh prints it in section 2).

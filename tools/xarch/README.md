@@ -11,7 +11,7 @@ name works.
 
 ## Which image: `sid-gcc16`, and `deb13` for what has not moved
 
-The suite's compiler is GCC 16.2.0 (`ghoti-build:gcc16`, see CLAUDE.md), and a
+The suite's compiler is GCC 16.2.0 (`ghoti-build:gcc16`, see `../../Containerfile.build`), and a
 32-bit or big-endian result from a different compiler under the same `-Werror`
 answers a different question. Debian 13's cross compilers are GCC 14.
 **`ghoti-xarch:sid-gcc16`** (`Containerfile.gcc16`) has GCC 16.2.0 for all six
@@ -351,7 +351,7 @@ suite/tools/xarch/http-arm64-host.sh [scratch-dir]    # aarch64, the real gtest 
 
 `http-host.sh` writes the differential's corpora (`libs/http/tools/oracle/corpus.py
 --dump`, `diff_h2.py --dump`, and `diff_ws.py --dump` once that exists), stages
-`git archive HEAD` of cutil, security and compress (so that another session's
+`git archive HEAD` of cutil, security and compress (so that a
 half-edited working tree is not what is tested), and runs `http.sh` in this
 image. libghttp links all three, so `http.sh` compiles, for every target in the
 matrix, the library and ALL the sources of cutil, security and compress, each
@@ -384,7 +384,7 @@ suite/tools/xarch/tls-host.sh [scratch-dir]      # default /tmp/tls-xarch
 ```
 
 `tls-host.sh` stages cutil, security, certificate and tls **as committed** (`git
-archive HEAD`, because another session may be mid-edit in one of them) and runs
+archive HEAD`, because a checkout may be mid-edit) and runs
 `tls.sh` in this image. `tls.sh` compiles all the sources of the four libraries
 for each of the seven targets, with each library's own flags and `-Werror`, and
 links `tls-probe.c`, which drives RFC 8448's traces (the client's handshake,
@@ -433,22 +433,22 @@ the derivation to equal its table. `JIT_X86_CPU_MODELS="qemu64 Haswell,-bmi1,-bm
 result then says `TRIAL` and never prints `jit-x86-cpu: OK`. It does not show a real CPU of any model (qemu's models are its
 own idea of them) or an operating system's gating of features.
 
-## Running the cross-architecture gates on the EVO-X2 (2026-10-10)
+## Running the cross-architecture gates on a build host without qemu (2026-10-10)
 
-`jit-arm64.sh`, `jit-x86-cpu.sh` and `../xwin/m1-run.sh` do not need this machine. Each can run as a job of its
-own on the EVO-X2 through `tools/evo`, in parallel, instead of one after another on the laptop. The workspace the
-gates read is shipped as `ws/libs/<lib>` (the thirteen libraries of the runtime stack, including security and lang-wasm) and `ws/suite`, each the working
-tree minus `build/`, `docs/`, `.git` and `__pycache__` (about 0.9 GB; ignored third-party and tzdata files go along,
-as they do in the local copy). The box has docker and no qemu, wine, podman or bison; everything the gates need is in
-three images, built on the box from Containerfiles in this repository:
+`jit-arm64.sh`, `jit-x86-cpu.sh` and `../xwin/m1-run.sh` need no qemu, wine or podman on the machine that runs them: each
+can run on its own, in parallel, in a container on any host with docker and enough cores, instead of one after another on
+one workstation. What the gates read is a copy of the tree laid out as `ws/libs/<lib>` (the thirteen libraries of the runtime
+stack, including security and lang-wasm) and `ws/suite`, each the working tree minus `build/`, `docs/`, `.git` and
+`__pycache__` (about 0.9 GB; ignored third-party and tzdata files go along, as they do in the local copy). Everything the
+gates need is in three images, built from Containerfiles in this repository:
 
-| image (on the box) | Containerfile | used by |
+| image | Containerfile | used by |
 | --- | --- | --- |
 | `localhost/ghoti-xarch:sid-gcc16` | `xarch/Containerfile.gcc16` | pinned GCC 16 parent of the next |
 | `localhost/ghoti-xarch-arm64-jit:sid-gxx16-gtest-wast` | `xarch/Containerfile.arm64-jit-gcc16` | `jit-arm64.sh`, `jit-x86-cpu.sh` |
 | `localhost/ghoti-xwin-wine:deb13-mingw-win32-wine10-wast` | `xwin/Containerfile.wine` | `m1-run.sh` |
 
-Build the GCC 16 parent and its child on EVO-X2 from their pinned
+Build the GCC 16 parent and its child from their pinned
 Containerfiles before the cross gates. The Wine image is rebuilt separately;
 its mingw-w64 compiler is a different toolchain family.
 Both cross images include `curl` so the gate can fill a missing WebAssembly
@@ -462,40 +462,39 @@ runs only Lang-Wasm's JIT cache and pinned WAST binaries. It reports a focused
 result and leaves the full cross gate to a separate run. To isolate Tang JIT
 compatibility on AArch64, `JIT_ARM64_FOCUS_TANG=1` builds the stack and runs
 only Tang's `testJit`; this also reports a focused result.
-To build or remove (`tools/evo image ls` lists them):
 
 ```bash
-tools/evo image build localhost/ghoti-xarch:sid-gcc16 suite/tools/xarch suite/tools/xarch/Containerfile.gcc16
-tools/evo image build localhost/ghoti-xarch-arm64-jit:sid-gxx16-gtest-wast suite/tools/xarch suite/tools/xarch/Containerfile.arm64-jit-gcc16
-tools/evo image build localhost/ghoti-xwin-wine:deb13-mingw-win32-wine10-wast suite/tools/xwin suite/tools/xwin/Containerfile.wine
-tools/evo image rm localhost/ghoti-xwin-wine:deb13-mingw-win32-wine10-wast     # likewise the other two, the child first
+docker build -t localhost/ghoti-xarch:sid-gcc16 -f suite/tools/xarch/Containerfile.gcc16 suite/tools/xarch
+docker build -t localhost/ghoti-xarch-arm64-jit:sid-gxx16-gtest-wast -f suite/tools/xarch/Containerfile.arm64-jit-gcc16 suite/tools/xarch
+docker build -t localhost/ghoti-xwin-wine:deb13-mingw-win32-wine10-wast -f suite/tools/xwin/Containerfile.wine suite/tools/xwin
 ```
 
-One job per gate (the cap is the job's; with 20G each the three fit under the box's 64G total; `--cpus=8` and
-`JOBS=8` keep each to a quarter of the threads, and the gates peak at about 6 GB, 1 GB and 8 GB):
+One container per gate, with `WS` the copy above and `SCRATCH` an empty writable directory of its own (`--cpus=8` and
+`JOBS=8` keep each to eight threads; the gates peak at about 6 GB, 1 GB and 8 GB of memory, so a cap of 20 GB each is ample):
 
 ```bash
-P='; rc=$?; cp -r /w/logs $RESULTS/ 2>/dev/null; cat /sys/fs/cgroup/memory.peak > $RESULTS/mem-peak.txt; date +%s > $RESULTS/ended; exit $rc'
 A=localhost/ghoti-xarch-arm64-jit:sid-gxx16-gtest-wast
-J=$(tools/evo new --xgates arm64);  tools/evo run $J -m 20G -t 4h --image $A --mount ws:/work:ro --mount scratch:/scratch --docker-arg --cpus=8 -- "JOBS=8 bash /work/suite/tools/xarch/jit-arm64.sh$P"
-J=$(tools/evo new --xgates x86cpu); tools/evo run $J -m 20G -t 2h --image $A --mount ws:/work:ro --mount scratch:/scratch --docker-arg --cpus=8 -- "JOBS=8 bash /work/suite/tools/xarch/jit-x86-cpu.sh$P"
-J=$(tools/evo new --xgates win);    tools/evo run $J -m 20G -t 4h --image localhost/ghoti-xwin-wine:deb13-mingw-win32-wine10-wast \
-    --mount ws:/work:ro --mount scratch:/w --mount ws/suite/tools:/tools:ro --docker-arg --security-opt=seccomp=unconfined --docker-arg --cpus=8 \
-    -- "M1_IN_IMAGE=1 bash /work/suite/tools/xwin/m1-run.sh /w$P"
-tools/evo status; tools/evo logs JOB; tools/evo fetch JOB     # the gate's output is the log; results/ has mem-peak.txt and (win) logs/
-tools/evo clean JOB
+docker run --rm --memory 20g --cpus=8 -v "$WS:/work:ro" -v "$SCRATCH:/scratch" $A \
+    bash -c 'JOBS=8 bash /work/suite/tools/xarch/jit-arm64.sh'
+docker run --rm --memory 20g --cpus=8 -v "$WS:/work:ro" -v "$SCRATCH:/scratch" $A \
+    bash -c 'JOBS=8 bash /work/suite/tools/xarch/jit-x86-cpu.sh'
+docker run --rm --memory 20g --cpus=8 --security-opt=seccomp=unconfined \
+    -v "$WS:/work:ro" -v "$SCRATCH:/w" -v "$WS/suite/tools:/tools:ro" \
+    localhost/ghoti-xwin-wine:deb13-mingw-win32-wine10-wast \
+    bash -c 'M1_IN_IMAGE=1 bash /work/suite/tools/xwin/m1-run.sh /w'
 ```
 
-`$J` is the job to name in `logs`, `fetch` and `clean`. The first two exit with the gate's status; the log is the same
-text the local run prints. The win gate runs `m1-run.sh` inside the image (`M1_IN_IMAGE=1`): `m1-win.sh` then starts no
+The first two exit with the gate's status, and print the same text the local run prints. The win gate runs `m1-run.sh`
+inside the image (`M1_IN_IMAGE=1`): `m1-win.sh` then starts no
 container, and uses `unshare --user --map-root-user` so that the binfmt_misc entry for wine is private to the gate (it
-needs `seccomp=unconfined` for `unshare`, and no capability, and it changes nothing on the box). It unsets `TMPDIR`,
+needs `seccomp=unconfined` for `unshare`, and no capability, and it changes nothing on the host). It unsets `TMPDIR`,
 because wine 10.0 frees what `getenv("TMPDIR")` returns and aborts with `free(): invalid pointer` when it makes a prefix.
 
 When `jit-arm64.sh` sees a failing test binary, it also retains that binary's
 complete output under `$RESULTS/failures/<architecture>/<library>-<binary>.log`
-before printing the concise tail to the job log. This keeps the failing
-assertions available in the fetched result bundle for triage.
+(`RESULTS` defaults to the scratch directory)
+before printing the concise tail to its output. This keeps the failing
+assertions available for triage.
 
 ## text: the XML, HTML, Encoding and markup tests for AArch64 and 32-bit x86 (`text.sh`, 2026-10-14)
 
@@ -509,12 +508,11 @@ bytes; the test feeds that many bytes and one more), and on AArch64 that it skip
 `Containerfile.text` (the arm64-jit image plus `g++-i686-linux-gnu`, and a googletest with `gtest_main` for both targets):
 
 ```bash
-tools/evo image build localhost/ghoti-xarch-text:deb13-gxx14-gtest-main suite/tools/xarch suite/tools/xarch/Containerfile.text
-P='; rc=$?; cp -r /scratch/*/build-*.log $RESULTS/ 2>/dev/null; date +%s > $RESULTS/ended; exit $rc'
-for a in aarch64 i686; do
-  J=$(tools/evo new --ws text-x$a cutil security unicode chron regex text)
-  tools/evo run $J -m 10G -t 5h --image localhost/ghoti-xarch-text:deb13-gxx14-gtest-main --mount ws:/work:ro --mount scratch:/scratch \
-      --docker-arg --cpus=6 -- "JOBS=6 bash /work/suite/tools/xarch/text.sh $a$P"
+docker build -t localhost/ghoti-xarch-text:deb13-gxx14-gtest-main -f suite/tools/xarch/Containerfile.text suite/tools/xarch
+for a in aarch64 i686; do      # WS holds libs/ (cutil security unicode chron regex text) and suite/
+  mkdir -p "$SCRATCH/$a"
+  docker run --rm --memory 10g --cpus=6 -v "$WS:/work:ro" -v "$SCRATCH/$a:/scratch" \
+      localhost/ghoti-xarch-text:deb13-gxx14-gtest-main bash -c "JOBS=6 bash /work/suite/tools/xarch/text.sh $a"
 done
 ```
 
@@ -524,9 +522,9 @@ sweeps every byte sequence). `GTEXT_TEST_SLOWDOWN` (40 by default here) multipli
 
 **What the first i686 run found** (two defects of the tests, one of the library's build): a 32-bit program without
 `_FILE_OFFSET_BITS=64` gets `EOVERFLOW` from `readdir()` and `stat()` on a file system with large inode numbers, which
-the workspace's has, so the tests that list a corpus directory saw no files; text's Makefile now defines it
+the build host's had, so the tests that list a corpus directory saw no files; text's Makefile now defines it
 (`LFS_FLAGS`); two tests (`(size_t)1 << 40`) did not compile with a 32-bit `size_t` and now use the type's own width.
-cutil's file layer has the same exposure and is for cutil's session.
+cutil's file layer has the same exposure, which is cutil's to fix.
 
 ## archive: `archive.sh` and `Containerfile.archive` (archive phase I, 2026-10-20)
 
@@ -537,7 +535,7 @@ found), then writes a tar, a tar.xz, a zip and a 7z with the examples and lists
 each with the others. A program that passes no tests is a failure, and skips
 are listed by name. The image is `localhost/ghoti-xarch-archive:sid-gcc16-gtest`,
 `Containerfile.archive` over `sid-gcc16` with googletest built for each target;
-build it on the EVO and run it there (`JOBS=6`), not here.
+build it on a large build host and run it there (`JOBS=6`), not on a workstation.
 
 The first run (2026-10-20) found two 32-bit build failures in compress (an
 lz4 `-Wtype-limits` comparison and `_mm_cvtsi64_si128` in the PCLMUL CRC-64)
@@ -635,9 +633,10 @@ podman run --rm -v "$PWD:/work:ro,z" ghoti-xarch:sid-gcc16 bash /work/suite/tool
    digest, and the section fails without it. The control is i686 without SSE
    (x87 moves the output); aarch64 with contraction on does not move this
    scene's output, so it is not used here. The plant is section 4's.
-   Windows is `suite/tools/xwin/shape.sh`, and the Raspberry Pi 4 runs
+   Windows is `suite/tools/xwin/shape.sh`, and a real arm64 machine runs
    `suite/tools/shape-success/check.sh` on its own build.
 
-Arm64 is qemu-user here, not hardware; the real Pi is `tools/evo --box pi4`. A
+Arm64 is qemu-user here, not hardware; real arm64 hardware runs the native
+checks (`suite/tools/shape-success/check.sh`). A
 library whose sources include its dependencies' headers needs
 `SHAPE_DEP_INCLUDES` set to their `-I` flags; the scaffolds include none.

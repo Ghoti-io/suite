@@ -4,7 +4,7 @@
 W=$1; shift
 HERE=$(cd "$(dirname "$0")" && pwd)
 TOOLS=$(cd "$HERE/.." && pwd)
-# Already inside the image (Containerfile.wine: the EVO-X2 runs the gate that way, with the scratch
+# Already inside the image (Containerfile.wine: a host without podman runs the gate that way, with the scratch
 # tree at /w and suite/tools at /tools): there is no container to start, but binfmt_misc needs a
 # user namespace of its own, which rootless podman gives and unshare does here.  TMPDIR is
 # unset because wine 10.0 frees the string getenv("TMPDIR") returns and aborts with "free():

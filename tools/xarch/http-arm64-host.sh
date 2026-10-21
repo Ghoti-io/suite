@@ -7,7 +7,7 @@
 # It stages, under <scratch-dir>:
 #
 #   deps/{cutil,security,compress}   `git archive HEAD` of each library, NOT the
-#       working tree: another session may be mid-edit in one of them, and what is
+#       working tree: one of them may be mid-edit, and what is
 #       tested is libghttp against the dependencies as they are committed (the
 #       same rule suite/tools/xwin/http.sh follows for cutil).
 #   hostlist/counts.txt   "<test binary> <tests listed>" for every test binary
@@ -18,9 +18,9 @@
 # Environment:
 #   HOST_PREFIX  the PREFIX= of the host build (rpath target; default $ROOT/.local);
 #                the .pc files are found through PKG_CONFIG_PATH if it is set, else
-#                here (a prefix of copies, like .local-http, has no share/pkgconfig).
+#                here (a prefix of copies, made for one library, has no share/pkgconfig).
 #   HOST_BUILD   the BUILD= name of the host build tree (default xc), so that
-#                this does not touch the tree another session is using.
+#                this does not touch a build tree in use.
 #   JOBS         parallelism.
 set -u
 HERE=$(cd "$(dirname "$0")" && pwd)

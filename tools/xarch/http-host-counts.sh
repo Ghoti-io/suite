@@ -9,7 +9,7 @@
 # Environment: HOST_PREFIX (the PREFIX= of the host build, default $ROOT/.local;
 # the dependencies' .pc files are found through PKG_CONFIG_PATH if set, else under
 # HOST_PREFIX/share/pkgconfig), HOST_BUILD (the BUILD= name of the build tree,
-# default xc, so that this does not touch a tree another session is using), JOBS.
+# default xc, so that this does not touch a tree in use), JOBS.
 # Nothing is installed; the prefix is only read.
 set -u
 HERE=$(cd "$(dirname "$0")" && pwd)

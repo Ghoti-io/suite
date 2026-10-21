@@ -7,7 +7,7 @@
 #   suite/tools/xwin/tls.sh [scratch-dir]      (default /tmp/xwin-tls)
 #
 # All four libraries are taken as COMMITTED (git archive HEAD), not as the
-# working tree stands: another session may be mid-edit in one of them, and what
+# working tree stands: one of them may be mid-edit, and what
 # is being tested is tls against certificate, security and cutil as they are.
 #
 # What a green run means: the Windows arms of the four Makefiles build the

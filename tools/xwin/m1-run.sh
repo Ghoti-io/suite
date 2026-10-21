@@ -2,7 +2,7 @@
 # Cross-builds the runtime stack for win64 and runs it under the host's wine.
 #
 #   suite/tools/xwin/m1-run.sh [scratch-dir]       (default /tmp/xwin-m1)
-#   M1_IN_IMAGE=1 suite/tools/xwin/m1-run.sh /w     inside Containerfile.wine's image (EVO-X2)
+#   M1_IN_IMAGE=1 suite/tools/xwin/m1-run.sh /w     inside Containerfile.wine's image
 #   M1_SRC=<dir> suite/tools/xwin/m1-run.sh ...    take libs/ from <dir> instead of
 #                                            this workspace: a fresh clone made
 #                                            the way suite/clone.sh lays it out

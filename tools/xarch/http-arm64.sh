@@ -18,7 +18,7 @@
 #     ghoti-xarch-arm64-jit:deb13-gxx14-gtest bash /work/suite/tools/xarch/http-arm64.sh
 #
 # where DEPS holds cutil/, security/ and compress/ (git archive HEAD of each:
-# another session may be mid-edit in a working tree, and what is tested is http
+# a working tree may be mid-edit, and what is tested is http
 # against the dependencies as they are) and HOSTLIST holds counts.txt, one
 # "<test binary> <listed tests>" line per binary from the HOST's build.
 #

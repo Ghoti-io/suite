@@ -60,7 +60,7 @@ done
 tail -1 "$W/logs/host-counts.log"
 
 # cutil, security and compress as COMMITTED, not as the working trees stand:
-# another session may be mid-edit in one of them, and what is being tested here is
+# one of them may be mid-edit, and what is being tested here is
 # http against them as they are, not against someone's half-written file.
 for l in cutil security compress; do
   rm -rf "$W/$l" && mkdir -p "$W/$l" && git -C "$ROOT/libs/$l" archive HEAD | tar -x -C "$W/$l" || exit 2

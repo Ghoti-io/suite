@@ -4,7 +4,7 @@
 # text's XML, HTML, Encoding and markup tests for win64 under wine (the m1 machinery: m1-env.sh, m1-win.sh).
 #
 #   suite/tools/xwin/text-run.sh [scratch-dir]            (default /tmp/xwin-text; podman on the host)
-#   M1_IN_IMAGE=1 suite/tools/xwin/text-run.sh /w          inside Containerfile.wine's image (the EVO-X2)
+#   M1_IN_IMAGE=1 suite/tools/xwin/text-run.sh /w          inside Containerfile.wine's image
 #
 # Builds gtest, cutil, unicode, chron, regex and text for win64 into a prefix in the scratch tree
 # (`m1-lib.sh deps` with M1_DEPS set), then text-lib.sh builds and runs the test programs.  This imitates

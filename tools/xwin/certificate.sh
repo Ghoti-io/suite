@@ -7,7 +7,7 @@
 #   suite/tools/xwin/certificate.sh [scratch-dir]      (default /tmp/xwin-certificate)
 #
 # All three libraries are taken as COMMITTED (git archive HEAD), not as the
-# working tree stands: another session may be mid-edit in one of them, and what
+# working tree stands: one of them may be mid-edit, and what
 # is being tested is certificate against security and cutil as they are.
 #
 # What a green run means: the Windows arms of certificate's and security's

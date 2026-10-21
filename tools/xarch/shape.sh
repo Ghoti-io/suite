@@ -137,8 +137,8 @@
 #      8-bit pixel), so it is no control here; section 7's renders are.  The
 #      plant (one differing bit on each target in turn) is as in section 4.
 #
-# Arm64 is run under qemu-user, not on an arm64 machine; the real Raspberry Pi
-# 4 is `tools/evo --box pi4`.  A target that cannot be built or run fails the
+# Arm64 is run under qemu-user, not on an arm64 machine; real arm64 hardware
+# runs suite/tools/shape-success/check.sh.  A target that cannot be built or run fails the
 # section, naming it.
 #
 # Sources of the libraries that follow a scaffold may include their

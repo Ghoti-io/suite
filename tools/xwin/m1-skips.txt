@@ -62,4 +62,4 @@ archive testFs ExtractRoot.ALinkMayComeBeforeItsTarget extracting a symlink is r
 archive testFs ExtractRoot.ALinkThatClimbsButStaysInsideIsCreated extracting a symlink is refused on Windows, which ContainedSymlinkIsCreatedWhenLinksAreAllowed asserts there
 archive testFs ExtractRoot.APreexistingSymlinkOutOfTheRootIsNotFollowed the setup makes a symlink, which cutil does not create on Windows
 archive testFs ExtractRoot.PackReportsADirectoryItCannotRead a Unix mode does not take read access away on Windows
-archive testZip_write ZipWrite.AMemberOfFourGibibytesIsWrittenAndReadBack writes and reads 4 GiB, so it runs only when GARC_TEST_LARGE=1, which the EVO gate sets on Linux
+archive testZip_write ZipWrite.AMemberOfFourGibibytesIsWrittenAndReadBack writes and reads 4 GiB, so it runs only when GARC_TEST_LARGE=1, which the Linux gate sets

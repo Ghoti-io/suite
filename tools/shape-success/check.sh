@@ -4,7 +4,7 @@
 # compare everything it prints with expected.txt, the output committed from the
 # x86-64 build in ghoti-build:gcc16.  The cross targets are suite/tools/xarch/
 # shape.sh section 10 and suite/tools/xwin/shape.sh; this is the native arm, for a
-# real machine such as the Raspberry Pi 4.
+# real arm64 machine.
 #
 #   suite/tools/shape-success/check.sh FONT_SCENE [FONT]
 #

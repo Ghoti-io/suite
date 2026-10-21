@@ -1,6 +1,6 @@
 #!/bin/bash
 # Host side of tls.sh: stages cutil, security, certificate and tls as
-# COMMITTED (git archive HEAD: another session may be mid-edit in one of them,
+# COMMITTED (git archive HEAD: one of them may be mid-edit,
 # and what is being tested is tls against the others as they are) and runs the
 # check in the ghoti-xarch image.
 #

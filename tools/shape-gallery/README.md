@@ -25,53 +25,52 @@ refused color glyphs.
 
 ## Running it
 
-From the workspace root. Both build from **committed trees only**: the `HEAD`
-of suite and of every library the gallery needs (the closure of `font`'s
-dependencies in `suite/libraries.txt`, installed in that file's order), cloned
-into a scratch stage under `runs/`. An uncommitted edit in any checkout never
-reaches the pictures; the script says when it left one out. Commit a change to
-`gallery.c` before running it.
-
-On the EVO-X2, the usual way:
+`render.sh` is the whole build-and-render step. It wants a directory laid out
+as `suite/clone.sh` lays one out (`libs/<lib>` beside `suite/`), an empty
+install prefix and an output directory:
 
 ```bash
-suite/tools/shape-gallery/run-evo.sh
+sh suite/tools/shape-gallery/render.sh WS PREFIX OUT JOBS LIB...
 ```
 
-It ships the stage as one `tools/evo` job, builds and renders in
-`ghoti-build:gcc16` (8 GB cap, one hour limit), records the box's image id,
-waits for the job, fetches it and cleans it off the box. A few minutes.
-
-When the EVO-X2 cannot be reached:
+`LIB...` is every library the gallery needs, in `suite/libraries.txt` order: the
+closure of `font`'s and `shape-cpu`'s dependencies (cutil, security, unicode,
+compress, color, image, math, shape-geometry, shape-scene, shape-cpu and font,
+today). It installs each into `PREFIX` (`PREFIX=` on
+every make, so the rpath is set), builds `gallery.c` against them, fetches the
+pinned font by digest (`suite/tools/shape-success/fetch.sh`), renders the five
+PNGs into `OUT` with `gallery.log`, and decode-checks every PNG. Build logs go to
+`OUT/logs/`. The result is the suite's only when it is built by the suite's
+compiler, so run it inside `ghoti-build:gcc16` (`suite/Containerfile.build`),
+for example:
 
 ```bash
-suite/tools/shape-gallery/run-local.sh
+podman run --rm --userns=keep-id -v "$WS:$WS:z" -v "$OUT:$OUT:z" -w "$WS" \
+    localhost/ghoti-build:gcc16 \
+    sh suite/tools/shape-gallery/render.sh "$WS" "$WS/.gallery-prefix" "$OUT" 4 $LIBS
 ```
 
-The same in the same image under podman here. This workstation has 15 GB
-shared with Claude Desktop and several sessions and has been taken down by
-heavy runs, so the container is held to 3 GB and two make jobs, the whole run
-is niced under `tools/memcap -m 3G`, and it refuses to start below 6000 MB
-available (`SHAPE_GALLERY_MIN_FREE_MB`). It is slower.
+Build it from committed trees (a clone of each library at the commit you want)
+rather than from working trees with edits in them, so that the commits a run
+names are what drew it. `render.sh --host-info ENGINE OUT` writes the image id
+and the host's name into `OUT/host.txt`, for a record of where it ran.
 
-Each run lands in `runs/<UTC time>_<shape-geometry>-<shape-scene>-<shape-cpu>-<font>/`
-(the short commits), which the script prints last:
+A run directory holds:
 
 - the five PNGs and `gallery.log`;
-- `manifest.txt`: the date, where it ran, host, image and image id, compiler,
-  the pinned font's digest, suite's commit, and every library's full commit;
 - `decode-check.txt`: every PNG's chunks, CRCs and image data checked by an
   independent reader;
-- `logs/`: the install and build logs, and the job's log on the EVO-X2.
+- `build.txt` (compiler, flags, the font's digest) and `gallery.exit`;
+- `logs/`: the install and build logs.
 
-`runs/` is gitignored. The first run in it, `20261021T134110Z_ce39283-…`, is
-the one-off probe that preceded this tool, recorded afterwards; its manifest
-says what was and was not known about it.
+A caller that keeps runs side by side can add `manifest.txt` with a
+`lib: <name> <commit>` line per library; `compare.py` reads those lines to say
+which libraries changed between two runs.
 
 ## Seeing what changed
 
 ```bash
-python3 -I suite/tools/shape-gallery/compare.py            # the two most recent runs
+python3 -I suite/tools/shape-gallery/compare.py            # the two most recent runs in $SHAPE_GALLERY_RUNS (default runs/ here)
 python3 -I suite/tools/shape-gallery/compare.py OLD NEW    # any two run directories
 ```
 

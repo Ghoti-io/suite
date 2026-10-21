@@ -64,7 +64,7 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 WORK=/work
 HTTP=$WORK/libs/http
 # The dependencies as COMMITTED (http-host.sh stages `git archive HEAD` of each at
-# /deps): another session may be mid-edit in a working tree, and what is tested is
+# /deps): a working tree may be mid-edit, and what is tested is
 # libghttp against the dependencies as they are. Without /deps the working trees are
 # used, and the run says so.
 if [ -d /deps/cutil/src ] && [ -d /deps/security/src ] && [ -d /deps/compress/src ]; then
