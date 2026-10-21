@@ -21,7 +21,7 @@
 /**
  * @file gallery.c
  *
- * A gallery of five PNGs drawn entirely by the suite's own libraries, for a
+ * A gallery of six PNGs drawn entirely by the suite's own libraries, for a
  * person to look at (README.md says what each shows).  Every pixel comes from
  * shape-cpu rendering shape-scene lists; text is font's paragraph layout and
  * shaping, its glyphs reaching the scene through font's glyph path provider;
@@ -31,10 +31,10 @@
  *
  * FONTDIR is font's tests/data/fonts, DEJAVU the pinned DejaVuSans.ttf that
  * suite/tools/shape-success/fetch.sh fetches.  Writes shapes.png,
- * compositing.png, color.png, text.png and color-glyphs.png into OUTDIR and
- * a log on stdout: each render's result and its report entries tallied by
- * class and reason, the diagnostics of a few fixture fonts, and what the
- * color-glyph page refused.  Exits nonzero when any step failed.
+ * compositing.png, color.png, gradients.png, text.png and color-glyphs.png
+ * into OUTDIR and a log on stdout: each render's result and its report entries
+ * tallied by class and reason, the diagnostics of a few fixture fonts, and what
+ * the color-glyph page refused.  Exits nonzero when any step failed.
  *
  * The images change as the libraries do; compare.py shows how.  The text drawn
  * into them is part of the picture, so changing a caption changes pixels.
@@ -578,7 +578,7 @@ static void image_shapes(void) {
   label_c(L, "(opaque fills inside)", 15, 620, 738, 0.4);
   label_c(L, "no group, each fill alpha 0.5", 18, 960, 712, 0.2);
   label_c(L, "(overlaps show through)", 15, 960, 738, 0.4);
-  label(L, "Not drawn: strokes (none exist yet), gradients (shape-cpu refuses them until story P2).", 15, 30, 770, 0.45);
+  label(L, "Not drawn: strokes (none exist yet). Gradients are on gradients.png.", 15, 30, 770, 0.45);
   render("shapes", L, R);
   save_png(R, "shapes.png");
   gimg_raster_destroy(R);
@@ -725,7 +725,232 @@ static void image_color(void) {
   gimg_raster_destroy(R);
 }
 
-/* --- 4: text --------------------------------------------------------------------------------------------------- */
+/* --- 4: gradients --------------------------------------------------------------------------------------------- */
+
+/** A gradient's content with the identity map, the target's interpolation space, straight, pad and no stops. */
+static GSHSCENE_Gradient grad_new(GSHSCENE_Gradient_Kind kind) {
+  GSHSCENE_Gradient g;
+  memset(&g, 0, sizeof g);
+  g.kind = (uint32_t)kind;
+  gshgeom_map_identity(2, &g.map);
+  return g;
+}
+
+static GSHSCENE_Gradient_Stop stop(double offset, double r, double g, double b, double a) {
+  GSHSCENE_Gradient_Stop s;
+  memset(&s, 0, sizeof s);
+  s.offset = offset;
+  s.color = solid(r, g, b, a);
+  /* Stated as sRGB, so a gradient may name an interpolation space of its own (G3). */
+  s.color.space = space(GCOL_PRIMARIES_SRGB, GCOL_TRANSFER_SRGB);
+  return s;
+}
+
+/** Fill `res` (released) under `map` with the gradient `g` and its `n` stops, interned for this fill. */
+static void fill_gradient(GSHSCENE_List * L, const GSHSCENE_Resource * res, const GSHGEOM_Map * map, GSHSCENE_Gradient g,
+    const GSHSCENE_Gradient_Stop * stops, size_t n) {
+  g.stops = stops;
+  g.stop_count = n;
+  const GSHSCENE_Resource * gr = NULL;
+  GSHSCENE_Result r = gshscene_store_intern_gradient(g_store, &g, &gr);
+  if (r != GSHSCENE_OK) {
+    fprintf(stderr, "gallery: intern gradient: %s\n", gshscene_result_string(r));
+    g_failed = 1;
+    gshscene_resource_release(res);
+    return;
+  }
+  GSHSCENE_Paint p;
+  memset(&p, 0, sizeof p);
+  p.kind = GSHSCENE_PAINT_GRADIENT;
+  p.rgba[3] = 1.0;
+  p.gradient = gr;
+  fill_map(L, res, map, GSHGEOM_FILL_NONZERO, p);
+  gshscene_resource_release(gr);
+}
+
+/** A light and dark grey checkerboard of `s`-pixel squares over the rectangle, to show what is translucent. */
+static void checker(GSHSCENE_List * L, double x0, double y0, double x1, double y1, double s) {
+  fill_rect(L, x0, y0, x1, y1, solid(1, 1, 1, 1));
+  GSHGEOM_Path * p = path_new();
+  for (int j = 0; y0 + j * s < y1; j++) {
+    for (int i = j % 2; x0 + i * s < x1; i += 2) {
+      add_rect(p, x0 + i * s, y0 + j * s, fmin(x0 + (i + 1) * s, x1), fmin(y0 + (j + 1) * s, y1));
+    }
+  }
+  fill(L, intern(p), solid(0.78, 0.78, 0.78, 1));
+}
+
+/** A thin dark mark across a tile, where a gradient's geometry puts a point. */
+static void tick(GSHSCENE_List * L, double x, double y0, double y1) {
+  fill_rect(L, x - 1, y0, x + 1, y1, solid(0.1, 0.1, 0.1, 1));
+}
+
+static void image_gradients(void) {
+  const int W = 1200, H = 1320;
+  GIMG_Raster * R = raster_new(W, H);
+  GSHSCENE_List * L = list_new();
+  background(L, W, H, 0.95);
+  static const char * ext_name[3] = {"pad", "repeat", "reflect"};
+  static const GSHSCENE_Extend ext[3] = {GSHSCENE_EXTEND_PAD, GSHSCENE_EXTEND_REPEAT, GSHSCENE_EXTEND_REFLECT};
+
+  /* Linear: the color line runs from p0 to p1, the middle third of each tile (the marks). */
+  const GSHSCENE_Gradient_Stop lin[3] = {
+      stop(0, 0.10, 0.25, 0.75, 1), stop(0.5, 0.98, 0.98, 0.95, 1), stop(1, 0.95, 0.45, 0.05, 1)};
+  for (int k = 0; k < 3; k++) {
+    double x0 = 40 + k * 385, y0 = 110, x1 = x0 + 345, y1 = 230;
+    GSHSCENE_Gradient g = grad_new(GSHSCENE_GRADIENT_LINEAR);
+    g.p0[0] = x0 + 115;
+    g.p0[1] = y0;
+    g.p1[0] = x0 + 230;
+    g.p1[1] = y0;
+    g.extend = (uint32_t)ext[k];
+    fill_gradient(L, rect(x0, y0, x1, y1), NULL, g, lin, 3);
+    tick(L, x0 + 115, y1, y1 + 10);
+    tick(L, x0 + 230, y1, y1 + 10);
+  }
+
+  /* Radial: concentric pad and repeat, a focal point inside the end circle, and the cone when neither circle holds
+   * the other. */
+  const GSHSCENE_Gradient_Stop rad[3] = {
+      stop(0, 1.0, 0.95, 0.55, 1), stop(0.6, 0.90, 0.30, 0.15, 1), stop(1, 0.30, 0.05, 0.35, 1)};
+  for (int k = 0; k < 4; k++) {
+    double cx = 140 + k * 307, cy = 400, h = 115;
+    GSHSCENE_Gradient g = grad_new(GSHSCENE_GRADIENT_RADIAL);
+    g.c0[0] = g.c1[0] = cx;
+    g.c0[1] = g.c1[1] = cy;
+    g.r1 = 100;
+    if (k == 1) {
+      g.r1 = 34;
+      g.extend = GSHSCENE_EXTEND_REPEAT;
+    } else if (k == 2) {
+      g.c0[0] = cx + 45;
+      g.c0[1] = cy - 35;
+    } else if (k == 3) {
+      checker(L, cx - h, cy - h, cx + h, cy + h, 15);
+      g.c0[0] = cx - 75;
+      g.r0 = 12;
+      g.c1[0] = cx + 30;
+      g.r1 = 45;
+    }
+    fill_gradient(L, rect(cx - h, cy - h, cx + h, cy + h), NULL, g, rad, 3);
+  }
+
+  /* Sweep: angles from +x toward +y, which on this y-down page is clockwise. */
+  const GSHSCENE_Gradient_Stop hue[7] = {stop(0, 1, 0, 0, 1), stop(1 / 6.0, 1, 1, 0, 1), stop(2 / 6.0, 0, 1, 0, 1),
+      stop(3 / 6.0, 0, 1, 1, 1), stop(4 / 6.0, 0, 0, 1, 1), stop(5 / 6.0, 1, 0, 1, 1), stop(1, 1, 0, 0, 1)};
+  const GSHSCENE_Gradient_Stop two[2] = {stop(0, 0.15, 0.15, 0.2, 1), stop(1, 0.55, 0.85, 1.0, 1)};
+  for (int k = 0; k < 3; k++) {
+    double cx = 200 + k * 400, cy = 690;
+    GSHSCENE_Gradient g = grad_new(GSHSCENE_GRADIENT_SWEEP);
+    g.center[0] = cx;
+    g.center[1] = cy;
+    g.angle_unit = GSHGEOM_ANGLE_DEGREES;
+    g.a0 = 0;
+    g.a1 = 360;
+    if (k == 0) {
+      fill_gradient(L, circle(cx, cy, 105), NULL, g, hue, 7);
+    } else {
+      g.a0 = 30;
+      g.a1 = 120;
+      g.extend = (uint32_t)(k == 1 ? GSHSCENE_EXTEND_PAD : GSHSCENE_EXTEND_REPEAT);
+      fill_gradient(L, circle(cx, cy, 105), NULL, g, two, 2);
+    }
+  }
+
+  /* Interpolation spaces and alpha: red to green in sRGB-encoded values and in linear light; red to a nearly
+   * transparent blue, straight and premultiplied, over a checkerboard. */
+  const GSHSCENE_Gradient_Stop rg[2] = {stop(0, 1, 0, 0, 1), stop(1, 0, 1, 0, 1)};
+  const GSHSCENE_Gradient_Stop rb[2] = {stop(0, 1, 0, 0, 1), stop(1, 0, 0, 1, 0.1)};
+  for (int k = 0; k < 4; k++) {
+    double x0 = 300, x1 = 1160, y0 = 875 + k * 52, y1 = y0 + 40;
+    GSHSCENE_Gradient g = grad_new(GSHSCENE_GRADIENT_LINEAR);
+    g.p0[0] = x0;
+    g.p0[1] = y0;
+    g.p1[0] = x1;
+    g.p1[1] = y0;
+    if (k < 2) {
+      g.space = space(GCOL_PRIMARIES_SRGB, k == 0 ? GCOL_TRANSFER_SRGB : GCOL_TRANSFER_LINEAR);
+      fill_gradient(L, rect(x0, y0, x1, y1), NULL, g, rg, 2);
+    } else {
+      checker(L, x0, y0, x1, y1, 10);
+      g.space = space(GCOL_PRIMARIES_SRGB, GCOL_TRANSFER_SRGB);
+      g.premultiplied = k == 3;
+      fill_gradient(L, rect(x0, y0, x1, y1), NULL, g, rb, 2);
+    }
+  }
+
+  /* Under a transform: the item's map turns the path and its gradient together; the gradient's own map skews or
+   * stretches only the gradient. */
+  {
+    GSHSCENE_Gradient g = grad_new(GSHSCENE_GRADIENT_LINEAR);
+    g.p0[0] = -20;
+    g.p1[0] = 20;
+    g.extend = GSHSCENE_EXTEND_REFLECT;
+    GSHGEOM_Map rot, mv, m;
+    gshgeom_map_rotate(GSHGEOM_ANGLE_DEGREES, 30.0, &rot);
+    gshgeom_map_translate(2, 200, 1200, 0, &mv);
+    gshgeom_map_compose(&mv, &rot, &m);
+    fill_gradient(L, rect(-110, -40, 110, 40), &m, g, lin, 3);
+
+    GSHSCENE_Gradient s = grad_new(GSHSCENE_GRADIENT_RADIAL);
+    s.c0[0] = s.c1[0] = 0;
+    s.r1 = 30;
+    s.extend = GSHSCENE_EXTEND_REPEAT;
+    const double skew[4] = {1.0, 0.7, 0.0, 1.0}, at[2] = {600, 1200};
+    gshgeom_map_from_matrix(2, skew, at, &s.map);
+    fill_gradient(L, rect(470, 1110, 730, 1290), NULL, s, rad, 3);
+
+    GSHSCENE_Gradient w = grad_new(GSHSCENE_GRADIENT_SWEEP);
+    w.angle_unit = GSHGEOM_ANGLE_DEGREES;
+    w.a1 = 360;
+    const double stretch[4] = {2.2, 0.0, 0.0, 1.0}, at2[2] = {1000, 1200};
+    gshgeom_map_from_matrix(2, stretch, at2, &w.map);
+    fill_gradient(L, rect(870, 1110, 1130, 1290), NULL, w, hue, 7);
+  }
+  render("gradients (fills)", L, R);
+
+  /* Labels, with the interpolation bars' middle pixels read back. */
+  L = list_new();
+  label(L, "Gradients drawn by shape-cpu: linear, two-circle radial and sweep", 26, 30, 18, 0.1);
+  label(L, "Linear: blue, white, orange from p0 to p1 (the marks below each bar); outside them the extend decides", 17, 30, 70,
+      0.2);
+  for (int k = 0; k < 3; k++) {
+    label_c(L, ext_name[k], 17, 40 + k * 385 + 172, 246, 0.2);
+  }
+  label(L, "Radial: yellow, red, purple from the start circle to the end circle", 17, 30, 262, 0.2);
+  static const char * rad_name[4] = {
+      "concentric, pad", "concentric, repeat", "focal point, pad", "cone: neither circle holds the other"};
+  for (int k = 0; k < 4; k++) {
+    label_c(L, rad_name[k], 15, 140 + k * 307, 522, 0.2);
+  }
+  label(L, "Sweep: angles from +x toward +y, clockwise on this y-down page", 17, 30, 552, 0.2);
+  label(L, "0\xC2\xB0", 14, 312, 680, 0.2);
+  label_c(L, "90\xC2\xB0", 14, 200, 798, 0.2);
+  static const char * sweep_name[3] = {"red to red, a whole turn", "30\xC2\xB0 to 120\xC2\xB0, pad", "30\xC2\xB0 to 120\xC2\xB0, repeat"};
+  for (int k = 0; k < 3; k++) {
+    label_c(L, sweep_name[k], 15, 200 + k * 400, 820, 0.2);
+  }
+  label(L, "Interpolation: the same two stops, in other spaces and alpha forms; the middle pixel read back", 17, 30, 845, 0.2);
+  static const char * interp_name[4] = {"red to green, sRGB", "red to green, linear sRGB", "to blue at alpha 0.1, straight",
+      "to blue at alpha 0.1, premultiplied"};
+  char buf[128];
+  for (int k = 0; k < 4; k++) {
+    int y = 875 + k * 52;
+    label(L, interp_name[k], 13, 30, y + 2, 0.15);
+    const unsigned char * px = pixel(R, 730, y + 20);
+    snprintf(buf, sizeof buf, "middle #%02x%02x%02x", px[0], px[1], px[2]);
+    label(L, buf, 13, 30, y + 21, 0.4);
+  }
+  label(L, "Under a transform", 17, 30, 1082, 0.2);
+  label_c(L, "item map: rotated 30\xC2\xB0 (reflect)", 14, 200, 1295, 0.2);
+  label_c(L, "gradient map: skewed rings", 14, 600, 1295, 0.2);
+  label_c(L, "gradient map: sweep stretched 2.2x", 14, 1000, 1295, 0.2);
+  render("gradients (labels)", L, R);
+  save_png(R, "gradients.png");
+  gimg_raster_destroy(R);
+}
+
+/* --- 5: text --------------------------------------------------------------------------------------------------- */
 
 static uint32_t utf8_next(const char ** s) {
   const unsigned char * p = (const unsigned char *)*s;
@@ -1100,7 +1325,7 @@ static void image_text(const char * fontdir) {
   gimg_raster_destroy(R);
 }
 
-/* --- 5: color glyphs --------------------------------------------------------------------------------------------- */
+/* --- 6: color glyphs --------------------------------------------------------------------------------------------- */
 
 static const char * refusal_name(uint32_t r) {
   switch (r) {
@@ -1323,6 +1548,7 @@ int main(int argc, char ** argv) {
   image_shapes();
   image_compositing();
   image_color();
+  image_gradients();
   image_text(argv[1]);
   image_color_glyphs(argv[1]);
   printf("gallery: %s\n", g_failed ? "FAILED" : "ok");

@@ -1,6 +1,6 @@
 # Shape gallery
 
-Five PNGs drawn entirely by the suite's own libraries, for a person to look at,
+Six PNGs drawn entirely by the suite's own libraries, for a person to look at,
 and a way to see what changed in them since the last time. Every pixel comes
 from `shape-cpu` rendering `shape-scene` lists; text is `font`'s paragraph
 layout and shaping, its glyphs reaching the scene through `font`'s glyph path
@@ -16,6 +16,7 @@ library would add edges to that library.
 | `shapes.png` | fill rules (nonzero, even-odd), cubic and quadratic curves, a path with a hole, a clip, group opacity against per-fill alpha |
 | `compositing.png` | every Porter-Duff operator and PLUS, each a group around the source over a backdrop, on a checkerboard |
 | `color.png` | the same translucent fills in an sRGB-encoded and a linear-light group, and solid paints in sRGB, Display P3 and BT.2020 converted to the sRGB target, with the 8-bit values read back and printed |
+| `gradients.png` | linear gradients with pad, repeat and reflect; radial (concentric, a focal point, and the cone when neither circle holds the other); sweep over a whole turn and over part of one with pad and repeat, showing its direction; the same stops interpolated in sRGB and linear light, and straight and premultiplied with a translucent stop, the middle pixels read back; and gradients under an item's map and under their own map |
 | `text.png` | DejaVu Sans 2.37 at eight sizes, a justified paragraph, a 6x zoom of hinted, unhinted and general-route glyphs, nine scripts, and `font`'s committed test fixtures |
 | `color-glyphs.png` | the COLR glyphs of `font`'s fixtures lowered into scene lists, with what is refused and why |
 
@@ -38,7 +39,7 @@ closure of `font`'s and `shape-cpu`'s dependencies (cutil, security, unicode,
 compress, color, image, math, shape-geometry, shape-scene, shape-cpu and font,
 today). It installs each into `PREFIX` (`PREFIX=` on
 every make, so the rpath is set), builds `gallery.c` against them, fetches the
-pinned font by digest (`suite/tools/shape-success/fetch.sh`), renders the five
+pinned font by digest (`suite/tools/shape-success/fetch.sh`), renders the six
 PNGs into `OUT` with `gallery.log`, and decode-checks every PNG. Build logs go to
 `OUT/logs/`. The result is the suite's only when it is built by the suite's
 compiler, so run it inside `ghoti-build:gcc16` (`suite/Containerfile.build`),
@@ -57,7 +58,7 @@ and the host's name into `OUT/host.txt`, for a record of where it ran.
 
 A run directory holds:
 
-- the five PNGs and `gallery.log`;
+- the six PNGs and `gallery.log`;
 - `decode-check.txt`: every PNG's chunks, CRCs and image data checked by an
   independent reader;
 - `build.txt` (compiler, flags, the font's digest) and `gallery.exit`;
@@ -84,9 +85,9 @@ look for the cause. Standard library only; its PNG reader is its own and checks
 the gallery's PNGs, it does not draw them.
 
 **This is for seeing changes, not a gate.** Pixels change legitimately as
-features land: gradients (story P2) and strokes will fill in parts that are
-blank today, and the captions that say what is not drawn yet will change with
-them. A difference is a reason to look at the diff image, not a failure; an
+features land: strokes, and the color glyphs' gradients once `font` lowers
+them, will fill in parts that are blank today, and the captions that say what
+is not drawn yet will change with them. A difference is a reason to look at the diff image, not a failure; an
 unexpected one, between runs whose changed commits should not touch rendering,
 is a finding. Equally, identical pictures say nothing about what the gallery
 does not draw.
