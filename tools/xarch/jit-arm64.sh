@@ -78,7 +78,7 @@ STARTED=$(date +%s)
 BINARY_TIMEOUT="${JIT_ARM64_BINARY_TIMEOUT:-1800}"
 
 # The libraries, in dependency order, and the ones whose tests run.
-STACK="cutil security unicode chron regex text runtime-core runtime-heap runtime-debug runtime-jit lang-wasm lang-tang"
+STACK="cutil security unicode chron regex math text runtime-core runtime-heap runtime-debug runtime-jit lang-wasm lang-tang"
 # The libraries whose test programs are all run (lang-tang's are chosen below).
 SUITE_LIBS="runtime-core runtime-heap runtime-debug runtime-jit lang-wasm"
 

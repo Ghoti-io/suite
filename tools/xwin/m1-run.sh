@@ -29,7 +29,7 @@ SRC=${M1_SRC:-$ROOT}
 W=${1:-/tmp/xwin-m1}
 # Keep this in dependency order: lang-wasm uses runtime-debug and runtime-jit.
 LIBS="runtime-core runtime-heap runtime-debug runtime-jit lang-wasm lang-tang"
-DEPS="cutil security unicode chron regex text ctang"
+DEPS="cutil security unicode chron regex math text ctang"
 
 if [ -n "${M1_IN_IMAGE:-}" ]; then
   # Inside ghoti-xwin-wine (Containerfile.wine); the scratch tree must be /w and suite/tools /tools.

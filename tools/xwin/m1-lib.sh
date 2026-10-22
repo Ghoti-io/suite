@@ -4,7 +4,7 @@
 # of the runtime stack's libraries for win64 with its real Makefile, and prints
 # one SUMMARY line the driver (m1-run.sh) reads.
 #
-#   m1-lib.sh deps          gtest, then cutil security unicode chron regex text ctang, or
+#   m1-lib.sh deps          gtest, then cutil security unicode chron regex math text ctang, or
 #                           the space-separated source:dll pairs in $M1_DEPS
 #   m1-lib.sh lib <name>    all, install, test, examples, then the counts
 #
@@ -39,7 +39,7 @@ build_gtest() {
 if [ "${1:-}" = deps ]; then
   build_gtest || { echo "m1-lib: gtest did not build" >&2; exit 2; }
   # source directory:installed DLL (ctang installs as "tang")
-  for d in ${M1_DEPS:-cutil:cutil security:security unicode:unicode chron:chron regex:regex text:text ctang:tang}; do
+  for d in ${M1_DEPS:-cutil:cutil security:security unicode:unicode chron:chron regex:regex math:math text:text ctang:tang}; do
     src=${d%%:*}; dll=$P/bin/libghoti.io-${d##*:}-0.dll
     [ -f $dll ] && { echo "dep $src: present"; continue; }
     ( cd /w/$src && make -j4 PREFIX=$P > /w/logs/$src.build.log 2>&1 && make install PREFIX=$P > /w/logs/$src.install.log 2>&1 ) \

@@ -6,7 +6,7 @@
 #   suite/tools/xwin/text-run.sh [scratch-dir]            (default /tmp/xwin-text; podman on the host)
 #   M1_IN_IMAGE=1 suite/tools/xwin/text-run.sh /w          inside Containerfile.wine's image
 #
-# Builds gtest, cutil, unicode, chron, regex and text for win64 into a prefix in the scratch tree
+# Builds gtest, cutil, unicode, chron, regex, security, math and text for win64 into a prefix in the scratch tree
 # (`m1-lib.sh deps` with M1_DEPS set), then text-lib.sh builds and runs the test programs.  This imitates
 # MSYS2, it is not Windows (README.md).  Exit 0 only if text-lib.sh says OK.
 set -u
@@ -18,12 +18,12 @@ if [ -n "${M1_IN_IMAGE:-}" ]; then
   [ "$W" = /w ] || { echo "text-run: with M1_IN_IMAGE the scratch directory is /w" >&2; exit 2; }
 fi
 mkdir -p "$W/logs"
-for l in cutil unicode chron regex security text; do
+for l in cutil unicode chron regex security math text; do
   rsync -a --exclude build --exclude .git "$SRC/libs/$l/" "$W/$l/" || exit 2
 done
 in_container() { "$HERE/m1-win.sh" "$W" "$@"; }
 echo "== dependencies"
-in_container 'M1_DEPS="cutil:cutil unicode:unicode chron:chron regex:regex security:security text:text" bash /tools/xwin/m1-lib.sh deps' > "$W/logs/deps.log" 2>&1; rc=$?
+in_container 'M1_DEPS="cutil:cutil unicode:unicode chron:chron regex:regex security:security math:math text:text" bash /tools/xwin/m1-lib.sh deps' > "$W/logs/deps.log" 2>&1; rc=$?
 grep -vi fontconfig "$W/logs/deps.log"
 [ $rc -eq 0 ] || { echo "text-run: the dependencies did not build" >&2; exit 2; }
 echo "== text"

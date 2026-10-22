@@ -14,7 +14,7 @@
 #     ghoti-xarch-text:deb13-gxx14-gtest-main bash /work/suite/tools/xarch/text.sh i686
 #
 # What it does: checks that a binary of the target is a binary of the target (ELF header, by two
-# readers) before it runs one; builds cutil, unicode, chron, regex, security and text for the target into a
+# readers) before it runs one; builds cutil, unicode, chron, regex, security, math and text for the target into a
 # prefix of its own in the scratch directory (cutil's float.h is made by running its generator under
 # qemu); builds every test program whose name matches $TEXT_XARCH_TESTS (default: Html, Xml, Xhtml,
 # Encoding, Markup, Quadratic) and runs each with GTEXT_TEST_FULL=$TEXT_XARCH_FULL (default 0), a
@@ -41,7 +41,7 @@ TMO="${TEXT_XARCH_TIMEOUT:-3600}"
 P="$S/prefix"
 SRC="$S/src"
 mkdir -p "$P" "$SRC" "$S/shim"
-STACK="cutil unicode chron regex security text"
+STACK="cutil unicode chron regex security math text"
 
 fail() { printf '\ntext.sh: FAIL: %s\n' "$*" >&2; exit 1; }
 say() { printf '%s\n' "$*"; }

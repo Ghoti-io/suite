@@ -205,10 +205,10 @@ build_native() {
   PATH="$ORIG_PATH"
   export PKG_CONFIG_PATH="$P/share/pkgconfig"
   local lib
-  for lib in cutil security unicode chron regex text runtime-core runtime-heap runtime-debug runtime-jit lang-wasm; do
+  for lib in cutil security unicode chron regex math text runtime-core runtime-heap runtime-debug runtime-jit lang-wasm; do
     sync_source "$lib"
   done
-  for lib in cutil security unicode chron regex text runtime-core runtime-heap runtime-debug; do
+  for lib in cutil security unicode chron regex math text runtime-core runtime-heap runtime-debug; do
     say "-- $lib"
     mk "$SRC/$lib" -j"$JOBS" install >"$S/x86_64/build-$lib.log" 2>&1 ||
       { tail -30 "$S/x86_64/build-$lib.log" >&2; fail "$lib did not build"; }
