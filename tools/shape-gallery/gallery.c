@@ -1750,7 +1750,7 @@ static const GSHSCENE_Resource * scurve(double x, double y, double w, double h) 
 }
 
 static void image_strokes(void) {
-  const int W = 1200, H = 1000;
+  const int W = 1200, H = 1210;
   GIMG_Raster * R = raster_new(W, H);
   GSHSCENE_List * L = list_new();
   background(L, W, H, 0.97);
@@ -1872,6 +1872,25 @@ static void image_strokes(void) {
       gshscene_resource_release(gr);
     }
     label_c(L, "a gradient as the stroke's paint", 18, 1030, 950, 0.2);
+  }
+  /* Pieces that overlap (strokes story S4b): a stroke's coverage is the area of what its pieces cover, so a translucent
+   * stroke is no darker where pieces overlap than anywhere else in it: square-cap dashes whose caps reach into their
+   * neighbours, the inner side of a tight zigzag, and a thin aligned stroke along the edge of a fill. */
+  {
+    double dash_d[2] = {44, 10};
+    GSHSCENE_Stroke_Style st = style_new(28, GSHSCENE_STROKE_JOIN_ROUND, GSHSCENE_STROKE_CAP_SQUARE);
+    st.dashes = dash_d;
+    st.dash_count = 2;
+    stroke_map(L, scurve(40, 1030, 340, 60), NULL, &st, solid(0.1, 0.2, 0.45, 0.5));
+    label_c(L, "dashes, square caps, 10 apart", 18, 210, 1140, 0.2);
+    GSHSCENE_Stroke_Style zz = style_new(34, GSHSCENE_STROKE_JOIN_MITER, GSHSCENE_STROKE_CAP_BUTT);
+    stroke_map(L, zigzag(440, 1010, 320, 110), NULL, &zz, solid(0.85, 0.2, 0.1, 0.5));
+    label_c(L, "tight joins, translucent", 18, 600, 1140, 0.2);
+    fill(L, star(960, 1065, 75), solid(0.8, 0.82, 0.86, 1));
+    GSHSCENE_Stroke_Style th = style_new(5, GSHSCENE_STROKE_JOIN_MITER, GSHSCENE_STROKE_CAP_BUTT);
+    th.alignment = GSHSCENE_STROKE_ALIGN_INSIDE;
+    stroke_map(L, star(960, 1065, 75), NULL, &th, solid(0.1, 0.2, 0.45, 0.6));
+    label_c(L, "a thin inside stroke", 18, 960, 1160, 0.2);
   }
   render("strokes", L, R);
   save_png(R, "strokes.png");
