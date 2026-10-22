@@ -16,11 +16,11 @@ tls         https://github.com/Ghoti-io/tls.git         master cutil,security,ce
 unicode    https://github.com/Ghoti-io/unicode.git    master cutil
 chron      https://github.com/Ghoti-io/chron.git      master cutil
 compress   https://github.com/Ghoti-io/compress.git   master cutil,security
+math       https://github.com/Ghoti-io/math.git       master cutil
 regex      https://github.com/Ghoti-io/regex.git      master cutil,unicode,?text
-text       https://github.com/Ghoti-io/text.git       master cutil,security,chron,unicode,regex
+text       https://github.com/Ghoti-io/text.git       master cutil,security,chron,unicode,regex,math
 color      https://github.com/Ghoti-io/color.git      master cutil,security
 image      https://github.com/Ghoti-io/image.git      master cutil,compress,color
-math       https://github.com/Ghoti-io/math.git       master cutil
 shape-geometry https://github.com/Ghoti-io/shape-geometry.git master cutil,math
 shape-scene https://github.com/Ghoti-io/shape-scene.git master cutil,color,math,image,shape-geometry
 shape-cpu  https://github.com/Ghoti-io/shape-cpu.git  master cutil,color,math,image,shape-geometry,shape-scene
