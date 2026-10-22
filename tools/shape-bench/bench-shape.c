@@ -465,6 +465,7 @@ static int add_stroke(SB_Scene * s, SB_Color c, const SB_Stroke * st) {
   return sb_scene_add_item(s, &it);
 }
 
+#define KIND_OF(i) (((i) % 2) ? 0 : 5)
 static int gen_strokes(SB_Scene * s) {
   begin(s, "strokes", "paths", 1920, 1080, "paths");
   for (int i = 0; i < 3000; i++) {
@@ -478,7 +479,7 @@ static int gen_strokes(SB_Scene * s) {
     st.miter = 4.0;
     int rc = 0;
     double pt[12];
-    switch (i % 6) {
+    switch (KIND_OF(i)) {
     case 0: /* a polyline of six points, miter joins, butt caps */
       st.join = SB_JOIN_MITER;
       st.cap = SB_CAP_BUTT;
