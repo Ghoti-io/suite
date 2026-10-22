@@ -522,7 +522,7 @@ static int gen_strokes(SB_Scene * s) {
       st.dashes[1] = q64(range(3, 9));
       st.offset = q64(range(0, 10));
       rc = add_stroke(s, c, &st) || cmd(s, 'M', cx - span, cy, 0, 0, 0, 0) ||
-          cmd(s, 'C', cx - span * 0.4, cy - span * 0.9, cx + span * 0.1, cy + span * 0.9, cx + span, cy, 0, 0);
+          cmd(s, 'C', cx - span * 0.4, cy - span * 0.9, cx + span * 0.1, cy + span * 0.9, cx + span, cy);
       break;
     case 4: { /* a circle, round joins (a closed subpath of four cubics) */
       double r = span * 0.5, k = r * KAPPA;
