@@ -844,9 +844,15 @@ static int shape_setup(Shape * e, const SB_Scene * s, const char * dir, int cont
   sb_background_bytes(s, 0, e->bg);
   GIMG_Pixel_Format format = GIMG_PIXEL_RGBA8;
   format.alpha_form = GIMG_ALPHA_PREMULTIPLIED;
+  /* The strokes scenes draw tight bends under a wide stroke (a quadratic chain 8.7 pixels wide whose bends are tighter than half
+   * the width), where thousands of the outline's pieces lie in one pixel: past the sink's default of 512 a stroke is refused
+   * (its resource limit), so the field is raised, which is what it is for.  The cost of the exact step is part of the figure. */
+  GSHCPU_Limits limits;
+  gshcpu_limits_default(&limits);
+  limits.max_exact_fragments = 1u << 16;
   if (!e->pixels || !e->res || !e->paint || !e->grad || !e->style || gshscene_store_create(NULL, NULL, &e->store) != GSHSCENE_OK ||
       gshscene_list_create(NULL, NULL, e->store, &e->list) != GSHSCENE_OK ||
-      gshcpu_sink_create(NULL, NULL, NULL, &e->sink) != GSHCPU_OK ||
+      gshcpu_sink_create(NULL, NULL, &limits, &e->sink) != GSHCPU_OK ||
       gshscene_report_create(NULL, NULL, &e->report) != GSHSCENE_OK ||
       gimg_raster_create((uint32_t)s->width, (uint32_t)s->height, &format, GIMG_RASTER_BORROWED, e->pixels, e->stride,
           &e->raster) != GIMG_OK) {
