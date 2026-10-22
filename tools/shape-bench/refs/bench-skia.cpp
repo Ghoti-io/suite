@@ -293,7 +293,7 @@ int main(int argc, char ** argv) {
     std::fprintf(stderr, "usage: bench-skia DIR OUT\n");
     return 2;
   }
-  static const char * const scenes[] = {"fill-rect", "fill-circle", "paths", "text", "ui", "gradients", "strokes"};
+  static const char * const scenes[] = {"fill-rect", "fill-circle", "paths", "text", "ui", "gradients", "strokes", "strokes-dashed"};
   int failures = 0;
   for (const char * name : scenes) {
     std::string path = std::string(argv[1]) + "/" + name + ".scene";
@@ -319,7 +319,7 @@ int main(int argc, char ** argv) {
         sb_report(stdout, "skia", &s, &m, out.c_str(),
             e.record                              ? "build: SkPictureRecorder; submit: drawPicture"
                 : std::strcmp(s.metric, "text") == 0 ? "SkTextBlob built once; glyph masks cached by Skia's strike cache; text contrast 0 and gamma 1 (linear coverage)"
-                : std::strcmp(s.name, "strokes") == 0 ? "SkPaint stroke style (width, join, cap, miter limit) and SkDashPathEffect, Skia's own stroker and dasher, paths built once"
+                : std::strncmp(s.name, "strokes", 7) == 0 ? "SkPaint stroke style (width, join, cap, miter limit) and SkDashPathEffect, Skia's own stroker and dasher, paths built once"
                 : s.n_gradients ? "SkShaders gradient shaders built once; paint dither off; 8-bit sRGB stops, destination interpolation on a surface with no color space, unpremultiplied"
                                                      : nullptr);
       } else {

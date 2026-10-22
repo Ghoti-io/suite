@@ -445,7 +445,7 @@ static int gen_gradients(SB_Scene * s) {
   return 0;
 }
 
-/* Stroke throughput (strokes story S4, F6): 3,000 stroked paths of six kinds on 1920x1080, 30 to 250 pixels across, a
+/* Stroke throughput (strokes story S4, F6): 2,500 stroked paths (and 800 dashed ones in a scene of their own) of six kinds on 1920x1080, 30 to 250 pixels across, a
  * width of 1 to 9 pixels, translucent: a miter-joined polyline, a round-joined and round-capped chain of quadratics, a
  * bevel-joined closed polygon, a dashed open cubic wave, a round-joined circle, a zigzag with square caps and a miter
  * limit of 2 (whose sharp corners are bevels).  Everything here is a style all three engines state in one definition
@@ -465,10 +465,14 @@ static int add_stroke(SB_Scene * s, SB_Color c, const SB_Stroke * st) {
   return sb_scene_add_item(s, &it);
 }
 
-#define KIND_OF(i) 3
-static int gen_strokes(SB_Scene * s) {
-  begin(s, "strokes", "paths", 1920, 1080, "paths");
-  for (int i = 0; i < 3000; i++) {
+/* Two scenes, because Blend2D's context draws a dashed stroke solid (its dash array is accepted and not applied: a minimal
+ * pair is in the story's change log), so the dashed kind is a scene of its own that the Blend2D driver does not draw and
+ * the others cross-check: `strokes` holds the five undashed kinds, `strokes-dashed` the dashed wave. */
+static int gen_strokes(SB_Scene * s, int dashed) {
+  static const int undashed[5] = {0, 1, 2, 4, 5};
+  begin(s, dashed ? "strokes-dashed" : "strokes", "paths", 1920, 1080, "paths");
+  const int count = dashed ? 800 : 2500;
+  for (int i = 0; i < count; i++) {
     double cx = range(140, 1920 - 140), cy = range(140, 1080 - 140);
     double span = range(30, 250);
     double turn = range(0, 6.283185307179586);
@@ -479,7 +483,7 @@ static int gen_strokes(SB_Scene * s) {
     st.miter = 4.0;
     int rc = 0;
     double pt[12];
-    switch (KIND_OF(i)) {
+    switch (dashed ? 3 : undashed[i % 5]) {
     case 0: /* a polyline of six points, miter joins, butt caps */
       st.join = SB_JOIN_MITER;
       st.cap = SB_CAP_BUTT;
@@ -621,7 +625,7 @@ done:
 
 /* The gradients scene, and the strokes scene after it, come last, so that the generator's random stream, and with it every earlier scene, is as
  * it was before they existed (the gradients scene draws nothing from that stream; the strokes scene draws from it last). */
-static const char * const SCENES[] = {"fill-rect", "fill-circle", "paths", "text", "ui", "gradients", "strokes"};
+static const char * const SCENES[] = {"fill-rect", "fill-circle", "paths", "text", "ui", "gradients", "strokes", "strokes-dashed"};
 #define N_SCENES (sizeof SCENES / sizeof SCENES[0])
 
 static int emit(const char * dir, const char * font_path) {
@@ -634,7 +638,8 @@ static int emit(const char * dir, const char * font_path) {
         : i == 3    ? gen_text(&s, font_path, font_name)
         : i == 4    ? gen_ui(&s)
         : i == 5    ? gen_gradients(&s)
-                    : gen_strokes(&s);
+        : i == 6    ? gen_strokes(&s, 0)
+                    : gen_strokes(&s, 1);
     char path[1024];
     snprintf(path, sizeof path, "%s/%s.scene", dir, SCENES[i]);
     if (rc || sb_scene_save(path, &s)) {
@@ -1175,7 +1180,7 @@ static int run(const char * dir, const char * out) {
     if (rc == 0) {
       sb_report(stdout, "shape-cpu", &s, &m, name,
           !strcmp(s.metric, "text") ? "glyph outlines from font, decoded and interned once; one outline glyph run a line"
-              : !strcmp(s.name, "strokes") ? "styles and paths interned once; the expansion of each stroke is cached by the sink "
+              : !strncmp(s.name, "strokes", 7) ? "styles and paths interned once; the expansion of each stroke is cached by the sink "
                                              "across frames (warm after the first), its coverage composed per frame"
               : s.n_gradients       ? "gradients interned once with the paths; evaluated per pixel in double at the pixel "
                                       "center, straight, in the target's space, undithered"

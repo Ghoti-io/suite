@@ -43,7 +43,7 @@ BAD_FRACTION_MAX = 0.001
 BAD_THRESHOLD = 32
 CONTROL_STRIDE = 16
 ENGINES = ["shape-cpu", "font", "blend2d", "skia"]
-SCENES = ["fill-rect", "fill-circle", "paths", "text", "ui", "gradients", "strokes"]
+SCENES = ["fill-rect", "fill-circle", "paths", "text", "ui", "gradients", "strokes", "strokes-dashed"]
 
 
 def within(d):

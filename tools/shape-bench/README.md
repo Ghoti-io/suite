@@ -19,7 +19,8 @@ it. A figure quoted anywhere else is read from there, with its date and CPU.
 | `paths` | path count (paths/s) | 10,000 small paths: triangles, quadratic blobs, cubic circles, stars |
 | `text` | text throughput (glyphs/s) | a page of 16-pixel DejaVu Sans 2.37, unhinted, quarter-pixel positions |
 | `ui` | list build and submit time per frame | 24 panels of rounded rectangles, icons, bars and rectangular clips, 1280x800 |
-| `strokes` | path count (paths/s) | 3,000 stroked paths of 30 to 250 pixels and a width of 1 to 9, translucent, 1920x1080: a miter-joined polyline, round-joined and round-capped quadratics, a bevel-joined closed polygon, a dashed open cubic wave, a round-joined circle, a zigzag with square caps and a miter limit of 2 |
+| `strokes` | path count (paths/s) | 2,500 stroked paths of 30 to 250 pixels and a width of 1 to 9, translucent, 1920x1080: a miter-joined polyline, round-joined and round-capped quadratics, a bevel-joined closed polygon, a round-joined circle, a zigzag with square caps and a miter limit of 2 |
+| `strokes-dashed` | path count | 800 dashed open cubic waves (butt or round caps), as `strokes`; drawn by shape-cpu and Skia only: this Blend2D (58ca946) accepts a dash array on its context and strokes solid, so its arm omits the scene (the minimal pair is in the strokes story's change log) |
 | `gradients` | fill rate | 12 opaque rectangles and circles overlapping on a 4x3 grid, each a gradient of 2 to 5 opaque stops: linear pad, repeat and reflect; radial concentric pad, repeat and reflect, and one focal pad; sweep over a whole turn (pad, and repeat from 30 degrees) and a third of a turn repeated, 1920x1080 |
 
 `bench-shape emit` writes the scenes once (`scene.h` gives the format); every

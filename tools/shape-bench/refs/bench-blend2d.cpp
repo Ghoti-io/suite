@@ -78,7 +78,6 @@ struct Engine {
   BLImage image;
   std::vector<BLPath> paths;                 // per item
   std::vector<BLGradient> gradients;         // per item, gradient fills
-  std::vector<BLArray<double>> dashes;       // per item, strokes
   std::vector<std::vector<uint32_t>> ids;    // per item, runs
   std::vector<std::vector<BLPoint>> places;  // per item, runs
   BLFontFace face;
@@ -150,16 +149,10 @@ int setup(Engine & e, const SB_Scene & s, const std::string & dir) {
   }
   e.paths.resize(s.n_items);
   e.gradients.resize(s.n_items);
-  e.dashes.resize(s.n_items);
   e.ids.resize(s.n_items);
   e.places.resize(s.n_items);
   for (size_t i = 0; i < s.n_items; i++) {
     const SB_Item & it = s.items[i];
-    if (it.kind == SB_STROKE) {
-      for (size_t d = 0; d < s.strokes[it.stroke - 1].n_dashes; d++) {
-        e.dashes[i].append(s.strokes[it.stroke - 1].dashes[d]);
-      }
-    }
     if (it.kind == SB_FILL || it.kind == SB_STROKE) {
       BLPath & p = e.paths[i];
       for (size_t k = 0; k < it.count; k++) {
@@ -218,7 +211,7 @@ int submit(void * ctx) {
       }
       break;
     case SB_STROKE: {
-      // Blend2D's stroker and its dasher, through the context's stroke options: a miter join past the limit is a bevel,
+      // Blend2D's stroker, through the context's stroke options: a miter join past the limit is a bevel,
       // as in SVG (BL_STROKE_JOIN_MITER_BEVEL).
       const SB_Stroke & st = s.strokes[it.stroke - 1];
       c.set_stroke_width(st.width);
@@ -229,28 +222,10 @@ int submit(void * ctx) {
                             : st.cap == SB_CAP_SQUARE ? BL_STROKE_CAP_SQUARE
                                                       : BL_STROKE_CAP_BUTT);
       c.set_stroke_miter_limit(st.miter);
-      if (st.n_dashes) {
-        // The context ignores a dash array in this Blend2D (a probe stroked a dashed line solid), so a dashed stroke goes
-        // through Blend2D's own dasher and stroker, BLPath::add_stroked_path, and the outline is filled.
-        BLStrokeOptions so;
-        so.width = st.width;
-        so.miter_limit = st.miter;
-        so.start_cap = so.end_cap = st.cap == SB_CAP_ROUND ? BL_STROKE_CAP_ROUND
-            : st.cap == SB_CAP_SQUARE                       ? BL_STROKE_CAP_SQUARE
-                                                            : BL_STROKE_CAP_BUTT;
-        so.join = st.join == SB_JOIN_ROUND ? BL_STROKE_JOIN_ROUND
-            : st.join == SB_JOIN_BEVEL     ? BL_STROKE_JOIN_BEVEL
-                                           : BL_STROKE_JOIN_MITER_BEVEL;
-        so.dash_offset = st.offset;
-        so.dash_array = e.dashes[i];
-        BLPath outline;
-        if (outline.add_stroked_path(e.paths[i], so, BLApproximationOptions{}) != BL_SUCCESS ||
-            c.fill_path(outline, color) != BL_SUCCESS) {
-          std::fprintf(stderr, "bench-blend2d: dashed stroke refused for item %zu\n", i);
-          return 2;
-        }
-      } else if (c.stroke_path(e.paths[i], color) != BL_SUCCESS) {
-        std::fprintf(stderr, "bench-blend2d: stroke refused for item %zu\n", i);
+      // The scene holds no dash here: this Blend2D accepts a dash array on the context and strokes solid (the benchmark's
+      // `strokes-dashed` scene is not drawn by this driver), so a dashed stroke would be a different picture.
+      if (st.n_dashes || c.stroke_path(e.paths[i], color) != BL_SUCCESS) {
+        std::fprintf(stderr, "bench-blend2d: stroke refused or dashed for item %zu\n", i);
         return 2;
       }
       break;
@@ -308,7 +283,7 @@ int main(int argc, char ** argv) {
       if (rc == 0) {
         sb_report(stdout, "blend2d", &s, &m, out.c_str(),
             std::strcmp(s.metric, "list") == 0 ? "immediate mode: no recorded list, the build step does not exist"
-                : std::strcmp(s.name, "strokes") == 0 ? "stroke options on the context (width, join, caps, miter limit, dash array and offset), Blend2D's own stroker and dasher, paths built once"
+                : std::strncmp(s.name, "strokes", 7) == 0 ? "stroke options on the context (width, join, caps, miter limit), Blend2D's own stroker, paths built once; no dashes (see README)"
                 : s.n_gradients ? "BLGradient objects built once; gradient quality hint BL_GRADIENT_QUALITY_NEAREST (undithered)"
                                 : nullptr);
       } else {
