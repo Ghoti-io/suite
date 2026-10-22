@@ -225,7 +225,7 @@ int setup(Engine & e, const SB_Scene & s, const std::string & dir) {
         for (size_t d = 0; d < st.n_dashes; d++) {
           iv[d] = SkScalar(st.dashes[d]);
         }
-        p.setPathEffect(SkDashPathEffect::Make(iv, int(st.n_dashes), SkScalar(st.offset)));
+        p.setPathEffect(SkDashPathEffect::Make(SkSpan<const SkScalar>(iv, st.n_dashes), SkScalar(st.offset)));
       }
     }
     if (it.kind == SB_FILL || it.kind == SB_STROKE) {
