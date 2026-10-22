@@ -229,9 +229,11 @@ int submit(void * ctx) {
                             : st.cap == SB_CAP_SQUARE ? BL_STROKE_CAP_SQUARE
                                                       : BL_STROKE_CAP_BUTT);
       c.set_stroke_miter_limit(st.miter);
-      c.set_stroke_dash_offset(st.offset);
-      c.set_stroke_dash_array(e.dashes[i]);
-      c.stroke_path(e.paths[i], color);
+      if (c.set_stroke_dash_offset(st.offset) != BL_SUCCESS || c.set_stroke_dash_array(e.dashes[i]) != BL_SUCCESS ||
+          c.stroke_path(e.paths[i], color) != BL_SUCCESS) {
+        std::fprintf(stderr, "bench-blend2d: stroke options refused for item %zu\n", i);
+        return 2;
+      }
       break;
     }
     case SB_CLIP:
