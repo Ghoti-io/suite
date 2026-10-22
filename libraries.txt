@@ -25,7 +25,7 @@ shape-geometry https://github.com/Ghoti-io/shape-geometry.git master cutil,math
 shape-scene https://github.com/Ghoti-io/shape-scene.git master cutil,color,math,image,shape-geometry
 shape-cpu  https://github.com/Ghoti-io/shape-cpu.git  master cutil,color,math,image,shape-geometry,shape-scene
 font       https://github.com/Ghoti-io/font.git       master cutil,compress,unicode,image,shape-geometry,shape-scene,shape-cpu
-vector     https://github.com/Ghoti-io/vector.git     master cutil,compress,text,shape-scene
+vector     https://github.com/Ghoti-io/vector.git     master cutil,compress,text,shape-scene,math,?shape-cpu,?shape-geometry,?image
 model      https://github.com/Ghoti-io/model.git      master cutil
 archive    https://github.com/Ghoti-io/archive.git    master cutil,compress,security
 audio      https://github.com/Ghoti-io/audio.git      master cutil,security,?compress,?image
