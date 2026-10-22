@@ -465,7 +465,7 @@ static int add_stroke(SB_Scene * s, SB_Color c, const SB_Stroke * st) {
   return sb_scene_add_item(s, &it);
 }
 
-#define KIND_OF(i) (((i) % 2) ? 2 : 3)
+#define KIND_OF(i) 3
 static int gen_strokes(SB_Scene * s) {
   begin(s, "strokes", "paths", 1920, 1080, "paths");
   for (int i = 0; i < 3000; i++) {
