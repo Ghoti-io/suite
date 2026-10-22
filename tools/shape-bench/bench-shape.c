@@ -445,6 +445,115 @@ static int gen_gradients(SB_Scene * s) {
   return 0;
 }
 
+/* Stroke throughput (strokes story S4, F6): 3,000 stroked paths of six kinds on 1920x1080, 30 to 250 pixels across, a
+ * width of 1 to 9 pixels, translucent: a miter-joined polyline, a round-joined and round-capped chain of quadratics, a
+ * bevel-joined closed polygon, a dashed open cubic wave, a round-joined circle, a zigzag with square caps and a miter
+ * limit of 2 (whose sharp corners are bevels).  Everything here is a style all three engines state in one definition
+ * (SVG's): width, join, cap, miter limit, and dashes on open subpaths restarting at the path's start.  Left out because
+ * an engine cannot say it or says it differently: alignment, a width in device pixels, miter-clip and arcs joins,
+ * dashes on a closed subpath (SVG 2 and the references differ at the start), degenerate subpaths. */
+static int add_stroke(SB_Scene * s, SB_Color c, const SB_Stroke * st) {
+  SB_Item it;
+  memset(&it, 0, sizeof it);
+  it.kind = SB_STROKE;
+  it.color = c;
+  it.first = s->n_cmds;
+  if (sb_scene_add_stroke(s, st)) {
+    return -1;
+  }
+  it.stroke = s->n_strokes;
+  return sb_scene_add_item(s, &it);
+}
+
+static int gen_strokes(SB_Scene * s) {
+  begin(s, "strokes", "paths", 1920, 1080, "paths");
+  for (int i = 0; i < 3000; i++) {
+    double cx = range(140, 1920 - 140), cy = range(140, 1080 - 140);
+    double span = range(30, 250);
+    double turn = range(0, 6.283185307179586);
+    SB_Color c = color(64, 255);
+    SB_Stroke st;
+    memset(&st, 0, sizeof st);
+    st.width = q64(range(1, 9));
+    st.miter = 4.0;
+    int rc = 0;
+    double pt[12];
+    switch (i % 6) {
+    case 0: /* a polyline of six points, miter joins, butt caps */
+      st.join = SB_JOIN_MITER;
+      st.cap = SB_CAP_BUTT;
+      for (int k = 0; k < 6; k++) {
+        double a = turn + k * 0.9 + range(-0.3, 0.3), r = span * (0.35 + 0.65 * rnd());
+        pt[2 * k] = cx + r * cos(a);
+        pt[2 * k + 1] = cy + r * sin(a);
+      }
+      rc = add_stroke(s, c, &st) || cmd(s, 'M', pt[0], pt[1], 0, 0, 0, 0);
+      for (int k = 1; k < 6 && !rc; k++) {
+        rc = cmd(s, 'L', pt[2 * k], pt[2 * k + 1], 0, 0, 0, 0);
+      }
+      break;
+    case 1: /* a chain of three quadratics, round joins and caps */
+      st.join = SB_JOIN_ROUND;
+      st.cap = SB_CAP_ROUND;
+      rc = add_stroke(s, c, &st) || cmd(s, 'M', cx - span, cy, 0, 0, 0, 0);
+      for (int k = 0; k < 3 && !rc; k++) {
+        double x = cx - span + (k + 1) * span * 2.0 / 3.0;
+        rc = cmd(s, 'Q', x - span / 3.0, cy + (k % 2 ? span : -span) * (0.4 + 0.6 * rnd()), x,
+            cy + range(-span * 0.3, span * 0.3), 0, 0);
+      }
+      break;
+    case 2: { /* a closed polygon of five to seven corners, bevel joins */
+      int n = 5 + (i / 6) % 3;
+      st.join = SB_JOIN_BEVEL;
+      st.cap = SB_CAP_BUTT;
+      rc = add_stroke(s, c, &st);
+      for (int k = 0; k < n && !rc; k++) {
+        double a = turn + k * 6.283185307179586 / n, r = span * (0.55 + 0.45 * rnd());
+        rc = cmd(s, k ? 'L' : 'M', cx + r * cos(a), cy + r * sin(a), 0, 0, 0, 0);
+      }
+      rc = rc || cmd(s, 'Z', 0, 0, 0, 0, 0, 0);
+      break;
+    }
+    case 3: /* a dashed cubic wave, open, butt or round caps */
+      st.join = SB_JOIN_ROUND;
+      st.cap = (i / 6) % 2 ? SB_CAP_ROUND : SB_CAP_BUTT;
+      st.n_dashes = 2;
+      st.dashes[0] = q64(range(4, 14));
+      st.dashes[1] = q64(range(3, 9));
+      st.offset = q64(range(0, 10));
+      rc = add_stroke(s, c, &st) || cmd(s, 'M', cx - span, cy, 0, 0, 0, 0) ||
+          cmd(s, 'C', cx - span * 0.4, cy - span * 0.9, cx + span * 0.1, cy + span * 0.9, cx + span, cy, 0, 0);
+      break;
+    case 4: { /* a circle, round joins (a closed subpath of four cubics) */
+      double r = span * 0.5, k = r * KAPPA;
+      st.join = SB_JOIN_ROUND;
+      st.cap = SB_CAP_BUTT;
+      rc = add_stroke(s, c, &st) || cmd(s, 'M', cx + r, cy, 0, 0, 0, 0) ||
+          cmd(s, 'C', cx + r, cy + k, cx + k, cy + r, cx, cy + r) ||
+          cmd(s, 'C', cx - k, cy + r, cx - r, cy + k, cx - r, cy) ||
+          cmd(s, 'C', cx - r, cy - k, cx - k, cy - r, cx, cy - r) ||
+          cmd(s, 'C', cx + k, cy - r, cx + r, cy - k, cx + r, cy) || cmd(s, 'Z', 0, 0, 0, 0, 0, 0);
+      break;
+    }
+    default: /* a zigzag of seven points, square caps, miter limit 2 */
+      st.join = SB_JOIN_MITER;
+      st.cap = SB_CAP_SQUARE;
+      st.miter = 2.0;
+      rc = add_stroke(s, c, &st) || cmd(s, 'M', cx - span, cy, 0, 0, 0, 0);
+      for (int k = 1; k < 7 && !rc; k++) {
+        rc = cmd(s, 'L', cx - span + k * span / 3.0, cy + (k % 2 ? -1 : 1) * span * (0.2 + 0.4 * rnd()), 0, 0, 0, 0);
+      }
+      break;
+    }
+    if (rc) {
+      return -1;
+    }
+    s->items[s->n_items - 1].count = s->n_cmds - s->items[s->n_items - 1].first;
+    s->work += 1;
+  }
+  return 0;
+}
+
 static const char TEXT[] =
     "The quick brown fox jumps over the lazy dog while a benchmark counts every glyph it draws. "
     "Speed is measured, never assumed: each engine renders the same page, at the same size, onto the same pixels. "
@@ -509,9 +618,9 @@ done:
   return status;
 }
 
-/* The gradients scene comes last, so that the generator's random stream, and with it every earlier scene, is as
- * it was before it existed (it draws nothing from that stream either). */
-static const char * const SCENES[] = {"fill-rect", "fill-circle", "paths", "text", "ui", "gradients"};
+/* The gradients scene, and the strokes scene after it, come last, so that the generator's random stream, and with it every earlier scene, is as
+ * it was before they existed (the gradients scene draws nothing from that stream; the strokes scene draws from it last). */
+static const char * const SCENES[] = {"fill-rect", "fill-circle", "paths", "text", "ui", "gradients", "strokes"};
 #define N_SCENES (sizeof SCENES / sizeof SCENES[0])
 
 static int emit(const char * dir, const char * font_path) {
@@ -523,7 +632,8 @@ static int emit(const char * dir, const char * font_path) {
         : i == 2    ? gen_paths(&s)
         : i == 3    ? gen_text(&s, font_path, font_name)
         : i == 4    ? gen_ui(&s)
-                    : gen_gradients(&s);
+        : i == 5    ? gen_gradients(&s)
+                    : gen_strokes(&s);
     char path[1024];
     snprintf(path, sizeof path, "%s/%s.scene", dir, SCENES[i]);
     if (rc || sb_scene_save(path, &s)) {
@@ -558,6 +668,7 @@ typedef struct Shape {
   size_t n_glyph_paths;
   GSHSCENE_Paint * paint; ///< per item
   const GSHSCENE_Resource ** grad; ///< per item: a gradient fill's gradient
+  const GSHSCENE_Resource ** style; ///< per item: a stroke's style
 } Shape;
 
 static GSHGEOM_Point pt(double x, double y) {
@@ -723,10 +834,11 @@ static int shape_setup(Shape * e, const SB_Scene * s, const char * dir, int cont
   e->res = calloc(s->n_items ? s->n_items : 1, sizeof *e->res);
   e->paint = calloc(s->n_items ? s->n_items : 1, sizeof *e->paint);
   e->grad = calloc(s->n_items ? s->n_items : 1, sizeof *e->grad);
+  e->style = calloc(s->n_items ? s->n_items : 1, sizeof *e->style);
   sb_background_bytes(s, 0, e->bg);
   GIMG_Pixel_Format format = GIMG_PIXEL_RGBA8;
   format.alpha_form = GIMG_ALPHA_PREMULTIPLIED;
-  if (!e->pixels || !e->res || !e->paint || !e->grad || gshscene_store_create(NULL, NULL, &e->store) != GSHSCENE_OK ||
+  if (!e->pixels || !e->res || !e->paint || !e->grad || !e->style || gshscene_store_create(NULL, NULL, &e->store) != GSHSCENE_OK ||
       gshscene_list_create(NULL, NULL, e->store, &e->list) != GSHSCENE_OK ||
       gshcpu_sink_create(NULL, NULL, NULL, &e->sink) != GSHCPU_OK ||
       gshscene_report_create(NULL, NULL, &e->report) != GSHSCENE_OK ||
@@ -762,7 +874,7 @@ static int shape_setup(Shape * e, const SB_Scene * s, const char * dir, int cont
   int status = 0;
   for (size_t i = 0; i < s->n_items && status == 0; i++) {
     const SB_Item * it = &s->items[i];
-    if (it->kind == SB_FILL || it->kind == SB_RUN) {
+    if (it->kind == SB_FILL || it->kind == SB_RUN || it->kind == SB_STROKE) {
       GSHSCENE_Paint * p = &e->paint[i];
       p->kind = GSHSCENE_PAINT_SOLID;
       p->rgba[0] = it->color.r / 255.0;
@@ -781,7 +893,30 @@ static int shape_setup(Shape * e, const SB_Scene * s, const char * dir, int cont
         p->gradient = e->grad[i];
       }
     }
-    if (it->kind == SB_FILL) {
+    if (it->kind == SB_STROKE) {
+      /* The scene's style is shape-scene's, field for field: local width, the pen's join and cap, the miter limit, the
+       * dashes restarting at each subpath from the offset; a stroke is centered. */
+      const SB_Stroke * sk = &s->strokes[it->stroke - 1];
+      GSHSCENE_Stroke_Style st;
+      gshscene_stroke_style_init(&st);
+      st.width = sk->width;
+      st.join = sk->join == SB_JOIN_ROUND ? GSHSCENE_STROKE_JOIN_ROUND
+          : sk->join == SB_JOIN_BEVEL     ? GSHSCENE_STROKE_JOIN_BEVEL
+                                          : GSHSCENE_STROKE_JOIN_MITER;
+      st.cap = sk->cap == SB_CAP_ROUND ? GSHSCENE_STROKE_CAP_ROUND
+          : sk->cap == SB_CAP_SQUARE   ? GSHSCENE_STROKE_CAP_SQUARE
+                                       : GSHSCENE_STROKE_CAP_BUTT;
+      st.miter_limit = sk->miter;
+      st.dash_count = sk->n_dashes;
+      st.dashes = sk->n_dashes ? sk->dashes : NULL;
+      st.dash_offset = sk->offset;
+      if (gshscene_store_intern_stroke_style(e->store, &st, &e->style[i]) != GSHSCENE_OK) {
+        fprintf(stderr, "bench-shape: cannot intern the style of item %zu of %s\n", i, s->name);
+        status = -1;
+        break;
+      }
+    }
+    if (it->kind == SB_FILL || it->kind == SB_STROKE) {
       e->res[i] = intern_cmds(e->store, s->cmds + it->first, it->count);
     } else if (it->kind == SB_CLIP) {
       SB_Cmd c[5] = {{'M', {it->rect[0], it->rect[1]}}, {'L', {it->rect[2], it->rect[1]}},
@@ -832,6 +967,7 @@ static void shape_teardown(Shape * e) {
   for (size_t i = 0; e->res && i < e->scene->n_items; i++) {
     gshscene_resource_release(e->res[i]);
     gshscene_resource_release(e->grad ? e->grad[i] : NULL);
+    gshscene_resource_release(e->style ? e->style[i] : NULL);
   }
   for (size_t i = 0; i < e->n_glyph_paths; i++) {
     gshscene_resource_release(e->glyph_paths[i]);
@@ -845,6 +981,7 @@ static void shape_teardown(Shape * e) {
   free(e->res);
   free(e->paint);
   free(e->grad);
+  free(e->style);
   free(e->pixels);
   memset(e, 0, sizeof *e);
 }
@@ -870,6 +1007,12 @@ static int shape_build(void * ctx) {
     case SB_RUN:
       if (!(e->control && (e->drawables - 1 - drawable) % SB_CONTROL_STRIDE == 0)) {
         r = gshscene_list_fill(e->list, e->res[i], NULL, GSHGEOM_FILL_NONZERO, &e->paint[i], 0, 0.0);
+      }
+      drawable++;
+      break;
+    case SB_STROKE:
+      if (!(e->control && (e->drawables - 1 - drawable) % SB_CONTROL_STRIDE == 0)) {
+        r = gshscene_list_stroke(e->list, e->res[i], e->style[i], NULL, &e->paint[i], 0, 0.0);
       }
       drawable++;
       break;
@@ -1031,6 +1174,8 @@ static int run(const char * dir, const char * out) {
     if (rc == 0) {
       sb_report(stdout, "shape-cpu", &s, &m, name,
           !strcmp(s.metric, "text") ? "glyph outlines from font, decoded and interned once; one outline glyph run a line"
+              : !strcmp(s.name, "strokes") ? "styles and paths interned once; the expansion of each stroke is cached by the sink "
+                                             "across frames (warm after the first), its coverage composed per frame"
               : s.n_gradients       ? "gradients interned once with the paths; evaluated per pixel in double at the pixel "
                                       "center, straight, in the target's space, undithered"
                                     : NULL);

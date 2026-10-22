@@ -18,6 +18,7 @@ would add edges to that library.
 | `blend-modes.png` | the fifteen blend modes (W3C's, numbered as COLRv1 numbers them), each a group around red, green, blue and grey patches at full and half alpha over a hue sweep under a lightness ramp, blended in sRGB-encoded values and in linear light; a row of sources out of range; the same multiply at the root and in an isolated group of its own; PDF's non-isolated and knockout groups as labelled placeholders, which shape-cpu refuses; each tile's middle pixel read back and printed |
 | `color.png` | the same translucent fills in an sRGB-encoded and a linear-light group, and solid paints in sRGB, Display P3 and BT.2020 converted to the sRGB target, with the 8-bit values read back and printed |
 | `gradients.png` | linear gradients with pad, repeat and reflect; radial (concentric, a focal point, and the cone when neither circle holds the other); sweep over a whole turn and over part of one with pad and repeat, showing its direction; the same stops interpolated in sRGB and linear light, and straight and premultiplied with a translucent stop, the middle pixels read back; and gradients under an item's map and under their own map |
+| `strokes.png` | joins (miter, round, bevel) on a zigzag, caps (butt, round, square), dashes (a pattern, round dots, dash-dot with an offset), local and device widths under a non-uniform map, device-width hairlines, inside, outside and centered alignment on a star, and a gradient as a stroke's paint |
 | `text.png` | DejaVu Sans 2.37 at eight sizes, a justified paragraph, a 6x zoom of hinted, unhinted and general-route glyphs, nine scripts, and `font`'s committed test fixtures |
 | `color-glyphs.png` | the COLR glyphs of `font`'s fixtures lowered into scene lists, with what is refused and why |
 
@@ -40,7 +41,7 @@ closure of `font`'s and `shape-cpu`'s dependencies (cutil, security, unicode,
 compress, color, image, math, shape-geometry, shape-scene, shape-cpu and font,
 today). It installs each into `PREFIX` (`PREFIX=` on
 every make, so the rpath is set), builds `gallery.c` against them, fetches the
-pinned font by digest (`suite/tools/shape-success/fetch.sh`), renders the seven
+pinned font by digest (`suite/tools/shape-success/fetch.sh`), renders the eight
 PNGs into `OUT` with `gallery.log`, and decode-checks every PNG. Build logs go to
 `OUT/logs/`. The result is the suite's only when it is built by the suite's
 compiler, so run it inside `ghoti-build:gcc16` (`suite/Containerfile.build`),
@@ -59,7 +60,7 @@ and the host's name into `OUT/host.txt`, for a record of where it ran.
 
 A run directory holds:
 
-- the seven PNGs and `gallery.log`;
+- the eight PNGs and `gallery.log`;
 - `decode-check.txt`: every PNG's chunks, CRCs and image data checked by an
   independent reader;
 - `build.txt` (compiler, flags, the font's digest) and `gallery.exit`;

@@ -78,6 +78,7 @@ struct Engine {
   BLImage image;
   std::vector<BLPath> paths;                 // per item
   std::vector<BLGradient> gradients;         // per item, gradient fills
+  std::vector<BLArray<double>> dashes;       // per item, strokes
   std::vector<std::vector<uint32_t>> ids;    // per item, runs
   std::vector<std::vector<BLPoint>> places;  // per item, runs
   BLFontFace face;
@@ -149,11 +150,17 @@ int setup(Engine & e, const SB_Scene & s, const std::string & dir) {
   }
   e.paths.resize(s.n_items);
   e.gradients.resize(s.n_items);
+  e.dashes.resize(s.n_items);
   e.ids.resize(s.n_items);
   e.places.resize(s.n_items);
   for (size_t i = 0; i < s.n_items; i++) {
     const SB_Item & it = s.items[i];
-    if (it.kind == SB_FILL) {
+    if (it.kind == SB_STROKE) {
+      for (size_t d = 0; d < s.strokes[it.stroke - 1].n_dashes; d++) {
+        e.dashes[i].append(s.strokes[it.stroke - 1].dashes[d]);
+      }
+    }
+    if (it.kind == SB_FILL || it.kind == SB_STROKE) {
       BLPath & p = e.paths[i];
       for (size_t k = 0; k < it.count; k++) {
         const SB_Cmd & c = s.cmds[it.first + k];
@@ -210,6 +217,23 @@ int submit(void * ctx) {
         c.fill_path(e.paths[i], color);
       }
       break;
+    case SB_STROKE: {
+      // Blend2D's stroker and its dasher, through the context's stroke options: a miter join past the limit is a bevel,
+      // as in SVG (BL_STROKE_JOIN_MITER_BEVEL).
+      const SB_Stroke & st = s.strokes[it.stroke - 1];
+      c.set_stroke_width(st.width);
+      c.set_stroke_join(st.join == SB_JOIN_ROUND ? BL_STROKE_JOIN_ROUND
+                            : st.join == SB_JOIN_BEVEL ? BL_STROKE_JOIN_BEVEL
+                                                       : BL_STROKE_JOIN_MITER_BEVEL);
+      c.set_stroke_caps(st.cap == SB_CAP_ROUND ? BL_STROKE_CAP_ROUND
+                            : st.cap == SB_CAP_SQUARE ? BL_STROKE_CAP_SQUARE
+                                                      : BL_STROKE_CAP_BUTT);
+      c.set_stroke_miter_limit(st.miter);
+      c.set_stroke_dash_offset(st.offset);
+      c.set_stroke_dash_array(e.dashes[i]);
+      c.stroke_path(e.paths[i], color);
+      break;
+    }
     case SB_CLIP:
       c.save();
       c.clip_to_rect(BLRect(it.rect[0], it.rect[1], it.rect[2] - it.rect[0], it.rect[3] - it.rect[1]));
@@ -238,7 +262,7 @@ int main(int argc, char ** argv) {
     std::fprintf(stderr, "usage: bench-blend2d DIR OUT\n");
     return 2;
   }
-  static const char * const scenes[] = {"fill-rect", "fill-circle", "paths", "text", "ui", "gradients"};
+  static const char * const scenes[] = {"fill-rect", "fill-circle", "paths", "text", "ui", "gradients", "strokes"};
   int failures = 0;
   for (const char * name : scenes) {
     std::string path = std::string(argv[1]) + "/" + name + ".scene";
@@ -263,6 +287,7 @@ int main(int argc, char ** argv) {
       if (rc == 0) {
         sb_report(stdout, "blend2d", &s, &m, out.c_str(),
             std::strcmp(s.metric, "list") == 0 ? "immediate mode: no recorded list, the build step does not exist"
+                : std::strcmp(s.name, "strokes") == 0 ? "stroke options on the context (width, join, caps, miter limit, dash array and offset), Blend2D's own stroker and dasher, paths built once"
                 : s.n_gradients ? "BLGradient objects built once; gradient quality hint BL_GRADIENT_QUALITY_NEAREST (undithered)"
                                 : nullptr);
       } else {

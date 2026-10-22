@@ -39,6 +39,13 @@
  *     fill <r> <g> <b> <a> <count>        a path filled non-zero, then <count> commands:
  *     M x y | L x y | Q x1 y1 x y | C x1 y1 x2 y2 x y | Z
  *     run <r> <g> <b> <a> <count>         a glyph run, then <count> lines "g <id> <x> <y>" (baseline origin)
+ *     stroke <r> <g> <b> <a> <width> <join> <cap> <miter> <offset> <ndash> <dash>... <count>
+ *                                         a path stroked (strokes story S4): then <count> commands as a fill's.
+ *                                         <join> is miter, round or bevel; <cap> butt, round or square; the width is in
+ *                                         pixels under the identity map (every engine's local width); <miter> the miter
+ *                                         limit; <ndash> lengths in pixels (an even count, 0 for solid) restarting at each
+ *                                         subpath, from the phase <offset>.  Non-zero winding, a union of what the
+ *                                         stroke covers, one blend: each engine's own stroker.
  *     gradient <kind> <extend> <geometry> <count>
  *                                         the paint of the fill that follows it, then <count> stops
  *                                         "s <offset> <r> <g> <b> <a>"
@@ -83,7 +90,24 @@ typedef struct SB_Color {
   uint8_t r, g, b, a;
 } SB_Color;
 
-typedef enum SB_Kind { SB_FILL = 1, SB_RUN = 2, SB_CLIP = 3, SB_UNCLIP = 4 } SB_Kind;
+typedef enum SB_Kind { SB_FILL = 1, SB_RUN = 2, SB_CLIP = 3, SB_UNCLIP = 4, SB_STROKE = 5 } SB_Kind;
+
+typedef enum SB_Join { SB_JOIN_MITER = 0, SB_JOIN_ROUND = 1, SB_JOIN_BEVEL = 2 } SB_Join;
+typedef enum SB_Cap { SB_CAP_BUTT = 0, SB_CAP_ROUND = 1, SB_CAP_SQUARE = 2 } SB_Cap;
+
+/** The most dash lengths a stroke record carries. */
+#define SB_DASHES_MAX 8
+
+/** A stroke's style (the path is the item's commands). */
+typedef struct SB_Stroke {
+  double width;
+  SB_Join join;
+  SB_Cap cap;
+  double miter;
+  double offset;
+  size_t n_dashes;
+  double dashes[SB_DASHES_MAX];
+} SB_Stroke;
 
 /** One path command: 'M', 'L', 'Q', 'C' or 'Z', with its points in p (x, y pairs). */
 typedef struct SB_Cmd {
@@ -123,6 +147,7 @@ typedef struct SB_Item {
   size_t count;    ///< fill: commands; run: glyphs
   double rect[4];  ///< clip: x0, y0, x1, y1
   size_t gradient; ///< fill: 1 + the index of its paint in SB_Scene.gradients; 0 for a solid color
+  size_t stroke;   ///< stroke: 1 + the index of its style in SB_Scene.strokes
 } SB_Item;
 
 typedef struct SB_Scene {
@@ -144,6 +169,8 @@ typedef struct SB_Scene {
   size_t n_gradients, cap_gradients;
   SB_Stop * stops;
   size_t n_stops, cap_stops;
+  SB_Stroke * strokes;
+  size_t n_strokes, cap_strokes;
 } SB_Scene;
 
 /** Zero a scene. */
@@ -157,7 +184,9 @@ int sb_scene_add_glyph(SB_Scene * scene, uint32_t id, double x, double y);
 /** Append a gradient (its stops already appended, from first_stop); 0 on success. */
 int sb_scene_add_gradient(SB_Scene * scene, const SB_Gradient * gradient);
 int sb_scene_add_stop(SB_Scene * scene, double offset, SB_Color color);
-/** Items that draw (fills and runs). */
+/** Append a stroke style; 0 on success. */
+int sb_scene_add_stroke(SB_Scene * scene, const SB_Stroke * stroke);
+/** Items that draw (fills, runs and strokes). */
 size_t sb_scene_drawables(const SB_Scene * scene);
 
 /** Read a scene file; 0 on success, else -1 with a message in err. */

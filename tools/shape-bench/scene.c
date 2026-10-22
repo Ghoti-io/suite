@@ -37,6 +37,7 @@ void sb_scene_free(SB_Scene * scene) {
   free(scene->glyphs);
   free(scene->gradients);
   free(scene->stops);
+  free(scene->strokes);
   sb_scene_init(scene);
 }
 
@@ -108,6 +109,17 @@ int sb_scene_add_stop(SB_Scene * scene, double offset, SB_Color color) {
   return 0;
 }
 
+int sb_scene_add_stroke(SB_Scene * scene, const SB_Stroke * stroke) {
+  if (grow((void **)&scene->strokes, &scene->cap_strokes, scene->n_strokes + 1, sizeof *stroke)) {
+    return -1;
+  }
+  scene->strokes[scene->n_strokes++] = *stroke;
+  return 0;
+}
+
+static const char * const JOIN_NAMES[] = {"miter", "round", "bevel"};
+static const char * const CAP_NAMES[] = {"butt", "round", "square"};
+
 static const char * const KIND_NAMES[] = {"", "linear", "radial", "sweep"};
 static const char * const EXTEND_NAMES[] = {"pad", "repeat", "reflect"};
 
@@ -119,7 +131,7 @@ static int gradient_arity(SB_Gradient_Kind kind) {
 size_t sb_scene_drawables(const SB_Scene * scene) {
   size_t n = 0;
   for (size_t i = 0; i < scene->n_items; i++) {
-    n += scene->items[i].kind == SB_FILL || scene->items[i].kind == SB_RUN;
+    n += scene->items[i].kind == SB_FILL || scene->items[i].kind == SB_RUN || scene->items[i].kind == SB_STROKE;
   }
   return n;
 }
@@ -301,6 +313,76 @@ int sb_scene_load(const char * path, SB_Scene * out, char * err, size_t errlen) 
       if (status) {
         break;
       }
+    } else if (!strcmp(word, "stroke")) {
+      SB_Item it;
+      SB_Stroke st;
+      memset(&it, 0, sizeof it);
+      memset(&st, 0, sizeof st);
+      it.kind = SB_STROKE;
+      unsigned r, g, b, a;
+      char join[16] = {0}, cap[16] = {0};
+      int used = 0;
+      unsigned long ndash = 0;
+      if (sscanf(rest, " %u %u %u %u %lf %15s %15s %lf %lf %lu%n", &r, &g, &b, &a, &st.width, join, cap, &st.miter,
+              &st.offset, &ndash, &used) != 10 ||
+          r > 255 || g > 255 || b > 255 || a > 255 || !(st.width > 0) || !(st.miter >= 1) || ndash > SB_DASHES_MAX ||
+          (ndash % 2)) {
+        status = fail(err, errlen, line, "bad stroke");
+        break;
+      }
+      int j = -1, cp = -1;
+      for (int k = 0; k < 3; k++) {
+        j = !strcmp(join, JOIN_NAMES[k]) ? k : j;
+        cp = !strcmp(cap, CAP_NAMES[k]) ? k : cp;
+      }
+      const char * at = rest + used;
+      for (unsigned long k = 0; k < ndash && j >= 0 && cp >= 0; k++) {
+        char * end = NULL;
+        st.dashes[k] = strtod(at, &end);
+        if (end == at || !(st.dashes[k] >= 0)) {
+          j = -1;
+        }
+        at = end;
+      }
+      char * end = NULL;
+      unsigned long count = j < 0 || cp < 0 ? 0 : strtoul(at, &end, 10);
+      if (j < 0 || cp < 0 || count == 0 || end == at) {
+        status = fail(err, errlen, line, "bad stroke");
+        break;
+      }
+      st.join = (SB_Join)j;
+      st.cap = (SB_Cap)cp;
+      st.n_dashes = ndash;
+      it.color.r = (uint8_t)r;
+      it.color.g = (uint8_t)g;
+      it.color.b = (uint8_t)b;
+      it.color.a = (uint8_t)a;
+      it.first = s.n_cmds;
+      it.count = count;
+      if (pending) {
+        status = fail(err, errlen, line, "a gradient is followed by a fill");
+        break;
+      }
+      for (unsigned long k = 0; k < count && status == 0; k++) {
+        if (!fgets(buf, sizeof buf, f) || !strchr(buf, '\n')) {
+          status = fail(err, errlen, line + 1, "truncated item");
+          break;
+        }
+        line++;
+        double p[6] = {0};
+        char op = buf[0];
+        int arity = cmd_arity(op);
+        int got = arity <= 0 ? 0 : sscanf(buf + 1, "%lf %lf %lf %lf %lf %lf", &p[0], &p[1], &p[2], &p[3], &p[4], &p[5]);
+        if (arity < 0 || got != arity || (k == 0 && op != 'M') || sb_scene_add_cmd(&s, op, p)) {
+          status = fail(err, errlen, line, "bad path command");
+        }
+      }
+      if (status == 0 && (sb_scene_add_stroke(&s, &st) || ((it.stroke = s.n_strokes), sb_scene_add_item(&s, &it)))) {
+        status = fail(err, errlen, line, "out of memory");
+      }
+      if (status) {
+        break;
+      }
     } else if (!strcmp(word, "gradient")) {
       SB_Gradient g;
       memset(&g, 0, sizeof g);
@@ -441,6 +523,25 @@ int sb_scene_save(const char * path, const SB_Scene * s) {
         fputc('\n', f);
       }
       break;
+    case SB_STROKE: {
+      const SB_Stroke * st = &s->strokes[it->stroke - 1];
+      fprintf(f, "stroke %u %u %u %u %.6f %s %s %.6f %.6f %zu", c->r, c->g, c->b, c->a, st->width, JOIN_NAMES[st->join],
+          CAP_NAMES[st->cap], st->miter, st->offset, st->n_dashes);
+      for (size_t k = 0; k < st->n_dashes; k++) {
+        fprintf(f, " %.6f", st->dashes[k]);
+      }
+      fprintf(f, " %zu\n", it->count);
+      for (size_t k = 0; k < it->count; k++) {
+        const SB_Cmd * m = &s->cmds[it->first + k];
+        int n = cmd_arity(m->op);
+        fputc(m->op, f);
+        for (int j = 0; j < n; j++) {
+          fprintf(f, " %.6f", m->p[j]);
+        }
+        fputc('\n', f);
+      }
+      break;
+    }
     case SB_RUN:
       fprintf(f, "run %u %u %u %u %zu\n", c->r, c->g, c->b, c->a, it->count);
       for (size_t k = 0; k < it->count; k++) {

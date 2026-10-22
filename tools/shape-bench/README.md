@@ -19,6 +19,7 @@ it. A figure quoted anywhere else is read from there, with its date and CPU.
 | `paths` | path count (paths/s) | 10,000 small paths: triangles, quadratic blobs, cubic circles, stars |
 | `text` | text throughput (glyphs/s) | a page of 16-pixel DejaVu Sans 2.37, unhinted, quarter-pixel positions |
 | `ui` | list build and submit time per frame | 24 panels of rounded rectangles, icons, bars and rectangular clips, 1280x800 |
+| `strokes` | path count (paths/s) | 3,000 stroked paths of 30 to 250 pixels and a width of 1 to 9, translucent, 1920x1080: a miter-joined polyline, round-joined and round-capped quadratics, a bevel-joined closed polygon, a dashed open cubic wave, a round-joined circle, a zigzag with square caps and a miter limit of 2 |
 | `gradients` | fill rate | 12 opaque rectangles and circles overlapping on a 4x3 grid, each a gradient of 2 to 5 opaque stops: linear pad, repeat and reflect; radial concentric pad, repeat and reflect, and one focal pad; sweep over a whole turn (pad, and repeat from 30 degrees) and a third of a turn repeated, 1920x1080 |
 
 `bench-shape emit` writes the scenes once (`scene.h` gives the format); every
@@ -50,6 +51,12 @@ the C++ drivers too).
   back, and elsewhere drawing directly; Blend2D is immediate and has no build.
 - Warm-up of at least 5 frames and 0.25 s, then 31 timed frames: the median,
   the quartiles, the minimum and maximum. Throughput is derived from the median.
+- Strokes are each engine's own: shape-cpu's expansion in `shape-geometry`, Blend2D's stroker and dasher through the
+  context's stroke options (a miter join past the limit is a bevel: `BL_STROKE_JOIN_MITER_BEVEL`), Skia's stroking
+  `SkPaint` and `SkDashPathEffect`. The scene states only what the three say by one definition (SVG's width, join, cap,
+  miter limit, and dashes on open subpaths restarting at the path's start); the generator names what is left out.
+  The `strokes` frames of `shape-cpu` run with the sink's expansion cache warm after the first frame (`GSHCPU_Limits`
+  default), which is what a retained scene sees; there is no speed threshold, only the cross-check below.
 - What differs by design is stated, not hidden: Skia caches rendered glyph
   masks and nothing else here does; Blend2D JIT-compiles its pipelines and Skia
   dispatches SIMD at run time, while `shape-cpu` is the scalar `double`

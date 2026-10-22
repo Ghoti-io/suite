@@ -70,6 +70,7 @@
 #include "include/core/SkPicture.h"
 #include "include/core/SkPictureRecorder.h"
 #include "include/core/SkRect.h"
+#include "include/effects/SkDashPathEffect.h"
 #include "include/core/SkSurface.h"
 #include "include/core/SkSurfaceProps.h"
 #include "include/core/SkTextBlob.h"
@@ -107,6 +108,7 @@ void draw(Engine & e, SkCanvas * c) {
     const SB_Item & it = s.items[i];
     switch (it.kind) {
     case SB_FILL:
+    case SB_STROKE:
       c->drawPath(e.paths[i], e.paints[i]);
       break;
     case SB_CLIP:
@@ -205,7 +207,28 @@ int setup(Engine & e, const SB_Scene & s, const std::string & dir) {
         return -1;
       }
     }
-    if (it.kind == SB_FILL) {
+    if (it.kind == SB_STROKE) {
+      // The scene's stroke, in Skia's words: a stroking paint (width, join, cap, miter limit) and, with dashes, an
+      // SkDashPathEffect from the phase; Skia's own stroker and its own dasher, restarting at each contour.
+      const SB_Stroke & st = s.strokes[it.stroke - 1];
+      p.setStyle(SkPaint::kStroke_Style);
+      p.setStrokeWidth(SkScalar(st.width));
+      p.setStrokeJoin(st.join == SB_JOIN_ROUND ? SkPaint::kRound_Join
+                          : st.join == SB_JOIN_BEVEL ? SkPaint::kBevel_Join
+                                                     : SkPaint::kMiter_Join);
+      p.setStrokeCap(st.cap == SB_CAP_ROUND ? SkPaint::kRound_Cap
+                         : st.cap == SB_CAP_SQUARE ? SkPaint::kSquare_Cap
+                                                   : SkPaint::kButt_Cap);
+      p.setStrokeMiter(SkScalar(st.miter));
+      if (st.n_dashes) {
+        SkScalar iv[SB_DASHES_MAX];
+        for (size_t d = 0; d < st.n_dashes; d++) {
+          iv[d] = SkScalar(st.dashes[d]);
+        }
+        p.setPathEffect(SkDashPathEffect::Make(iv, int(st.n_dashes), SkScalar(st.offset)));
+      }
+    }
+    if (it.kind == SB_FILL || it.kind == SB_STROKE) {
       SkPathBuilder b(SkPathFillType::kWinding);
       for (size_t k = 0; k < it.count; k++) {
         const SB_Cmd & c = s.cmds[it.first + k];
@@ -270,7 +293,7 @@ int main(int argc, char ** argv) {
     std::fprintf(stderr, "usage: bench-skia DIR OUT\n");
     return 2;
   }
-  static const char * const scenes[] = {"fill-rect", "fill-circle", "paths", "text", "ui", "gradients"};
+  static const char * const scenes[] = {"fill-rect", "fill-circle", "paths", "text", "ui", "gradients", "strokes"};
   int failures = 0;
   for (const char * name : scenes) {
     std::string path = std::string(argv[1]) + "/" + name + ".scene";
@@ -296,6 +319,7 @@ int main(int argc, char ** argv) {
         sb_report(stdout, "skia", &s, &m, out.c_str(),
             e.record                              ? "build: SkPictureRecorder; submit: drawPicture"
                 : std::strcmp(s.metric, "text") == 0 ? "SkTextBlob built once; glyph masks cached by Skia's strike cache; text contrast 0 and gamma 1 (linear coverage)"
+                : std::strcmp(s.name, "strokes") == 0 ? "SkPaint stroke style (width, join, cap, miter limit) and SkDashPathEffect, Skia's own stroker and dasher, paths built once"
                 : s.n_gradients ? "SkShaders gradient shaders built once; paint dither off; 8-bit sRGB stops, destination interpolation on a surface with no color space, unpremultiplied"
                                                      : nullptr);
       } else {

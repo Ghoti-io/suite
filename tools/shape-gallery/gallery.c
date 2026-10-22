@@ -21,7 +21,7 @@
 /**
  * @file gallery.c
  *
- * A gallery of seven PNGs drawn entirely by the suite's own libraries, for a
+ * A gallery of eight PNGs drawn entirely by the suite's own libraries, for a
  * person to look at (README.md says what each shows).  Every pixel comes from
  * shape-cpu rendering shape-scene lists; text is font's paragraph layout and
  * shaping, its glyphs reaching the scene through font's glyph path provider;
@@ -31,7 +31,7 @@
  *
  * FONTDIR is font's tests/data/fonts, DEJAVU the pinned DejaVuSans.ttf that
  * suite/tools/shape-success/fetch.sh fetches.  Writes shapes.png,
- * compositing.png, blend-modes.png, color.png, gradients.png, text.png and color-glyphs.png
+ * compositing.png, blend-modes.png, color.png, gradients.png, strokes.png, text.png and color-glyphs.png
  * into OUTDIR and a log on stdout: each render's result and its report entries
  * tallied by class and reason, the diagnostics of a few fixture fonts, and what
  * the color-glyph page refused.  Exits nonzero when any step failed.
@@ -578,7 +578,7 @@ static void image_shapes(void) {
   label_c(L, "(opaque fills inside)", 15, 620, 738, 0.4);
   label_c(L, "no group, each fill alpha 0.5", 18, 960, 712, 0.2);
   label_c(L, "(overlaps show through)", 15, 960, 738, 0.4);
-  label(L, "Not drawn: strokes (none exist yet). Gradients are on gradients.png.", 15, 30, 770, 0.45);
+  label(L, "Gradients are on gradients.png, strokes on strokes.png.", 15, 30, 770, 0.45);
   render("shapes", L, R);
   save_png(R, "shapes.png");
   gimg_raster_destroy(R);
@@ -1703,6 +1703,181 @@ static void image_color_glyphs(const char * fontdir) {
   gimg_raster_destroy(R);
 }
 
+/* --- 8: strokes ----------------------------------------------------------------------------------------------- */
+
+/** Stroke `res` (released) under `map` with `st`, which is interned for this stroke. */
+static void stroke_map(GSHSCENE_List * L, const GSHSCENE_Resource * res, const GSHGEOM_Map * map,
+    const GSHSCENE_Stroke_Style * st, GSHSCENE_Paint paint) {
+  const GSHSCENE_Resource * sr = NULL;
+  GSHSCENE_Result r = gshscene_store_intern_stroke_style(g_store, st, &sr);
+  if (r == GSHSCENE_OK) {
+    r = gshscene_list_stroke(L, res, sr, map, &paint, 0, 0.0);
+  }
+  if (r != GSHSCENE_OK) {
+    fprintf(stderr, "gallery: stroke: %s\n", gshscene_result_string(r));
+    g_failed = 1;
+  }
+  gshscene_resource_release(sr);
+  gshscene_resource_release(res);
+}
+
+static GSHSCENE_Stroke_Style style_new(double width, uint32_t join, uint32_t cap) {
+  GSHSCENE_Stroke_Style st;
+  gshscene_stroke_style_init(&st);
+  st.width = width;
+  st.join = join;
+  st.cap = cap;
+  return st;
+}
+
+/** An open zigzag of three segments with a sharp turn each way, from (x, y) across `w`. */
+static const GSHSCENE_Resource * zigzag(double x, double y, double w, double h) {
+  GSHGEOM_Path * p = path_new();
+  gshgeom_path_move_to(p, P(x, y + h));
+  gshgeom_path_line_to(p, P(x + w * 0.3, y));
+  gshgeom_path_line_to(p, P(x + w * 0.55, y + h));
+  gshgeom_path_line_to(p, P(x + w, y + h * 0.15));
+  return intern(p);
+}
+
+/** A cubic S-curve across the box. */
+static const GSHSCENE_Resource * scurve(double x, double y, double w, double h) {
+  GSHGEOM_Path * p = path_new();
+  gshgeom_path_move_to(p, P(x, y + h));
+  gshgeom_path_cubic_to(p, P(x + w * 0.1, y - h * 0.3), P(x + w * 0.5, y - h * 0.3), P(x + w * 0.5, y + h * 0.5));
+  gshgeom_path_cubic_to(p, P(x + w * 0.5, y + h * 1.3), P(x + w * 0.9, y + h * 1.3), P(x + w, y));
+  return intern(p);
+}
+
+static void image_strokes(void) {
+  const int W = 1200, H = 1000;
+  GIMG_Raster * R = raster_new(W, H);
+  GSHSCENE_List * L = list_new();
+  background(L, W, H, 0.97);
+  label(L, "strokes: one expansion, drawn by shape-cpu", 26, 30, 18, 0.1);
+  const GSHSCENE_Paint ink = solid(0.1, 0.2, 0.45, 1);
+  const GSHSCENE_Paint guide = solid(0.9, 0.35, 0.1, 1);
+
+  /* Joins: miter, round, bevel on the same zigzag, with the centerline over it. */
+  static const char * join_name[3] = {"miter", "round", "bevel"};
+  static const uint32_t join_id[3] = {GSHSCENE_STROKE_JOIN_MITER, GSHSCENE_STROKE_JOIN_ROUND, GSHSCENE_STROKE_JOIN_BEVEL};
+  for (int k = 0; k < 3; k++) {
+    double x = 40 + k * 390;
+    GSHSCENE_Stroke_Style st = style_new(26, join_id[k], GSHSCENE_STROKE_CAP_BUTT);
+    stroke_map(L, zigzag(x, 90, 330, 120), NULL, &st, ink);
+    GSHSCENE_Stroke_Style th = style_new(1.5, GSHSCENE_STROKE_JOIN_MITER, GSHSCENE_STROKE_CAP_BUTT);
+    stroke_map(L, zigzag(x, 90, 330, 120), NULL, &th, solid(1, 1, 1, 1));
+    label_c(L, join_name[k], 18, x + 165, 235, 0.2);
+  }
+
+  /* Caps: butt, round, square on a line, the endpoints marked. */
+  static const char * cap_name[3] = {"butt", "round", "square"};
+  static const uint32_t cap_id[3] = {GSHSCENE_STROKE_CAP_BUTT, GSHSCENE_STROKE_CAP_ROUND, GSHSCENE_STROKE_CAP_SQUARE};
+  for (int k = 0; k < 3; k++) {
+    double x = 60 + k * 390, y = 300;
+    GSHGEOM_Path * p = path_new();
+    gshgeom_path_move_to(p, P(x, y));
+    gshgeom_path_line_to(p, P(x + 290, y));
+    GSHSCENE_Stroke_Style st = style_new(34, GSHSCENE_STROKE_JOIN_MITER, cap_id[k]);
+    stroke_map(L, intern(p), NULL, &st, ink);
+    fill(L, circle(x, y, 3), guide);
+    fill(L, circle(x + 290, y, 3), guide);
+    label_c(L, cap_name[k], 18, x + 145, y + 36, 0.2);
+  }
+
+  /* Dashes: a pattern on a curve, with round caps making dots, and an offset. */
+  {
+    double dash_a[2] = {28, 16};
+    GSHSCENE_Stroke_Style st = style_new(10, GSHSCENE_STROKE_JOIN_ROUND, GSHSCENE_STROKE_CAP_BUTT);
+    st.dashes = dash_a;
+    st.dash_count = 2;
+    stroke_map(L, scurve(40, 420, 340, 70), NULL, &st, ink);
+    label_c(L, "dashes 28 on, 16 off", 18, 210, 520, 0.2);
+    double dash_b[2] = {0.01, 22};
+    GSHSCENE_Stroke_Style dots = style_new(12, GSHSCENE_STROKE_JOIN_ROUND, GSHSCENE_STROKE_CAP_ROUND);
+    dots.dashes = dash_b;
+    dots.dash_count = 2;
+    stroke_map(L, scurve(430, 420, 340, 70), NULL, &dots, guide);
+    label_c(L, "round dots", 18, 600, 520, 0.2);
+    double dash_c[4] = {30, 10, 6, 10};
+    GSHSCENE_Stroke_Style dd = style_new(8, GSHSCENE_STROKE_JOIN_MITER, GSHSCENE_STROKE_CAP_SQUARE);
+    dd.dashes = dash_c;
+    dd.dash_count = 4;
+    dd.dash_offset = 20;
+    stroke_map(L, scurve(820, 420, 340, 70), NULL, &dd, ink);
+    label_c(L, "dash-dot, square caps, offset", 18, 990, 520, 0.2);
+  }
+
+  /* Widths in both spaces under a non-uniform map: the local pen is an ellipse; the device pen stays round. */
+  {
+    GSHGEOM_Map sc;
+    gshgeom_map_scale(2, 2.4, 0.9, 1.0, &sc);
+    GSHGEOM_Map mv, m;
+    for (int k = 0; k < 2; k++) {
+      gshgeom_map_translate(2, 60 + k * 400, 590, 0, &mv);
+      gshgeom_map_compose(&mv, &sc, &m);
+      GSHGEOM_Path * p = path_new();
+      add_circle(p, 50, 60, 42);
+      GSHSCENE_Stroke_Style st = style_new(k ? 14 : 8, GSHSCENE_STROKE_JOIN_ROUND, GSHSCENE_STROKE_CAP_BUTT);
+      st.width_space = k ? GSHSCENE_STROKE_WIDTH_DEVICE : GSHSCENE_STROKE_WIDTH_LOCAL;
+      stroke_map(L, intern(p), &m, &st, ink);
+    }
+    label_c(L, "local width: an elliptical pen", 18, 60 + 120, 745, 0.2);
+    label_c(L, "device width: 14 pixels all round", 18, 460 + 120, 745, 0.2);
+    /* A hairline: 1 device pixel at any scale. */
+    for (int k = 0; k < 8; k++) {
+      GSHGEOM_Path * p = path_new();
+      gshgeom_path_move_to(p, P(850, 600 + k * 14));
+      gshgeom_path_line_to(p, P(1150, 604 + k * 14 + k * 3));
+      GSHSCENE_Stroke_Style st = style_new(1, GSHSCENE_STROKE_JOIN_MITER, GSHSCENE_STROKE_CAP_BUTT);
+      st.width_space = GSHSCENE_STROKE_WIDTH_DEVICE;
+      stroke_map(L, intern(p), NULL, &st, solid(0.1, 0.1, 0.1, 1));
+    }
+    label_c(L, "device-width hairlines", 18, 1000, 745, 0.2);
+  }
+
+  /* Alignment and a gradient: inside and outside strokes of a star, and a gradient stroke. */
+  {
+    static const char * al_name[3] = {"centered", "inside", "outside"};
+    static const uint32_t al_id[3] = {GSHSCENE_STROKE_ALIGN_CENTER, GSHSCENE_STROKE_ALIGN_INSIDE,
+        GSHSCENE_STROKE_ALIGN_OUTSIDE};
+    for (int k = 0; k < 3; k++) {
+      double cx = 130 + k * 260, cy = 870;
+      fill(L, star(cx, cy, 70), solid(0.8, 0.82, 0.86, 1));
+      GSHSCENE_Stroke_Style st = style_new(18, GSHSCENE_STROKE_JOIN_MITER, GSHSCENE_STROKE_CAP_BUTT);
+      st.alignment = al_id[k];
+      stroke_map(L, star(cx, cy, 70), NULL, &st, solid(0.85, 0.2, 0.1, 0.8));
+      label_c(L, al_name[k], 18, cx, 950, 0.2);
+    }
+    GSHSCENE_Gradient g = grad_new(GSHSCENE_GRADIENT_LINEAR);
+    g.p0[0] = 900;
+    g.p0[1] = 800;
+    g.p1[0] = 1160;
+    g.p1[1] = 940;
+    const GSHSCENE_Gradient_Stop gs[2] = {stop(0, 0.1, 0.3, 0.9, 1), stop(1, 0.95, 0.4, 0.05, 1)};
+    GSHSCENE_Gradient gg = g;
+    gg.stops = gs;
+    gg.stop_count = 2;
+    const GSHSCENE_Resource * gr = NULL;
+    if (gshscene_store_intern_gradient(g_store, &gg, &gr) != GSHSCENE_OK) {
+      fail("intern gradient");
+    } else {
+      GSHSCENE_Paint gp;
+      memset(&gp, 0, sizeof gp);
+      gp.kind = GSHSCENE_PAINT_GRADIENT;
+      gp.rgba[3] = 1.0;
+      gp.gradient = gr;
+      GSHSCENE_Stroke_Style st = style_new(22, GSHSCENE_STROKE_JOIN_ROUND, GSHSCENE_STROKE_CAP_ROUND);
+      stroke_map(L, scurve(900, 810, 250, 100), NULL, &st, gp);
+      gshscene_resource_release(gr);
+    }
+    label_c(L, "a gradient as the stroke's paint", 18, 1030, 950, 0.2);
+  }
+  render("strokes", L, R);
+  save_png(R, "strokes.png");
+  gimg_raster_destroy(R);
+}
+
 int main(int argc, char ** argv) {
   if (argc != 4) {
     fprintf(stderr, "usage: gallery FONTDIR DEJAVU OUTDIR\n");
@@ -1724,6 +1899,7 @@ int main(int argc, char ** argv) {
   image_blend_modes();
   image_color();
   image_gradients();
+  image_strokes();
   image_text(argv[1]);
   image_color_glyphs(argv[1]);
   printf("gallery: %s\n", g_failed ? "FAILED" : "ok");
