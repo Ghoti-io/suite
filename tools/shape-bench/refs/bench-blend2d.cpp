@@ -229,9 +229,28 @@ int submit(void * ctx) {
                             : st.cap == SB_CAP_SQUARE ? BL_STROKE_CAP_SQUARE
                                                       : BL_STROKE_CAP_BUTT);
       c.set_stroke_miter_limit(st.miter);
-      if (c.set_stroke_dash_offset(st.offset) != BL_SUCCESS || c.set_stroke_dash_array(e.dashes[i]) != BL_SUCCESS ||
-          c.stroke_path(e.paths[i], color) != BL_SUCCESS) {
-        std::fprintf(stderr, "bench-blend2d: stroke options refused for item %zu\n", i);
+      if (st.n_dashes) {
+        // The context ignores a dash array in this Blend2D (a probe stroked a dashed line solid), so a dashed stroke goes
+        // through Blend2D's own dasher and stroker, BLPath::add_stroked_path, and the outline is filled.
+        BLStrokeOptions so;
+        so.width = st.width;
+        so.miter_limit = st.miter;
+        so.start_cap = so.end_cap = st.cap == SB_CAP_ROUND ? BL_STROKE_CAP_ROUND
+            : st.cap == SB_CAP_SQUARE                       ? BL_STROKE_CAP_SQUARE
+                                                            : BL_STROKE_CAP_BUTT;
+        so.join = st.join == SB_JOIN_ROUND ? BL_STROKE_JOIN_ROUND
+            : st.join == SB_JOIN_BEVEL     ? BL_STROKE_JOIN_BEVEL
+                                           : BL_STROKE_JOIN_MITER_BEVEL;
+        so.dash_offset = st.offset;
+        so.dash_array = e.dashes[i];
+        BLPath outline;
+        if (outline.add_stroked_path(e.paths[i], so, BLApproximationOptions{}) != BL_SUCCESS ||
+            c.fill_path(outline, color) != BL_SUCCESS) {
+          std::fprintf(stderr, "bench-blend2d: dashed stroke refused for item %zu\n", i);
+          return 2;
+        }
+      } else if (c.stroke_path(e.paths[i], color) != BL_SUCCESS) {
+        std::fprintf(stderr, "bench-blend2d: stroke refused for item %zu\n", i);
         return 2;
       }
       break;
