@@ -112,7 +112,9 @@ leaves out every eighth fill of each of the first two hundred glyphs of the firs
 the glyphs it changes outside the bound, or the gate reports itself blind.
 
 `configs.txt` names the runs: Noto Color Emoji's COLR version 1 build (every glyph at 128 pixels, a sample of two hundred at
-24), Nabla at four instances and a sample at 24, Google's test glyphs and Twemoji. `run-colr.sh` has the phases (`build`,
+24), Nabla at four instances and a sample at 24, Google's test glyphs and Twemoji, and `font`'s committed fixtures (version 0 and
+version 1, the variable ones at the default and at a corner). The fixtures state a left side bearing of zero for outlines that
+start at 40 to 100 units, so they are the runs that hold `font`'s placement of an outline to a renderer's pixels. `run-colr.sh` has the phases (`build`,
 `shape`, `skia` inside Skia's image, `compare`). The fonts are fetched by digest (`libs/font/tools/oracle/colr_real_fonts.py`)
 and are never committed.
 

@@ -18,7 +18,18 @@ test-glyphs-no-cliplist test_glyphs-glyf_colr_1_no_cliplist.ttf 100 128 1 - -
 samples samples-glyf_colr_1.ttf 100 128 1 - -
 twemoji twemoji-glyf_colr_1.ttf 100 128 1 - -
 noto-sample noto-glyf_colr_1.ttf 100 128 1 - -
-# Not here: font's committed fixtures. Their layer glyphs have a left side bearing of 0 in hmtx that is not their xMin,
-# and FreeType (Skia's outline source) moves each such outline by the difference; font's provider draws the outline where
-# its coordinates are, as it does for every real font (whose bearing is its xMin). The fixtures are held to fontTools
-# instead (make check-oracle-colr-scene).
+# font's committed fixtures (tests/data/fonts: color-*.ttf), small fonts of every paint format and the version 0 layers. Their
+# left side bearings are not their xMin (the generator states zero), so each outline is placed by the difference as FreeType, Skia's
+# outline source, places it: this is the gate that holds font's placement to a renderer's pixels. The variable ones at their
+# default instance and at the corner (wght 900, wdth 75) where the paints and the outlines both move.
+fixture-v1 color-v1.ttf 100 128 1 - -
+fixture-v1-scene color-v1-scene.ttf 100 128 1 - -
+fixture-v0 color-v0.ttf 100 128 1 - -
+fixture-v0-edges color-v0-edges.ttf 100 128 1 - -
+fixture-cpal0 color-cpal0.ttf 100 128 1 - -
+fixture-v1-var color-v1-var.ttf 100 128 1 - -
+fixture-v1-var-corner color-v1-var.ttf 100 128 1 16384,-16384 wght=900,wdth=75
+fixture-v1-varmap color-v1-varmap.ttf 100 128 1 - -
+fixture-v1-varmap-corner color-v1-varmap.ttf 100 128 1 16384,-16384 wght=900,wdth=75
+fixture-v1-varnone color-v1-varnone.ttf 100 128 1 - -
+fixture-v1-varnone-corner color-v1-varnone.ttf 100 128 1 16384,-16384 wght=900,wdth=75

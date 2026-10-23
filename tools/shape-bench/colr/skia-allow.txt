@@ -55,17 +55,10 @@ noto-sample 3678 edge antialiasing only: mean 1.01 over the cell, no pixel outsi
 noto-sample 3680 edge antialiasing only: mean 1.01 over the cell, no pixel outside its neighbourhood's range
 noto-sample 3687 edge antialiasing only: mean 1.04 over the cell, no pixel outside its neighbourhood's range
 noto-sample 3694 edge antialiasing only: mean 1.06 over the cell, no pixel outside its neighbourhood's range
-test-glyphs-no-cliplist 148 outline 100 units left of FreeType's: the glyph has a left side bearing of 100 and a header xMin of 0, and font's glyf provider does not move an outline by their difference as FreeType and fontTools do (shifted 10 pixels the outline matches Skia's, 154 and 155 exactly)
-test-glyphs-no-cliplist 149 same reason as 148 (the glyph's left side bearing is not its xMin)
-test-glyphs-no-cliplist 150 same reason as 148 (the glyph's left side bearing is not its xMin)
-test-glyphs-no-cliplist 151 same reason as 148 (the glyph's left side bearing is not its xMin)
-test-glyphs-no-cliplist 152 same reason as 148 (the glyph's left side bearing is not its xMin)
-test-glyphs-no-cliplist 153 same reason as 148 (the glyph's left side bearing is not its xMin)
-test-glyphs-no-cliplist 154 same reason as 148 (the glyph's left side bearing is not its xMin)
-test-glyphs-no-cliplist 155 same reason as 148 (the glyph's left side bearing is not its xMin)
 twemoji 106 edge antialiasing only: mean 1.02 over the cell, no pixel outside its neighbourhood's range
 twemoji 163 edge antialiasing only: mean 1.02 over the cell, no pixel outside its neighbourhood's range
 twemoji 302 edge antialiasing only: mean 1.08 over the cell, no pixel outside its neighbourhood's range
 twemoji 304 edge antialiasing only: mean 1.08 over the cell, no pixel outside its neighbourhood's range
 twemoji 502 edge antialiasing only: mean 1.12 over the cell, no pixel outside its neighbourhood's range
 twemoji 1778 edge antialiasing only: mean 1.16 over the cell, no pixel outside its neighbourhood's range
+fixture-v1-scene 13 two layers with alpha 1.5 and -0.5, out of range: font clamps to [0, 1] (the OpenType text reserves other values) and Skia does not; the same font with the alphas clamped to 1 and 0 is inside the bound (mean 0.035)
