@@ -11,7 +11,8 @@
 # (libs/shape-cpu/tools/exact-dual.c: both steps on every cell, the differing cells recorded; exact-frozen.c: the earlier step
 # alone) stand between the scan converter and the step.  Each drawing is drawn three ways: as it is, with the earlier step in
 # its place, and with both steps compared cell by cell.  Writes OUT/summary.txt: for every drawing the pixels that differ between
-# the first two (the targets compared byte for byte), the cells that differ, and tools/check-dual-cells.py's verdict on those
+# the first two (the targets compared byte for byte, and for an image the pixels that differ and by how many levels at most,
+# which is one at most where the two steps round an exact tie differently), the cells that differ, and tools/check-dual-cells.py's verdict on those
 # cells against the exact area in rational arithmetic.  The earlier step's winding bound is raised to 32767 so that it follows
 # the text, which is deeper than its 255.
 
@@ -125,6 +126,9 @@ drawing() {
       if cmp -s "$f" "$OUT/old/$name/files/$b"; then :; else
         differing=$((differing + 1))
         echo "  differs between the steps: $b ($(cmp -l "$f" "$OUT/old/$name/files/$b" 2> /dev/null | wc -l) bytes)"
+        case $b in
+          *.png | *.pam) python3 -I "$T/pixel-diff.py" "$f" "$OUT/old/$name/files/$b" 1 || echo "  pixel-diff: MORE THAN ONE LEVEL (or not comparable)" ;;
+        esac
       fi
     done
     if [ "${STDOUT_CMP:-0}" = 1 ]; then
