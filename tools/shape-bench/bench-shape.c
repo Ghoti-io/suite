@@ -1244,6 +1244,46 @@ static int run(const char * dir, const char * out) {
   return failures ? 1 : 0;
 }
 
+/* ---------------------------------------------------------------- frame */
+
+/*
+ * One frame of each named scene with shape-cpu, written as PAMs and nothing timed: for a census of the cells the exact step
+ * handles (libs/shape-cpu/tools/exact-census.c), and for comparing two builds of the step byte for byte.  The names are those
+ * of the scenes in the directory (strokes, strokes-dashed, ...); none named is every scene.
+ */
+static int frames(const char * dir, const char * out, int count, char ** names) {
+  int failures = 0;
+  for (size_t i = 0; i < N_SCENES; i++) {
+    int named = count == 0;
+    for (int k = 0; k < count; k++) {
+      named = named || !strcmp(names[k], SCENES[i]);
+    }
+    if (!named) {
+      continue;
+    }
+    char path[1024], err[256], pam[1024];
+    SB_Scene s;
+    snprintf(path, sizeof path, "%s/%s.scene", dir, SCENES[i]);
+    if (sb_scene_load(path, &s, err, sizeof err)) {
+      fprintf(stderr, "bench-shape: %s: %s\n", path, err);
+      return 1;
+    }
+    Shape e;
+    int rc = shape_setup(&e, &s, dir, 0);
+    if (rc == 0 && !(rc = shape_clear(&e)) && !(rc = shape_build(&e)) && !(rc = shape_submit(&e))) {
+      snprintf(pam, sizeof pam, "%s/shape-cpu.%s.frame.pam", out, s.name);
+      rc = sb_write_pam(pam, s.width, s.height, e.pixels, e.stride, 0);
+    }
+    if (rc) {
+      fprintf(stderr, "bench-shape: shape-cpu failed on %s (%d)\n", s.name, rc);
+      failures++;
+    }
+    shape_teardown(&e);
+    sb_scene_free(&s);
+  }
+  return failures ? 1 : 0;
+}
+
 int main(int argc, char ** argv) {
   if (argc == 4 && !strcmp(argv[1], "emit")) {
     return emit(argv[2], argv[3]);
@@ -1251,6 +1291,9 @@ int main(int argc, char ** argv) {
   if (argc == 4 && !strcmp(argv[1], "run")) {
     return run(argv[2], argv[3]);
   }
-  fprintf(stderr, "usage: bench-shape emit DIR FONT | bench-shape run DIR OUT\n");
+  if (argc >= 4 && !strcmp(argv[1], "frame")) {
+    return frames(argv[2], argv[3], argc - 4, argv + 4);
+  }
+  fprintf(stderr, "usage: bench-shape emit DIR FONT | bench-shape run DIR OUT | bench-shape frame DIR OUT [SCENE...]\n");
   return 2;
 }

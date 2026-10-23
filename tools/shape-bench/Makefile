@@ -29,11 +29,16 @@ endif
 
 BENCH_CFLAGS := -std=c17 -O2 -g -Wall -Wextra -Werror -ffp-contract=off
 
-all: $(BUILD_DIR)/bench-shape $(BUILD_DIR)/pamdiff $(BUILD_DIR)/corroborate
+all: $(BUILD_DIR)/bench-shape $(BUILD_DIR)/pamdiff $(BUILD_DIR)/corroborate $(BUILD_DIR)/stroke-text
 
 $(BUILD_DIR)/bench-shape: bench-shape.c scene.c scene.h Makefile
 	@mkdir -p $(@D)
 	$(CC) $(BENCH_CFLAGS) $(PKG_CFLAGS) -o $@ bench-shape.c scene.c $(PKG_LIBS) $(RPATH) -lm
+
+# Stroked text through shape-cpu, a line at a time (stroke-text.c): the densest everyday input of the exact union step.
+$(BUILD_DIR)/stroke-text: stroke-text.c Makefile
+	@mkdir -p $(@D)
+	$(CC) $(BENCH_CFLAGS) $(PKG_CFLAGS) -o $@ stroke-text.c $(PKG_LIBS) $(RPATH) -lm
 
 $(BUILD_DIR)/pamdiff: pamdiff.c Makefile
 	@mkdir -p $(@D)
