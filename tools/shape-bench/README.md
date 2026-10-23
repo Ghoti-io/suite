@@ -140,8 +140,9 @@ Three drivers draw a picture's scene, by their public API only, and two further 
   `shape-cpu` draws it. `run.sh pictures` runs it through `SHAPE_BENCH_NATIVE_CMD`.
 - Blend2D (`refs/bench-blend2d.cpp`): groups are `BLImage` layers of the extent blitted with the group's comp-op and its opacity
   as the global alpha; a path clip is a layer multiplied by the path's coverage (`BL_COMP_OP_DST_IN`); a sweep over part of a
-  turn is the color line sampled into stops over one turn of the conic gradient; dashes are made by `BLPath::add_stroked_path`,
-  because this version's context draws a dash array solid.
+  turn is the color line sampled into stops over one turn of the conic gradient; a dashed stroke is made by
+  `BLPath::add_stroked_path` with the dash array, which this version also draws solid, so Blend2D's pictures have solid
+  strokes where the others have dashes.
 - Skia (`refs/bench-skia.cpp`): `saveLayer` with a paint holding the blend mode and the opacity, `clipPath`, `SkShaders` for every
   gradient.
 

@@ -69,8 +69,9 @@
  *              filled opaque into a second layer, and the first is multiplied by the second's coverage (BL_COMP_OP_DST_IN)
  *              before it is blitted source-over.
  *   joins      SVG 2's miter-clip is BL_STROKE_JOIN_MITER_CLIP; arcs has no Blend2D join and is drawn BL_STROKE_JOIN_MITER_BEVEL.
- *   dashes     this Blend2D's context accepts a dash array and strokes solid (see the strokes-dashed scene), so a dashed
- *              stroke is made by BLPath::add_stroked_path with the dash array in BLStrokeOptions, in the frame, and filled.
+ *   dashes     this Blend2D's context accepts a dash array and strokes solid (see the strokes-dashed scene); the same dash
+ *              array in BLStrokeOptions through BLPath::add_stroked_path, in the frame, was tried and also strokes solid
+ *              (the pictures show it), so a dashed stroke is drawn solid and the record lists it.
  */
 
 #if __has_include(<blend2d/blend2d.h>)

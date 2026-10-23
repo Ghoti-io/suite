@@ -114,8 +114,9 @@ def differences(facts, emit_notes):
                  "state it; Blend2D through its start radius" % (facts["radial_start_radius"],
                                                                 "" if facts["radial_start_radius"] == 1 else "s"))
     if facts["dashed"]:
-        d.append("%d dashed stroke%s: Blend2D's context draws a dash array solid (see README), so its dashes are made by "
-                 "BLPath::add_stroked_path in the frame and filled; Skia dashes with SkDashPathEffect" % (
+        d.append("%d dashed stroke%s: this Blend2D draws a dash array solid, through the context and through "
+                 "BLPath::add_stroked_path alike (the dash array in BLStrokeOptions), so its picture has solid strokes where "
+                 "shape-cpu and Skia (SkDashPathEffect) have dashes, and its time is for solid strokes" % (
                      facts["dashed"], "" if facts["dashed"] == 1 else "s"))
     d.append("Gradients are interpolated in the target's encoded values straight; a gradient shape-cpu interpolates in "
              "linear light is sampled into 16 encoded stops in the scene (the nearest the references have)")

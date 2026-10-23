@@ -1,0 +1,1734 @@
+{
+ "format": "shape-bench-results 1",
+ "kind": "pictures",
+ "date": "2026-10-23",
+ "tag": "showcase",
+ "generated_by": "suite/tools/shape-bench/report-pictures.py",
+ "protocol": {
+  "threads": 1,
+  "warmup": "at least 5 frames and 0.25 s",
+  "timed_frames": 31,
+  "statistic": "median of the timed frames of a repetition; the whole run (every engine) repeated, and the figure is the median of the repetitions' medians, with their spread (max - min) / median",
+  "timed": "from the engine's first call until its output is complete; the clear to the background is not timed",
+  "build": "shape-cpu: recording the list from resources interned once; Blend2D and Skia draw immediately and have no build step",
+  "cold": "the first frame on an engine with nothing cached (shape-cpu's expansion cache of the strokes empty), one frame a repetition, before the warm-up; the scene arm's is the first frame of its process, the picture's-own-list arm's follows that process's render of the picture (code and memory warm, the sink new)",
+  "target": "caller-owned 8-bit RGBA premultiplied (Blend2D: BGRA in memory, its PRGB32), source-over, no dithering",
+  "reference_picture": "shape-cpu's own picture, the PNG of the list as recorded (not the scene arm's frame)",
+  "pixel_thresholds_levels": [
+   1,
+   4,
+   16
+  ],
+  "pixel_measure": "largest difference over R, G and B of the pixel; share of the pixels past each threshold",
+  "limits": "one run on one machine; there is no speed threshold (AD-28)"
+ },
+ "shipped": [
+  "cutil 40b429e clean",
+  "security 0b10e40 clean",
+  "compress f79a28c clean",
+  "unicode 613b976 clean",
+  "color e6d4b6b clean",
+  "image 473e4caf clean",
+  "math e2bf426 clean",
+  "shape-geometry f51564f clean",
+  "shape-scene 1484ce6 clean",
+  "shape-cpu 729c874 clean",
+  "font 7d91b24 clean",
+  "suite 2316917 clean"
+ ],
+ "engines": {
+  "shape-cpu-native": {
+   "engine": "shape-cpu-native",
+   "image": "ghoti-build:gcc16",
+   "image_id": "sha256:80878e37915cd8dcac59a79fccf42198d9bc47f78b7924d85eb9da01b46d1a72",
+   "cpu_model": "AMD RYZEN AI MAX+ 395 w/ Radeon 8060S",
+   "arch": "x86_64",
+   "cpus_online": "32",
+   "governor": "powersave",
+   "boost": "1",
+   "pinned_cpu": "8",
+   "nice": "the container runs at the default priority, its only competition what the busiest processes show",
+   "before": "time: 2026-10-23T23:07:20Z\nloadavg: 1.10 1.13 0.91 2/1064 32324\nother containers running: 6\nbusiest processes' %CPU: 5.9 1.0 1.0 1.0 1.0 1.0\n",
+   "after": "time: 2026-10-23T23:16:19Z\nloadavg: 1.13 1.17 1.03 1/1054 1106\nother containers running: 6\nbusiest processes' %CPU: 5.9 1.0 1.0 1.0 1.0 0.0\n",
+   "repetitions": [
+    {
+     "before": "time: 2026-10-23T23:07:20Z\nloadavg: 1.10 1.13 0.91 2/1064 32324\nother containers running: 6\nbusiest processes' %CPU: 5.9 1.0 1.0 1.0 1.0 1.0\n",
+     "after": "time: 2026-10-23T23:16:19Z\nloadavg: 1.13 1.17 1.03 1/1054 1106\nother containers running: 6\nbusiest processes' %CPU: 5.9 1.0 1.0 1.0 1.0 0.0\n"
+    },
+    {
+     "before": "time: 2026-10-23T23:25:21Z\nloadavg: 1.23 1.18 1.09 1/1057 3101\nother containers running: 6\nbusiest processes' %CPU: 5.9 1.0 1.0 1.0 0.0 0.0\n",
+     "after": "time: 2026-10-23T23:34:18Z\nloadavg: 1.12 1.14 1.09 1/1058 4510\nother containers running: 6\nbusiest processes' %CPU: 6.9 1.0 1.0 1.0 1.0 1.0\n"
+    },
+    {
+     "before": "time: 2026-10-23T23:43:19Z\nloadavg: 1.14 1.15 1.10 1/1060 6786\nother containers running: 6\nbusiest processes' %CPU: 7.9 1.0 0.0 0.0 0.0 0.0\n",
+     "after": "time: 2026-10-23T23:52:16Z\nloadavg: 1.24 1.14 1.10 1/1052 7983\nother containers running: 6\nbusiest processes' %CPU: 5.9 1.0 1.0 1.0 1.0 1.0\n"
+    }
+   ],
+   "driver_log": [],
+   "build": {
+    "compiler": "gcc (GCC) 16.2.0",
+    "flags": "gcc -std=c17 -D_DEFAULT_SOURCE -O2 -Wall -Wextra -Wno-unused-function",
+    "font_DejaVuSans": "7da195a74c55bef988d0d48f9508bd5d849425c1770dba5d7bfc6ce9ed848954",
+    "font_DejaVuSans_Bold": "a4c5bc453ca281d90ea079e596da7ae0dfeb5777497c29ec254e76d97ff6f890",
+    "font_DejaVuSerif_BoldItalic": "ed336a3d81f5a2d6a3d12c16dda400b28ba7304792254fc9e96c0d6835fbeab2",
+    "font_color_v1_scene": "b8dc698c6a20757e89cdcdc3cf09495d12dc24fc5e77d0912270bb8c25794dd9"
+   }
+  },
+  "shape-cpu": {
+   "engine": "shape-cpu",
+   "image": "ghoti-build:gcc16",
+   "image_id": "sha256:80878e37915cd8dcac59a79fccf42198d9bc47f78b7924d85eb9da01b46d1a72",
+   "cpu_model": "AMD RYZEN AI MAX+ 395 w/ Radeon 8060S",
+   "arch": "x86_64",
+   "cpus_online": "32",
+   "governor": "powersave",
+   "boost": "1",
+   "pinned_cpu": "8",
+   "nice": "the container runs at the default priority, its only competition what the busiest processes show",
+   "before": "time: 2026-10-23T22:58:20Z\nloadavg: 1.40 1.02 0.66 1/1071 30486\nother containers running: 6\nbusiest processes' %CPU: 5.9 1.0 1.0 1.0 1.0 0.0\n",
+   "after": "time: 2026-10-23T23:06:53Z\nloadavg: 1.16 1.14 0.90 1/1053 31665\nother containers running: 6\nbusiest processes' %CPU: 5.9 1.0 1.0 1.0 0.0 0.0\n",
+   "base": "docker.io/library/gcc:16.2.0@sha256:3f73339bf0d3d64081cac3f6d9fdafc6dd4cef2b9c49e0a09f91e97cb0eb139a",
+   "repetitions": [
+    {
+     "before": "time: 2026-10-23T22:58:20Z\nloadavg: 1.40 1.02 0.66 1/1071 30486\nother containers running: 6\nbusiest processes' %CPU: 5.9 1.0 1.0 1.0 1.0 0.0\n",
+     "after": "time: 2026-10-23T23:06:53Z\nloadavg: 1.16 1.14 0.90 1/1053 31665\nother containers running: 6\nbusiest processes' %CPU: 5.9 1.0 1.0 1.0 0.0 0.0\n"
+    },
+    {
+     "before": "time: 2026-10-23T23:16:20Z\nloadavg: 1.13 1.17 1.03 2/1054 1175\nother containers running: 6\nbusiest processes' %CPU: 5.9 1.0 1.0 1.0 1.0 1.0\n",
+     "after": "time: 2026-10-23T23:24:53Z\nloadavg: 1.16 1.16 1.09 1/1055 2368\nother containers running: 6\nbusiest processes' %CPU: 6.9 2.0 1.0 1.0 1.0 1.0\n"
+    },
+    {
+     "before": "time: 2026-10-23T23:34:20Z\nloadavg: 1.12 1.14 1.09 1/1058 4577\nother containers running: 6\nbusiest processes' %CPU: 6.9 1.0 1.0 0.0 0.0 0.0\n",
+     "after": "time: 2026-10-23T23:42:52Z\nloadavg: 1.19 1.16 1.10 1/1056 6134\nother containers running: 6\nbusiest processes' %CPU: 6.9 1.0 1.0 1.0 1.0 1.0\n"
+    }
+   ],
+   "driver_log": [
+    "compiler: gcc (GCC) 16.2.0"
+   ],
+   "build": {
+    "compiler": "gcc (GCC) 16.2.0",
+    "harness_flags": "cc -std=c17 -O2 -g -Wall -Wextra -Werror -ffp-contract=off",
+    "shape-cpu_flags": "cc g++ -pedantic-errors -Wall -Wextra -Werror -Wfloat-conversion -fstrict-aliasing -Wstrict-aliasing=1 -Wno-error=unused-function -Wfatal-errors -std=c17 -O2 -ffp-contract=off  -g  -fvisibility=hidden -DGSHCPU_BUILD  -fPIC -pedantic-errors -Wall -Wextra -Werror -Wfloat-conversion -fstrict-aliasing -Wstrict-aliasing=1 -Wno-error=unused-function -Wfatal-errors -std=c17 -O2 -ffp-contract=off  -g  -pedantic-errors -Wall -Wextra -Werror -Wno-error=unused-function -Wfatal-errors -std=c++20 -O1 -g -ffp-contract=off   -L /usr/lib -lstdc++ -lm  -Wl,-rpath,/work/prefix/lib/ghoti.io -I include/ -I ./build/linux/release/generated/ -I/work/prefix/include/ghoti.io/cutil-0 -I/work/prefix/include/ghoti.io/color-0 -I/work/prefix/include/ghoti.io/security-0 -I/work/prefix/include/ghoti.io/math-0 -I/work/prefix/include/ghoti.io/image-0 -I/work/prefix/include/ghoti.io/compress-0 -I/work/prefix/include/ghoti.io/shape-geometry-0 -I/work/prefix/include/ghoti.io/shape-scene-0  -Wl,--whole-archive ./build/linux/release/apps/libghoti.io-shape-cpu-0.a -Wl,--no-whole-archive -L/work/prefix/lib/ghoti.io -lghoti.io-shape-scene-0 -lghoti.io-image-0 -lghoti.io-compress-0 -lghoti.io-color-0 -lghoti.io-security-0 -lghoti.io-shape-geometry-0 -lghoti.io-math-0 -lghoti.io-cutil-0  -L/work/prefix/lib/ghoti.io -lghoti.io-shape-scene-0 -lghoti.io-image-0 -lghoti.io-compress-0 -lghoti.io-color-0 -lghoti.io-security-0 -lghoti.io-shape-geometry-0 -lghoti.io-math-0 -lghoti.io-cutil-0  -Wl,--as-needed `PKG_CONFIG_PATH=/work/prefix/share/pkgconfig:/work/prefix/lib/pkgconfig:/work/prefix/share/pkgconfig pkg-config --libs --cflags gtest`  -Wl,-soname,libghoti.io-shape-cpu-0.so.0",
+    "font_flags": "cc g++ -pedantic-errors -Wall -Wextra -Werror -Wfloat-conversion -fstrict-aliasing -Wstrict-aliasing=1 -Wno-error=unused-function -Wfatal-errors -std=c17 -O2 -g  -fvisibility=hidden -DGFNT_BUILD  -fPIC -pedantic-errors -Wall -Wextra -Werror -Wfloat-conversion -fstrict-aliasing -Wstrict-aliasing=1 -Wno-error=unused-function -Wfatal-errors -std=c17 -O2 -g  -pedantic-errors -Wall -Wextra -Werror -Wno-error=unused-function -Wfatal-errors -std=c++20 -O1 -g  -L /usr/lib -lstdc++ -lm  -Wl,-rpath,/work/prefix/lib/ghoti.io -I include/ -I ./build/linux/release/generated/ -I/work/prefix/include/ghoti.io/cutil-0  -I/work/prefix/include/ghoti.io/compress-0 -I/work/prefix/include/ghoti.io/cutil-0 -I/work/prefix/include/ghoti.io/security-0  -I/work/prefix/include/ghoti.io/unicode-0 -I/work/prefix/include/ghoti.io/cutil-0  -I/work/prefix/include/ghoti.io/image-0 -I/work/prefix/include/ghoti.io/compress-0 -I/work/prefix/include/ghoti.io/cutil-0 -I/work/prefix/include/ghoti.io/security-0 -I/work/prefix/include/ghoti.io/color-0  -I/work/prefix/include/ghoti.io/shape-geometry-0 -I/work/prefix/include/ghoti.io/cutil-0 -I/work/prefix/include/ghoti.io/math-0  -I/work/prefix/include/ghoti.io/shape-cpu-0 -I/work/prefix/include/ghoti.io/cutil-0 -I/work/prefix/include/ghoti.io/color-0 -I/work/prefix/include/ghoti.io/security-0 -I/work/prefix/include/ghoti.io/math-0 -I/work/prefix/include/ghoti.io/image-0 -I/work/prefix/include/ghoti.io/compress-0 -I/work/prefix/include/ghoti.io/shape-geometry-0 -I/work/prefix/include/ghoti.io/shape-scene-0  -I/work/prefix/include/ghoti.io/shape-scene-0 -I/work/prefix/include/ghoti.io/cutil-0 -I/work/prefix/include/ghoti.io/color-0 -I/work/prefix/include/ghoti.io/security-0 -I/work/prefix/include/ghoti.io/math-0 -I/work/prefix/include/ghoti.io/image-0 -I/work/prefix/include/ghoti.io/compress-0 -I/work/prefix/include/ghoti.io/shape-geometry-0  /work/ws/libs/font/tests/data -Wl,--whole-archive ./build/linux/release/apps/libghoti.io-font-0.a -Wl,--no-whole-archive -L/work/prefix/lib/ghoti.io -lghoti.io-cutil-0  -L/work/prefix/lib/ghoti.io -lghoti.io-compress-0 -lghoti.io-security-0 -lghoti.io-cutil-0  -L/work/prefix/lib/ghoti.io -lghoti.io-unicode-0 -lghoti.io-cutil-0  -L/work/prefix/lib/ghoti.io -lghoti.io-image-0 -lghoti.io-compress-0 -lghoti.io-color-0 -lghoti.io-security-0 -lghoti.io-cutil-0  -L/work/prefix/lib/ghoti.io -lghoti.io-shape-cpu-0 -lghoti.io-shape-scene-0 -lghoti.io-image-0 -lghoti.io-compress-0 -lghoti.io-color-0 -lghoti.io-security-0 -lghoti.io-shape-geometry-0 -lghoti.io-math-0 -lghoti.io-cutil-0  -L/work/prefix/lib/ghoti.io -lghoti.io-shape-scene-0 -lghoti.io-image-0 -lghoti.io-compress-0 -lghoti.io-color-0 -lghoti.io-security-0 -lghoti.io-shape-geometry-0 -lghoti.io-math-0 -lghoti.io-cutil-0  -L/work/prefix/lib/ghoti.io -lghoti.io-shape-geometry-0 -lghoti.io-math-0 -lghoti.io-cutil-0  -L/work/prefix/lib/ghoti.io -lghoti.io-cutil-0  -L/work/prefix/lib/ghoti.io -lghoti.io-compress-0 -lghoti.io-security-0 -lghoti.io-cutil-0  -L/work/prefix/lib/ghoti.io -lghoti.io-unicode-0 -lghoti.io-cutil-0  -L/work/prefix/lib/ghoti.io -lghoti.io-image-0 -lghoti.io-compress-0 -lghoti.io-color-0 -lghoti.io-security-0 -lghoti.io-cutil-0  -L/work/prefix/lib/ghoti.io -lghoti.io-shape-cpu-0 -lghoti.io-shape-scene-0 -lghoti.io-image-0 -lghoti.io-compress-0 -lghoti.io-color-0 -lghoti.io-security-0 -lghoti.io-shape-geometry-0 -lghoti.io-math-0 -lghoti.io-cutil-0  -L/work/prefix/lib/ghoti.io -lghoti.io-shape-scene-0 -lghoti.io-image-0 -lghoti.io-compress-0 -lghoti.io-color-0 -lghoti.io-security-0 -lghoti.io-shape-geometry-0 -lghoti.io-math-0 -lghoti.io-cutil-0  -L/work/prefix/lib/ghoti.io -lghoti.io-shape-geometry-0 -lghoti.io-math-0 -lghoti.io-cutil-0  `PKG_CONFIG_PATH=/work/prefix/share/pkgconfig:/work/prefix/lib/pkgconfig:/work/prefix/share/pkgconfig pkg-config --libs --cflags gtest`  -Wl,--as-needed -Wl,-soname,libghoti.io-font-0.so.0",
+    "font_file": "DejaVuSans.ttf 2.37 sha256 7da195a74c55bef988d0d48f9508bd5d849425c1770dba5d7bfc6ce9ed848954"
+   }
+  },
+  "blend2d": {
+   "engine": "blend2d",
+   "image": "localhost/ghoti-shape-bench-blend2d:0.21.3-2",
+   "image_id": "sha256:308b23a1cc80a122e5308c716803e8a1e0f13a75142f6e02ca1c77ba83caa7d5",
+   "cpu_model": "AMD RYZEN AI MAX+ 395 w/ Radeon 8060S",
+   "arch": "x86_64",
+   "cpus_online": "32",
+   "governor": "powersave",
+   "boost": "1",
+   "pinned_cpu": "8",
+   "nice": "the container runs at the default priority, its only competition what the busiest processes show",
+   "before": "time: 2026-10-23T23:06:54Z\nloadavg: 1.16 1.14 0.90 1/1053 31732\nother containers running: 6\nbusiest processes' %CPU: 6.9 1.0 1.0 1.0 1.0 0.0\n",
+   "after": "time: 2026-10-23T23:07:01Z\nloadavg: 1.13 1.14 0.90 1/1055 31943\nother containers running: 6\nbusiest processes' %CPU: 5.9 1.0 1.0 1.0 0.0 0.0\n",
+   "repetitions": [
+    {
+     "before": "time: 2026-10-23T23:06:54Z\nloadavg: 1.16 1.14 0.90 1/1053 31732\nother containers running: 6\nbusiest processes' %CPU: 6.9 1.0 1.0 1.0 1.0 0.0\n",
+     "after": "time: 2026-10-23T23:07:01Z\nloadavg: 1.13 1.14 0.90 1/1055 31943\nother containers running: 6\nbusiest processes' %CPU: 5.9 1.0 1.0 1.0 0.0 0.0\n"
+    },
+    {
+     "before": "time: 2026-10-23T23:24:54Z\nloadavg: 1.16 1.16 1.09 2/1055 2468\nother containers running: 6\nbusiest processes' %CPU: 6.9 1.0 1.0 1.0 1.0 0.0\n",
+     "after": "time: 2026-10-23T23:25:02Z\nloadavg: 1.21 1.17 1.09 1/1056 2715\nother containers running: 6\nbusiest processes' %CPU: 6.9 1.0 0.0 0.0 0.0 0.0\n"
+    },
+    {
+     "before": "time: 2026-10-23T23:42:53Z\nloadavg: 1.19 1.16 1.10 1/1056 6201\nother containers running: 6\nbusiest processes' %CPU: 6.9 1.0 1.0 1.0 1.0 0.0\n",
+     "after": "time: 2026-10-23T23:43:00Z\nloadavg: 1.17 1.16 1.10 4/1062 6449\nother containers running: 6\nbusiest processes' %CPU: 5.9 1.0 1.0 1.0 1.0 1.0\n"
+    }
+   ],
+   "driver_log": [
+    "driver: clang++-19 -std=c++20 -O2 -DBL_STATIC -I/opt/blend2d/include (scene.c: clang-19 -std=c17 -O2)",
+    "blend2d 58ca9460b4138af6e793184682e9324e0a8053b2",
+    "asmjit 6a6cca88d6dccef4c5c1d258b9e12d8699dff842",
+    "base docker.io/library/debian:13-slim@sha256:7792b1f7702a86946cd518db72b6a407302c3e9bc1635634368b878189e8221c",
+    "snapshot 20261012T000000Z",
+    "Debian clang version 19.1.7 (3+b1)",
+    "flags \"command\": \"/usr/bin/clang++-19  -I/src/blend2d -I/src/blend2d/3rdparty/asmjit -O3 -DNDEBUG -std=gnu++20 -fvisibility=hidden -fno-math-errno -fno-threadsafe-statics -fno-exceptions -fno-rtti -fno-semantic-interposition -fno-trapping-math -fno-finite-math-only -mllvm --disable-loop-idiom-all -DBL_BUILD_OPT_AVX512 -Wall -Wextra -Wconversion -Wdouble-promotion -Wlogical-not-parentheses -DASMJIT_NO_FOREIGN -DASMJIT_NO_STDCXX -DASMJIT_ABI_NAMESPACE=abi_bl -O2 -fmerge-all-constants -ftree-vectorize -DBL_STATIC -DASMJIT_STATIC -o CMakeFiles/blend2d.dir/blend2d/core/context.cpp.o -c /src/blend2d/blend2d/core/context.cpp\""
+   ],
+   "blend2d": "58ca9460b4138af6e793184682e9324e0a8053b2",
+   "asmjit": "6a6cca88d6dccef4c5c1d258b9e12d8699dff842",
+   "base": "docker.io/library/debian:13-slim@sha256:7792b1f7702a86946cd518db72b6a407302c3e9bc1635634368b878189e8221c",
+   "snapshot": "20261012T000000Z"
+  },
+  "skia": {
+   "engine": "skia",
+   "image": "localhost/ghoti-shape-bench-skia:m156-2",
+   "image_id": "sha256:a418293d1dbd92dd81debcbf9439ff92f488679997423a1f9e01363bff52162b",
+   "cpu_model": "AMD RYZEN AI MAX+ 395 w/ Radeon 8060S",
+   "arch": "x86_64",
+   "cpus_online": "32",
+   "governor": "powersave",
+   "boost": "1",
+   "pinned_cpu": "8",
+   "nice": "the container runs at the default priority, its only competition what the busiest processes show",
+   "before": "time: 2026-10-23T23:07:03Z\nloadavg: 1.13 1.14 0.90 3/1055 32012\nother containers running: 6\nbusiest processes' %CPU: 6.9 1.0 1.0 1.0 0.0 0.0\n",
+   "after": "time: 2026-10-23T23:07:19Z\nloadavg: 1.10 1.13 0.91 2/1065 32254\nother containers running: 6\nbusiest processes' %CPU: 100.0 4.9 1.0 1.0 1.0 1.0\n",
+   "repetitions": [
+    {
+     "before": "time: 2026-10-23T23:07:03Z\nloadavg: 1.13 1.14 0.90 3/1055 32012\nother containers running: 6\nbusiest processes' %CPU: 6.9 1.0 1.0 1.0 0.0 0.0\n",
+     "after": "time: 2026-10-23T23:07:19Z\nloadavg: 1.10 1.13 0.91 2/1065 32254\nother containers running: 6\nbusiest processes' %CPU: 100.0 4.9 1.0 1.0 1.0 1.0\n"
+    },
+    {
+     "before": "time: 2026-10-23T23:25:03Z\nloadavg: 1.21 1.17 1.09 1/1056 2786\nother containers running: 6\nbusiest processes' %CPU: 6.9 1.0 1.0 1.0 1.0 0.0\n",
+     "after": "time: 2026-10-23T23:25:19Z\nloadavg: 1.23 1.18 1.09 1/1057 3033\nother containers running: 6\nbusiest processes' %CPU: 7.9 2.0 1.0 1.0 1.0 1.0\n"
+    },
+    {
+     "before": "time: 2026-10-23T23:43:01Z\nloadavg: 1.08 1.14 1.10 1/1057 6521\nother containers running: 6\nbusiest processes' %CPU: 5.9 1.0 1.0 0.0 0.0 0.0\n",
+     "after": "time: 2026-10-23T23:43:18Z\nloadavg: 1.14 1.15 1.10 1/1060 6719\nother containers running: 6\nbusiest processes' %CPU: 6.9 1.0 1.0 1.0 1.0 1.0\n"
+    }
+   ],
+   "driver_log": [
+    "driver: clang++-19 -std=c++20 -O2 -DNDEBUG -DNDEBUG -DSK_CODEC_DECODES_BMP -DSK_CODEC_DECODES_WBMP -DSK_R32_SHIFT=16 -DSK_ENABLE_PRECOMPILE -DSK_DISABLE_TRACING -DSK_GAMMA_APPLY_TO_A8 -DSK_ENABLE_AVX512_OPTS -DSK_TYPEFACE_FACTORY_FREETYPE -DSK_FONTMGR_FREETYPE_EMPTY_AVAILABLE  -I/opt/skia (scene.c: clang-19 -std=c17 -O2)",
+    "skia 886e42fda11610a56dd1b22e8697e27f9d1e34f2",
+    "base docker.io/library/debian:13-slim@sha256:7792b1f7702a86946cd518db72b6a407302c3e9bc1635634368b878189e8221c",
+    "snapshot 20261012T000000Z",
+    "Debian clang version 19.1.7 (3+b1)",
+    "freetype 26.2.20",
+    "cc = \"clang-19\"",
+    "cxx = \"clang++-19\"",
+    "is_debug = false",
+    "is_official_build = true",
+    "skia_enable_fontmgr_custom_directory = false",
+    "skia_enable_fontmgr_custom_embedded = false",
+    "skia_enable_fontmgr_custom_empty = true",
+    "skia_enable_fontmgr_empty = false",
+    "skia_enable_ganesh = false",
+    "skia_enable_graphite = false",
+    "skia_enable_pdf = false",
+    "skia_enable_skottie = false",
+    "skia_enable_skparagraph = false",
+    "skia_enable_skshaper = false",
+    "skia_enable_svg = false",
+    "skia_enable_tools = false",
+    "skia_use_dawn = false",
+    "skia_use_dng_sdk = false",
+    "skia_use_expat = false",
+    "skia_use_fontconfig = false",
+    "skia_use_freetype = true",
+    "skia_use_gl = false",
+    "skia_use_harfbuzz = false",
+    "skia_use_icu = false",
+    "skia_use_libjpeg_turbo_decode = false",
+    "skia_use_libjpeg_turbo_encode = false",
+    "skia_use_libpng_decode = false",
+    "skia_use_libpng_encode = false",
+    "skia_use_libwebp_decode = false",
+    "skia_use_libwebp_encode = false",
+    "skia_use_partition_alloc = false",
+    "skia_use_perfetto = false",
+    "skia_use_piex = false",
+    "skia_use_system_freetype2 = true",
+    "skia_use_vulkan = false",
+    "skia_use_wuffs = false",
+    "skia_use_x11 = false",
+    "skia_use_xps = false",
+    "skia_use_zlib = false",
+    "target_cpu = \"x64\""
+   ],
+   "skia": "886e42fda11610a56dd1b22e8697e27f9d1e34f2",
+   "base": "docker.io/library/debian:13-slim@sha256:7792b1f7702a86946cd518db72b6a407302c3e9bc1635634368b878189e8221c",
+   "snapshot": "20261012T000000Z",
+   "freetype": "26.2.20"
+  }
+ },
+ "scenes": {
+  "picture-typography": {
+   "extent": [
+    2400,
+    1500
+   ],
+   "scene_sha256": "e323eb4c8f728ae2cc8d0a049f176e036b2149ceb7592e2d3b8cd8c556f072e0",
+   "native_png_sha256": "7e410646741b29347457c4aa2c62a6f5dd152f8037cc3065d97f954b90046a7a",
+   "scene": {
+    "items": 47,
+    "groups": 14,
+    "groups_linear": 8,
+    "composites": {
+     "screen": 1,
+     "overlay": 1,
+     "srcover": 10,
+     "multiply": 1,
+     "hue": 1
+    },
+    "clippaths": 2,
+    "clip_rects": 0,
+    "joins": {
+     "round": 5
+    },
+    "dashed": 1,
+    "sweeps_partial": 1,
+    "sweeps_whole": 1,
+    "radial_start_radius": 1,
+    "radial": 4,
+    "linear": 7,
+    "evenodd": 0,
+    "extend": {
+     "pad": 10,
+     "repeat": 2,
+     "reflect": 1
+    },
+    "glyph_runs": 0,
+    "commands": 11090
+   },
+   "differences": [
+    "8 of 14 groups composite in linear light in shape-cpu's picture (the colour-glyph lowering's choice); Blend2D and Skia composite every group in the target's encoded values, so where translucent layers overlap in those groups the pixels differ by construction",
+    "Blend2D has no hue, saturation, color or luminosity operator: 1 hue group drawn source-over there; Skia draws them",
+    "2 clips to a glyph outline: Skia clips to the path; Blend2D clips to rectangles only, so each is a layer multiplied by the coverage of the path (a different antialiasing of the clip's edge)",
+    "1 sweep gradient over part of a turn: Skia states them; Blend2D's conic gradient spans whole turns, so its color line is sampled into stops over one turn (the scene's seam, folds and jumps included)",
+    "1 radial gradient with a start circle of nonzero radius (a two-circle cone): shape-cpu and Skia state it; Blend2D through its start radius",
+    "1 dashed stroke: this Blend2D draws a dash array solid, through the context and through BLPath::add_stroked_path alike (the dash array in BLStrokeOptions), so its picture has solid strokes where shape-cpu and Skia (SkDashPathEffect) have dashes, and its time is for solid strokes",
+    "Gradients are interpolated in the target's encoded values straight; a gradient shape-cpu interpolates in linear light is sampled into 16 encoded stops in the scene (the nearest the references have)",
+    "Text is the outlines of the font library's own outline provider drawn as paths by Blend2D, Skia and, in the scene arm, shape-cpu: shaping, outline loading and glyph caches are not timed. Skia's and Blend2D's antialiasing and curve flattening are their own",
+    "A solid color is rounded to 8 bits and a gradient's stops to 8 bits in the scene; a group's opacity and a gradient's alpha multiplier are carried exactly (opacity) or to 8 bits (alpha)"
+   ],
+   "results": {
+    "shape-cpu-native": {
+     "repetitions": 3,
+     "warmup_frames": [
+      5,
+      5,
+      5
+     ],
+     "frames": 31,
+     "build": {
+      "median": 3.77900433e-05,
+      "p25": 3.45150474e-05,
+      "p75": 4.3519889e-05,
+      "min": 2.76700594e-05,
+      "max": 7.88490288e-05,
+      "rep_medians": [
+       3.77499964e-05,
+       3.77900433e-05,
+       3.78298573e-05
+      ],
+      "spread_of_medians": 0.002113278869939817
+     },
+     "submit": {
+      "median": 6.59253792,
+      "p25": 6.58513334,
+      "p75": 6.59731115,
+      "min": 6.56820534,
+      "max": 6.63057033,
+      "rep_medians": [
+       6.59253792,
+       6.60040664,
+       6.57813422
+      ],
+      "spread_of_medians": 0.0033784288039408325
+     },
+     "frame": {
+      "median": 6.59257999,
+      "p25": 6.58517314,
+      "p75": 6.59735226,
+      "min": 6.56824126,
+      "max": 6.63060858,
+      "rep_medians": [
+       6.59257999,
+       6.60045001,
+       6.57817914
+      ],
+      "spread_of_medians": 0.003378172131969948
+     },
+     "per_repetition": [
+      {
+       "build": {
+        "median": 3.77499964e-05,
+        "p25": 3.34699871e-05,
+        "p75": 4.1869469e-05,
+        "min": 2.76700594e-05,
+        "max": 4.68990766e-05
+       },
+       "submit": {
+        "median": 6.59253792,
+        "p25": 6.58513334,
+        "p75": 6.59731115,
+        "min": 6.57826138,
+        "max": 6.61103721
+       },
+       "frame": {
+        "median": 6.59257999,
+        "p25": 6.58517314,
+        "p75": 6.59735226,
+        "min": 6.57830305,
+        "max": 6.61107511
+       }
+      },
+      {
+       "build": {
+        "median": 3.77900433e-05,
+        "p25": 3.45150474e-05,
+        "p75": 4.3519889e-05,
+        "min": 2.88099982e-05,
+        "max": 4.64699697e-05
+       },
+       "submit": {
+        "median": 6.60040664,
+        "p25": 6.59101275,
+        "p75": 6.60729992,
+        "min": 6.57189226,
+        "max": 6.63057033
+       },
+       "frame": {
+        "median": 6.60045001,
+        "p25": 6.59105756,
+        "p75": 6.60733341,
+        "min": 6.57192874,
+        "max": 6.63060858
+       }
+      },
+      {
+       "build": {
+        "median": 3.78298573e-05,
+        "p25": 3.50200571e-05,
+        "p75": 4.07651532e-05,
+        "min": 2.87001021e-05,
+        "max": 7.88490288e-05
+       },
+       "submit": {
+        "median": 6.57813422,
+        "p25": 6.57242406,
+        "p75": 6.58353996,
+        "min": 6.56820534,
+        "max": 6.59183972
+       },
+       "frame": {
+        "median": 6.57817914,
+        "p25": 6.57245774,
+        "p75": 6.58357915,
+        "min": 6.56824126,
+        "max": 6.59187803
+       }
+      }
+     ],
+     "cold": {
+      "build": {
+       "median": 2.94700731e-05,
+       "min": 2.91098841e-05,
+       "max": 3.07790469e-05,
+       "samples": [
+        2.94700731e-05,
+        2.91098841e-05,
+        3.07790469e-05
+       ]
+      },
+      "submit": {
+       "median": 6.70852312,
+       "min": 6.69007242,
+       "max": 6.71730574,
+       "samples": [
+        6.70852312,
+        6.71730574,
+        6.69007242
+       ]
+      },
+      "frame": {
+       "median": 6.70855259,
+       "min": 6.69010319,
+       "max": 6.71733485,
+       "samples": [
+        6.70855259,
+        6.71733485,
+        6.69010319
+       ]
+      }
+     }
+    },
+    "shape-cpu": {
+     "repetitions": 3,
+     "warmup_frames": [
+      5,
+      5,
+      5
+     ],
+     "frames": 31,
+     "build": {
+      "median": 2.88900919e-05,
+      "p25": 2.77494546e-05,
+      "p75": 3.02594854e-05,
+      "min": 2.20900401e-05,
+      "max": 3.24500725e-05,
+      "rep_medians": [
+       2.88900919e-05,
+       2.89098825e-05,
+       2.88200099e-05
+      ],
+      "spread_of_medians": 0.0031108450714205007
+     },
+     "submit": {
+      "median": 6.36528679,
+      "p25": 6.35867228,
+      "p75": 6.37154453,
+      "min": 6.34336155,
+      "max": 6.40598304,
+      "rep_medians": [
+       6.36528679,
+       6.36869877,
+       6.35928039
+      ],
+      "spread_of_medians": 0.0014796473922897063
+     },
+     "frame": {
+      "median": 6.36531534,
+      "p25": 6.35869999,
+      "p75": 6.37157512,
+      "min": 6.34338967,
+      "max": 6.40601022,
+      "rep_medians": [
+       6.36531534,
+       6.36872659,
+       6.35930662
+      ],
+      "spread_of_medians": 0.0014798905469465275
+     },
+     "per_repetition": [
+      {
+       "build": {
+        "median": 2.88900919e-05,
+        "p25": 2.77494546e-05,
+        "p75": 3.02594854e-05,
+        "min": 2.20900401e-05,
+        "max": 3.24500725e-05
+       },
+       "submit": {
+        "median": 6.36528679,
+        "p25": 6.35867228,
+        "p75": 6.37154453,
+        "min": 6.34735422,
+        "max": 6.39644109
+       },
+       "frame": {
+        "median": 6.36531534,
+        "p25": 6.35869999,
+        "p75": 6.37157512,
+        "min": 6.34738247,
+        "max": 6.39647032
+       }
+      },
+      {
+       "build": {
+        "median": 2.89098825e-05,
+        "p25": 2.72095203e-05,
+        "p75": 3.00245592e-05,
+        "min": 2.26700213e-05,
+        "max": 3.2030046e-05
+       },
+       "submit": {
+        "median": 6.36869877,
+        "p25": 6.36310686,
+        "p75": 6.37106071,
+        "min": 6.34700134,
+        "max": 6.3800662
+       },
+       "frame": {
+        "median": 6.36872659,
+        "p25": 6.36313292,
+        "p75": 6.37108427,
+        "min": 6.34702975,
+        "max": 6.38009768
+       }
+      },
+      {
+       "build": {
+        "median": 2.88200099e-05,
+        "p25": 2.78799562e-05,
+        "p75": 3.01999971e-05,
+        "min": 2.35799234e-05,
+        "max": 3.2089185e-05
+       },
+       "submit": {
+        "median": 6.35928039,
+        "p25": 6.35461216,
+        "p75": 6.36365852,
+        "min": 6.34336155,
+        "max": 6.40598304
+       },
+       "frame": {
+        "median": 6.35930662,
+        "p25": 6.35464207,
+        "p75": 6.36368673,
+        "min": 6.34338967,
+        "max": 6.40601022
+       }
+      }
+     ],
+     "cold": {
+      "build": {
+       "median": 2.31091399e-05,
+       "min": 2.18988862e-05,
+       "max": 2.34399922e-05,
+       "samples": [
+        2.31091399e-05,
+        2.18988862e-05,
+        2.34399922e-05
+       ]
+      },
+      "submit": {
+       "median": 6.56122917,
+       "min": 6.54897193,
+       "max": 6.58644262,
+       "samples": [
+        6.58644262,
+        6.56122917,
+        6.54897193
+       ]
+      },
+      "frame": {
+       "median": 6.56125107,
+       "min": 6.54899537,
+       "max": 6.58646573,
+       "samples": [
+        6.58646573,
+        6.56125107,
+        6.54899537
+       ]
+      }
+     }
+    },
+    "blend2d": {
+     "repetitions": 3,
+     "warmup_frames": [
+      10,
+      10,
+      10
+     ],
+     "frames": 31,
+     "build": null,
+     "submit": {
+      "median": 0.0259489489,
+      "p25": 0.0257387495,
+      "p75": 0.0261290574,
+      "min": 0.0252647919,
+      "max": 0.0264516659,
+      "rep_medians": [
+       0.0259489489,
+       0.0258855592,
+       0.0260893782
+      ],
+      "spread_of_medians": 0.007854614874207773
+     },
+     "frame": {
+      "median": 0.025949199,
+      "p25": 0.0257388345,
+      "p75": 0.0261290774,
+      "min": 0.0252648219,
+      "max": 0.0264518159,
+      "rep_medians": [
+       0.025949199,
+       0.0258856991,
+       0.0260895481
+      ],
+      "spread_of_medians": 0.007855695275989021
+     },
+     "per_repetition": [
+      {
+       "submit": {
+        "median": 0.0259489489,
+        "p25": 0.0257387495,
+        "p75": 0.0261290574,
+        "min": 0.0252737219,
+        "max": 0.026253487
+       },
+       "frame": {
+        "median": 0.025949199,
+        "p25": 0.0257388345,
+        "p75": 0.0261290774,
+        "min": 0.0252737419,
+        "max": 0.0262537969
+       }
+      },
+      {
+       "submit": {
+        "median": 0.0258855592,
+        "p25": 0.0256214004,
+        "p75": 0.026127553,
+        "min": 0.0253255018,
+        "max": 0.0263402059
+       },
+       "frame": {
+        "median": 0.0258856991,
+        "p25": 0.0256214205,
+        "p75": 0.0261276381,
+        "min": 0.0253257218,
+        "max": 0.0263405661
+       }
+      },
+      {
+       "submit": {
+        "median": 0.0260893782,
+        "p25": 0.02568096,
+        "p75": 0.0261415176,
+        "min": 0.0252647919,
+        "max": 0.0264516659
+       },
+       "frame": {
+        "median": 0.0260895481,
+        "p25": 0.02568105,
+        "p75": 0.0261416825,
+        "min": 0.0252648219,
+        "max": 0.0264518159
+       }
+      }
+     ]
+    },
+    "skia": {
+     "repetitions": 3,
+     "warmup_frames": [
+      5,
+      5,
+      5
+     ],
+     "frames": 31,
+     "build": null,
+     "submit": {
+      "median": 0.11052528,
+      "p25": 0.11046075,
+      "p75": 0.11065088,
+      "min": 0.11038333,
+      "max": 0.111455846,
+      "rep_medians": [
+       0.110861159,
+       0.11052528,
+       0.1105021
+      ],
+      "spread_of_medians": 0.0032486594921993855
+     },
+     "frame": {
+      "median": 0.1105253,
+      "p25": 0.110460805,
+      "p75": 0.11065094,
+      "min": 0.11038335,
+      "max": 0.111455986,
+      "rep_medians": [
+       0.110861309,
+       0.1105253,
+       0.11050221
+      ],
+      "spread_of_medians": 0.003249020812429386
+     },
+     "per_repetition": [
+      {
+       "submit": {
+        "median": 0.110861159,
+        "p25": 0.110761279,
+        "p75": 0.110941728,
+        "min": 0.110661359,
+        "max": 0.111455846
+       },
+       "frame": {
+        "median": 0.110861309,
+        "p25": 0.110761354,
+        "p75": 0.110941878,
+        "min": 0.110661499,
+        "max": 0.111455986
+       }
+      },
+      {
+       "submit": {
+        "median": 0.11052528,
+        "p25": 0.11046075,
+        "p75": 0.11065088,
+        "min": 0.11038333,
+        "max": 0.111194427
+       },
+       "frame": {
+        "median": 0.1105253,
+        "p25": 0.110460805,
+        "p75": 0.11065094,
+        "min": 0.11038335,
+        "max": 0.111194447
+       }
+      },
+      {
+       "submit": {
+        "median": 0.1105021,
+        "p25": 0.110451855,
+        "p75": 0.11054932,
+        "min": 0.110393791,
+        "max": 0.110907968
+       },
+       "frame": {
+        "median": 0.11050221,
+        "p25": 0.110452006,
+        "p75": 0.11054946,
+        "min": 0.110393931,
+        "max": 0.110908118
+       }
+      }
+     ]
+    }
+   },
+   "pixels": {
+    "shape-cpu": {
+     "pixels": 3600000,
+     "mean_abs": 0.24180546296296296,
+     "max_abs": 21,
+     "alpha_differs": 0,
+     "gt1_percent": 5.498222222222222,
+     "gt4_percent": 0.2708055555555556,
+     "gt16_percent": 0.10783333333333332,
+     "tile": 150,
+     "top_tiles_gt16": [
+      {
+       "x": 1200,
+       "y": 150,
+       "pixels": 1310,
+       "share_of_tile_percent": 5.822222222222222
+      },
+      {
+       "x": 1350,
+       "y": 150,
+       "pixels": 1003,
+       "share_of_tile_percent": 4.457777777777777
+      },
+      {
+       "x": 1500,
+       "y": 150,
+       "pixels": 639,
+       "share_of_tile_percent": 2.84
+      },
+      {
+       "x": 1800,
+       "y": 150,
+       "pixels": 382,
+       "share_of_tile_percent": 1.6977777777777778
+      },
+      {
+       "x": 1200,
+       "y": 0,
+       "pixels": 345,
+       "share_of_tile_percent": 1.5333333333333334
+      },
+      {
+       "x": 1650,
+       "y": 150,
+       "pixels": 162,
+       "share_of_tile_percent": 0.72
+      },
+      {
+       "x": 1350,
+       "y": 0,
+       "pixels": 36,
+       "share_of_tile_percent": 0.16
+      },
+      {
+       "x": 1950,
+       "y": 150,
+       "pixels": 5,
+       "share_of_tile_percent": 0.022222222222222223
+      }
+     ]
+    },
+    "blend2d": {
+     "pixels": 3600000,
+     "mean_abs": 1.223945,
+     "max_abs": 251,
+     "alpha_differs": 0,
+     "gt1_percent": 12.342,
+     "gt4_percent": 2.8196666666666665,
+     "gt16_percent": 2.050638888888889,
+     "tile": 150,
+     "top_tiles_gt16": [
+      {
+       "x": 150,
+       "y": 150,
+       "pixels": 13388,
+       "share_of_tile_percent": 59.50222222222222
+      },
+      {
+       "x": 2100,
+       "y": 150,
+       "pixels": 11265,
+       "share_of_tile_percent": 50.06666666666667
+      },
+      {
+       "x": 1800,
+       "y": 150,
+       "pixels": 8539,
+       "share_of_tile_percent": 37.95111111111111
+      },
+      {
+       "x": 2100,
+       "y": 300,
+       "pixels": 5947,
+       "share_of_tile_percent": 26.43111111111111
+      },
+      {
+       "x": 150,
+       "y": 300,
+       "pixels": 5087,
+       "share_of_tile_percent": 22.608888888888888
+      },
+      {
+       "x": 750,
+       "y": 150,
+       "pixels": 3962,
+       "share_of_tile_percent": 17.608888888888888
+      },
+      {
+       "x": 600,
+       "y": 150,
+       "pixels": 2464,
+       "share_of_tile_percent": 10.95111111111111
+      },
+      {
+       "x": 0,
+       "y": 150,
+       "pixels": 2014,
+       "share_of_tile_percent": 8.95111111111111
+      }
+     ]
+    },
+    "skia": {
+     "pixels": 3600000,
+     "mean_abs": 0.9790675925925926,
+     "max_abs": 186,
+     "alpha_differs": 0,
+     "gt1_percent": 13.13175,
+     "gt4_percent": 3.3168611111111113,
+     "gt16_percent": 2.107388888888889,
+     "tile": 150,
+     "top_tiles_gt16": [
+      {
+       "x": 150,
+       "y": 150,
+       "pixels": 13386,
+       "share_of_tile_percent": 59.49333333333333
+      },
+      {
+       "x": 2100,
+       "y": 150,
+       "pixels": 11283,
+       "share_of_tile_percent": 50.14666666666667
+      },
+      {
+       "x": 1800,
+       "y": 150,
+       "pixels": 8426,
+       "share_of_tile_percent": 37.44888888888889
+      },
+      {
+       "x": 2100,
+       "y": 300,
+       "pixels": 5947,
+       "share_of_tile_percent": 26.43111111111111
+      },
+      {
+       "x": 150,
+       "y": 300,
+       "pixels": 5112,
+       "share_of_tile_percent": 22.72
+      },
+      {
+       "x": 750,
+       "y": 150,
+       "pixels": 3958,
+       "share_of_tile_percent": 17.59111111111111
+      },
+      {
+       "x": 600,
+       "y": 150,
+       "pixels": 2462,
+       "share_of_tile_percent": 10.942222222222222
+      },
+      {
+       "x": 0,
+       "y": 150,
+       "pixels": 2014,
+       "share_of_tile_percent": 8.95111111111111
+      }
+     ]
+    },
+    "blend2d-vs-skia": {
+     "pixels": 3600000,
+     "mean_abs": 0.9339475925925926,
+     "max_abs": 251,
+     "alpha_differs": 0,
+     "gt1_percent": 6.158111111111111,
+     "gt4_percent": 1.9375555555555555,
+     "gt16_percent": 0.973611111111111,
+     "tile": 150,
+     "top_tiles_gt16": [
+      {
+       "x": 2100,
+       "y": 150,
+       "pixels": 11198,
+       "share_of_tile_percent": 49.76888888888889
+      },
+      {
+       "x": 2100,
+       "y": 300,
+       "pixels": 5943,
+       "share_of_tile_percent": 26.413333333333334
+      },
+      {
+       "x": 300,
+       "y": 900,
+       "pixels": 1356,
+       "share_of_tile_percent": 6.026666666666666
+      },
+      {
+       "x": 750,
+       "y": 900,
+       "pixels": 1283,
+       "share_of_tile_percent": 5.702222222222222
+      },
+      {
+       "x": 450,
+       "y": 900,
+       "pixels": 1216,
+       "share_of_tile_percent": 5.404444444444445
+      },
+      {
+       "x": 600,
+       "y": 900,
+       "pixels": 1187,
+       "share_of_tile_percent": 5.275555555555556
+      },
+      {
+       "x": 150,
+       "y": 900,
+       "pixels": 996,
+       "share_of_tile_percent": 4.426666666666667
+      },
+      {
+       "x": 2100,
+       "y": 0,
+       "pixels": 968,
+       "share_of_tile_percent": 4.302222222222222
+      }
+     ]
+    }
+   },
+   "images": [
+    "typography-side-by-side.png",
+    "typography-diff-blend2d.png",
+    "typography-diff-skia.png"
+   ]
+  },
+  "picture-geometry": {
+   "extent": [
+    2400,
+    1500
+   ],
+   "scene_sha256": "8efb1ee47142089ed34b2fc29ce9dc6adc969068a95ec43e075815d8567ad265",
+   "native_png_sha256": "37ab820e36bb1255ec7e483fd553a308dc69f0781cb98f121edea9583b09f2f8",
+   "scene": {
+    "items": 281,
+    "groups": 2,
+    "groups_linear": 0,
+    "composites": {
+     "screen": 1,
+     "plus": 1
+    },
+    "clippaths": 0,
+    "clip_rects": 0,
+    "joins": {
+     "round": 262,
+     "miter": 4,
+     "miterclip": 1,
+     "arcs": 1
+    },
+    "dashed": 8,
+    "sweeps_partial": 0,
+    "sweeps_whole": 136,
+    "radial_start_radius": 120,
+    "radial": 123,
+    "linear": 3,
+    "evenodd": 2,
+    "extend": {
+     "pad": 262,
+     "repeat": 0,
+     "reflect": 0
+    },
+    "glyph_runs": 0,
+    "commands": 191581
+   },
+   "differences": [
+    "SVG 2 joins: 1 miter-clip and 1 arcs. Blend2D has miter-clip (BL_STROKE_JOIN_MITER_CLIP) and no arcs (drawn miter-bevel); Skia has neither (both drawn as its miter, a bevel past the limit)",
+    "120 radial gradients with a start circle of nonzero radius (a two-circle cone): shape-cpu and Skia state it; Blend2D through its start radius",
+    "8 dashed strokes: this Blend2D draws a dash array solid, through the context and through BLPath::add_stroked_path alike (the dash array in BLStrokeOptions), so its picture has solid strokes where shape-cpu and Skia (SkDashPathEffect) have dashes, and its time is for solid strokes",
+    "Gradients are interpolated in the target's encoded values straight; a gradient shape-cpu interpolates in linear light is sampled into 16 encoded stops in the scene (the nearest the references have)",
+    "Text is the outlines of the font library's own outline provider drawn as paths by Blend2D, Skia and, in the scene arm, shape-cpu: shaping, outline loading and glyph caches are not timed. Skia's and Blend2D's antialiasing and curve flattening are their own",
+    "A solid color is rounded to 8 bits and a gradient's stops to 8 bits in the scene; a group's opacity and a gradient's alpha multiplier are carried exactly (opacity) or to 8 bits (alpha)"
+   ],
+   "results": {
+    "shape-cpu-native": {
+     "repetitions": 3,
+     "warmup_frames": [
+      5,
+      5,
+      5
+     ],
+     "frames": 31,
+     "build": {
+      "median": 0.000125910155,
+      "p25": 0.000120959477,
+      "p75": 0.000128044514,
+      "min": 9.54000279e-05,
+      "max": 0.000135148875,
+      "rep_medians": [
+       0.000125908991,
+       0.000125910155,
+       0.000125999097
+      ],
+      "spread_of_medians": 0.0007156372732603707
+     },
+     "submit": {
+      "median": 7.41135921,
+      "p25": 7.4048626,
+      "p75": 7.41851267,
+      "min": 7.36917611,
+      "max": 7.47449567,
+      "rep_medians": [
+       7.42254752,
+       7.41135921,
+       7.41008064
+      ],
+      "spread_of_medians": 0.0016821313940874076
+     },
+     "frame": {
+      "median": 7.41149171,
+      "p25": 7.40498833,
+      "p75": 7.41863439,
+      "min": 7.36927924,
+      "max": 7.47462678,
+      "rep_medians": [
+       7.42267736,
+       7.41149171,
+       7.41020255
+      ],
+      "spread_of_medians": 0.0016831712815880103
+     },
+     "per_repetition": [
+      {
+       "build": {
+        "median": 0.000125908991,
+        "p25": 0.000106959953,
+        "p75": 0.000129969558,
+        "min": 9.88598913e-05,
+        "max": 0.000133499037
+       },
+       "submit": {
+        "median": 7.42254752,
+        "p25": 7.40811751,
+        "p75": 7.43831718,
+        "min": 7.39514423,
+        "max": 7.47449567
+       },
+       "frame": {
+        "median": 7.42267736,
+        "p25": 7.40823484,
+        "p75": 7.43843648,
+        "min": 7.39527546,
+        "max": 7.47462678
+       }
+      },
+      {
+       "build": {
+        "median": 0.000125910155,
+        "p25": 0.000120959477,
+        "p75": 0.000128044514,
+        "min": 9.54000279e-05,
+        "max": 0.000134479022
+       },
+       "submit": {
+        "median": 7.41135921,
+        "p25": 7.4048626,
+        "p75": 7.41851267,
+        "min": 7.36917611,
+        "max": 7.46120219
+       },
+       "frame": {
+        "median": 7.41149171,
+        "p25": 7.40498833,
+        "p75": 7.41863439,
+        "min": 7.36927924,
+        "max": 7.46132431
+       }
+      },
+      {
+       "build": {
+        "median": 0.000125999097,
+        "p25": 0.000120204058,
+        "p75": 0.000128673972,
+        "min": 9.90000553e-05,
+        "max": 0.000135148875
+       },
+       "submit": {
+        "median": 7.41008064,
+        "p25": 7.40568116,
+        "p75": 7.4211386,
+        "min": 7.3897768,
+        "max": 7.45390301
+       },
+       "frame": {
+        "median": 7.41020255,
+        "p25": 7.40580841,
+        "p75": 7.42126664,
+        "min": 7.38987932,
+        "max": 7.45403321
+       }
+      }
+     ],
+     "cold": {
+      "build": {
+       "median": 0.000102328835,
+       "min": 9.83600039e-05,
+       "max": 0.00010392908,
+       "samples": [
+        0.00010392908,
+        9.83600039e-05,
+        0.000102328835
+       ]
+      },
+      "submit": {
+       "median": 8.76139279,
+       "min": 8.73207121,
+       "max": 8.78760899,
+       "samples": [
+        8.76139279,
+        8.73207121,
+        8.78760899
+       ]
+      },
+      "frame": {
+       "median": 8.76149672,
+       "min": 8.73216957,
+       "max": 8.78771132,
+       "samples": [
+        8.76149672,
+        8.73216957,
+        8.78771132
+       ]
+      }
+     }
+    },
+    "shape-cpu": {
+     "repetitions": 3,
+     "warmup_frames": [
+      5,
+      5,
+      5
+     ],
+     "frames": 31,
+     "build": {
+      "median": 8.96200072e-05,
+      "p25": 7.88595062e-05,
+      "p75": 9.27646179e-05,
+      "min": 7.44399149e-05,
+      "max": 9.62391496e-05,
+      "rep_medians": [
+       8.84290785e-05,
+       8.96200072e-05,
+       9.01890453e-05
+      ],
+      "spread_of_medians": 0.019638101524276565
+     },
+     "submit": {
+      "median": 7.39262294,
+      "p25": 7.38455661,
+      "p75": 7.41673677,
+      "min": 7.36351736,
+      "max": 7.44293896,
+      "rep_medians": [
+       7.39262294,
+       7.40252765,
+       7.37789903
+      ],
+      "spread_of_medians": 0.0033315130772785845
+     },
+     "frame": {
+      "median": 7.39271097,
+      "p25": 7.38464114,
+      "p75": 7.41681773,
+      "min": 7.36360635,
+      "max": 7.44301377,
+      "rep_medians": [
+       7.39271097,
+       7.40262389,
+       7.37798941
+      ],
+      "spread_of_medians": 0.003332266079381223
+     },
+     "per_repetition": [
+      {
+       "build": {
+        "median": 8.84290785e-05,
+        "p25": 7.81700946e-05,
+        "p75": 9.05949855e-05,
+        "min": 7.44399149e-05,
+        "max": 9.47199296e-05
+       },
+       "submit": {
+        "median": 7.39262294,
+        "p25": 7.38455661,
+        "p75": 7.41673677,
+        "min": 7.37098923,
+        "max": 7.44293896
+       },
+       "frame": {
+        "median": 7.39271097,
+        "p25": 7.38464114,
+        "p75": 7.41681773,
+        "min": 7.37107528,
+        "max": 7.44301377
+       }
+      },
+      {
+       "build": {
+        "median": 8.96200072e-05,
+        "p25": 7.88595062e-05,
+        "p75": 9.27646179e-05,
+        "min": 7.62499403e-05,
+        "max": 9.62391496e-05
+       },
+       "submit": {
+        "median": 7.40252765,
+        "p25": 7.39939712,
+        "p75": 7.40717685,
+        "min": 7.38775459,
+        "max": 7.43860778
+       },
+       "frame": {
+        "median": 7.40262389,
+        "p25": 7.39948096,
+        "p75": 7.40726329,
+        "min": 7.38784792,
+        "max": 7.43869927
+       }
+      },
+      {
+       "build": {
+        "median": 9.01890453e-05,
+        "p25": 8.71650409e-05,
+        "p75": 9.17689176e-05,
+        "min": 7.75491353e-05,
+        "max": 9.36998986e-05
+       },
+       "submit": {
+        "median": 7.37789903,
+        "p25": 7.3727964,
+        "p75": 7.38793973,
+        "min": 7.36351736,
+        "max": 7.41443087
+       },
+       "frame": {
+        "median": 7.37798941,
+        "p25": 7.37288202,
+        "p75": 7.38802943,
+        "min": 7.36360635,
+        "max": 7.41452145
+       }
+      }
+     ],
+     "cold": {
+      "build": {
+       "median": 4.00899444e-05,
+       "min": 3.8679922e-05,
+       "max": 4.17788979e-05,
+       "samples": [
+        4.00899444e-05,
+        3.8679922e-05,
+        4.17788979e-05
+       ]
+      },
+      "submit": {
+       "median": 8.72827983,
+       "min": 8.72495149,
+       "max": 8.73816212,
+       "samples": [
+        8.73816212,
+        8.72827983,
+        8.72495149
+       ]
+      },
+      "frame": {
+       "median": 8.72831851,
+       "min": 8.72499327,
+       "max": 8.73820221,
+       "samples": [
+        8.73820221,
+        8.72831851,
+        8.72499327
+       ]
+      }
+     }
+    },
+    "blend2d": {
+     "repetitions": 3,
+     "warmup_frames": [
+      5,
+      5,
+      5
+     ],
+     "frames": 31,
+     "build": null,
+     "submit": {
+      "median": 0.0879104249,
+      "p25": 0.0878849251,
+      "p75": 0.08794149,
+      "min": 0.0871901091,
+      "max": 0.0890816981,
+      "rep_medians": [
+       0.0879104249,
+       0.088527651,
+       0.0873555569
+      ],
+      "spread_of_medians": 0.013332822601338523
+     },
+     "frame": {
+      "median": 0.087910455,
+      "p25": 0.0878849451,
+      "p75": 0.087941565,
+      "min": 0.0871901389,
+      "max": 0.0890817181,
+      "rep_medians": [
+       0.087910455,
+       0.0885276711,
+       0.0873556971
+      ],
+      "spread_of_medians": 0.013331451873386304
+     },
+     "per_repetition": [
+      {
+       "submit": {
+        "median": 0.0879104249,
+        "p25": 0.0878849251,
+        "p75": 0.08794149,
+        "min": 0.0878033359,
+        "max": 0.088360562
+       },
+       "frame": {
+        "median": 0.087910455,
+        "p25": 0.0878849451,
+        "p75": 0.087941565,
+        "min": 0.0878033659,
+        "max": 0.0883607119
+       }
+      },
+      {
+       "submit": {
+        "median": 0.088527651,
+        "p25": 0.0884787565,
+        "p75": 0.0886392305,
+        "min": 0.0884322221,
+        "max": 0.0890816981
+       },
+       "frame": {
+        "median": 0.0885276711,
+        "p25": 0.0884787765,
+        "p75": 0.0886393155,
+        "min": 0.088432342,
+        "max": 0.0890817181
+       }
+      },
+      {
+       "submit": {
+        "median": 0.0873555569,
+        "p25": 0.0873157729,
+        "p75": 0.0873811974,
+        "min": 0.0871901091,
+        "max": 0.08888247
+       },
+       "frame": {
+        "median": 0.0873556971,
+        "p25": 0.0873158529,
+        "p75": 0.0873813275,
+        "min": 0.0871901389,
+        "max": 0.0888824901
+       }
+      }
+     ]
+    },
+    "skia": {
+     "repetitions": 3,
+     "warmup_frames": [
+      5,
+      5,
+      5
+     ],
+     "frames": 31,
+     "build": null,
+     "submit": {
+      "median": 0.262035053,
+      "p25": 0.261800168,
+      "p75": 0.262968503,
+      "min": 0.260439961,
+      "max": 0.264363461,
+      "rep_medians": [
+       0.263092537,
+       0.262035053,
+       0.26057786
+      ],
+      "spread_of_medians": 0.009596719870909869
+     },
+     "frame": {
+      "median": 0.262035203,
+      "p25": 0.261800188,
+      "p75": 0.262968663,
+      "min": 0.260439981,
+      "max": 0.264363601,
+      "rep_medians": [
+       0.263092677,
+       0.262035203,
+       0.26057788
+      ],
+      "spread_of_medians": 0.009597172331078024
+     },
+     "per_repetition": [
+      {
+       "submit": {
+        "median": 0.263092537,
+        "p25": 0.263008728,
+        "p75": 0.263231067,
+        "min": 0.262771258,
+        "max": 0.264363461
+       },
+       "frame": {
+        "median": 0.263092677,
+        "p25": 0.263008753,
+        "p75": 0.263231137,
+        "min": 0.262771278,
+        "max": 0.264363601
+       }
+      },
+      {
+       "submit": {
+        "median": 0.262035053,
+        "p25": 0.261800168,
+        "p75": 0.262968503,
+        "min": 0.261686874,
+        "max": 0.263105237
+       },
+       "frame": {
+        "median": 0.262035203,
+        "p25": 0.261800188,
+        "p75": 0.262968663,
+        "min": 0.261686914,
+        "max": 0.263105407
+       }
+      },
+      {
+       "submit": {
+        "median": 0.26057786,
+        "p25": 0.26053122,
+        "p75": 0.260713309,
+        "min": 0.260439961,
+        "max": 0.260859079
+       },
+       "frame": {
+        "median": 0.26057788,
+        "p25": 0.26053131,
+        "p75": 0.260713334,
+        "min": 0.260439981,
+        "max": 0.260859209
+       }
+      }
+     ]
+    }
+   },
+   "pixels": {
+    "shape-cpu": {
+     "pixels": 3600000,
+     "mean_abs": 0.0385087962962963,
+     "max_abs": 8,
+     "alpha_differs": 0,
+     "gt1_percent": 0.16949999999999998,
+     "gt4_percent": 0.0038333333333333336,
+     "gt16_percent": 0.0,
+     "tile": 150,
+     "top_tiles_gt16": []
+    },
+    "blend2d": {
+     "pixels": 3600000,
+     "mean_abs": 1.3375247222222222,
+     "max_abs": 240,
+     "alpha_differs": 0,
+     "gt1_percent": 25.183972222222224,
+     "gt4_percent": 6.124722222222222,
+     "gt16_percent": 0.6578333333333334,
+     "tile": 150,
+     "top_tiles_gt16": [
+      {
+       "x": 600,
+       "y": 750,
+       "pixels": 2379,
+       "share_of_tile_percent": 10.573333333333334
+      },
+      {
+       "x": 600,
+       "y": 600,
+       "pixels": 2152,
+       "share_of_tile_percent": 9.564444444444444
+      },
+      {
+       "x": 750,
+       "y": 750,
+       "pixels": 2068,
+       "share_of_tile_percent": 9.19111111111111
+      },
+      {
+       "x": 750,
+       "y": 600,
+       "pixels": 1866,
+       "share_of_tile_percent": 8.293333333333333
+      },
+      {
+       "x": 1950,
+       "y": 1050,
+       "pixels": 1630,
+       "share_of_tile_percent": 7.2444444444444445
+      },
+      {
+       "x": 1800,
+       "y": 1050,
+       "pixels": 1599,
+       "share_of_tile_percent": 7.1066666666666665
+      },
+      {
+       "x": 1800,
+       "y": 1200,
+       "pixels": 1143,
+       "share_of_tile_percent": 5.08
+      },
+      {
+       "x": 1950,
+       "y": 1200,
+       "pixels": 990,
+       "share_of_tile_percent": 4.4
+      }
+     ]
+    },
+    "skia": {
+     "pixels": 3600000,
+     "mean_abs": 1.11919,
+     "max_abs": 230,
+     "alpha_differs": 0,
+     "gt1_percent": 23.194805555555558,
+     "gt4_percent": 10.419666666666668,
+     "gt16_percent": 0.7922222222222223,
+     "tile": 150,
+     "top_tiles_gt16": [
+      {
+       "x": 750,
+       "y": 450,
+       "pixels": 1402,
+       "share_of_tile_percent": 6.231111111111111
+      },
+      {
+       "x": 600,
+       "y": 450,
+       "pixels": 1347,
+       "share_of_tile_percent": 5.986666666666666
+      },
+      {
+       "x": 450,
+       "y": 750,
+       "pixels": 1307,
+       "share_of_tile_percent": 5.808888888888889
+      },
+      {
+       "x": 900,
+       "y": 750,
+       "pixels": 1150,
+       "share_of_tile_percent": 5.111111111111111
+      },
+      {
+       "x": 600,
+       "y": 900,
+       "pixels": 1114,
+       "share_of_tile_percent": 4.9511111111111115
+      },
+      {
+       "x": 900,
+       "y": 600,
+       "pixels": 1035,
+       "share_of_tile_percent": 4.6
+      },
+      {
+       "x": 750,
+       "y": 600,
+       "pixels": 734,
+       "share_of_tile_percent": 3.2622222222222224
+      },
+      {
+       "x": 600,
+       "y": 600,
+       "pixels": 712,
+       "share_of_tile_percent": 3.1644444444444444
+      }
+     ]
+    },
+    "blend2d-vs-skia": {
+     "pixels": 3600000,
+     "mean_abs": 1.4525378703703704,
+     "max_abs": 239,
+     "alpha_differs": 0,
+     "gt1_percent": 22.846944444444446,
+     "gt4_percent": 8.81586111111111,
+     "gt16_percent": 0.9773333333333334,
+     "tile": 150,
+     "top_tiles_gt16": [
+      {
+       "x": 600,
+       "y": 750,
+       "pixels": 2487,
+       "share_of_tile_percent": 11.053333333333333
+      },
+      {
+       "x": 600,
+       "y": 600,
+       "pixels": 2280,
+       "share_of_tile_percent": 10.133333333333333
+      },
+      {
+       "x": 750,
+       "y": 750,
+       "pixels": 2198,
+       "share_of_tile_percent": 9.768888888888888
+      },
+      {
+       "x": 750,
+       "y": 600,
+       "pixels": 1970,
+       "share_of_tile_percent": 8.755555555555556
+      },
+      {
+       "x": 1950,
+       "y": 1050,
+       "pixels": 1785,
+       "share_of_tile_percent": 7.933333333333334
+      },
+      {
+       "x": 1800,
+       "y": 1050,
+       "pixels": 1747,
+       "share_of_tile_percent": 7.764444444444444
+      },
+      {
+       "x": 750,
+       "y": 450,
+       "pixels": 1569,
+       "share_of_tile_percent": 6.973333333333334
+      },
+      {
+       "x": 1800,
+       "y": 1200,
+       "pixels": 1416,
+       "share_of_tile_percent": 6.293333333333333
+      }
+     ]
+    }
+   },
+   "images": [
+    "geometry-side-by-side.png",
+    "geometry-diff-blend2d.png",
+    "geometry-diff-skia.png"
+   ]
+  }
+ }
+}
