@@ -70,7 +70,7 @@ step is 28.6 %), above the quarter the story names as the threshold for lever L1
 ## Frame times (`frames.sh`, `ghoti-build:gcc16`)
 
 One thread, 1920x1080, the median of 31 timed frames after the warm-up, pinned to one core of a 32-thread x86-64 build host
-Both steps ran both steps in one run on the same host. The raw records are `2026-10-23-dense-cells/frames.txt`.
+Both steps ran in one run on the same host. The raw records are `2026-10-23-dense-cells/frames.txt`.
 
 | Scene | the exact step of this story | the step of S4b (preloaded) |
 |---|---|---|
