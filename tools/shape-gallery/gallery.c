@@ -1969,7 +1969,7 @@ static void image_strokes(void) {
     text_draw(L, &g_dejavu, 1, "Outline", &t, 40, 1215);
     label_c(L, "a stroked line of text", 18, 210, 1345, 0.2);
 
-    GSHSCENE_Stroke_Style wide = style_new(22, GSHSCENE_STROKE_JOIN_ROUND, GSHSCENE_STROKE_CAP_ROUND);
+    GSHSCENE_Stroke_Style wide = style_new(14, GSHSCENE_STROKE_JOIN_ROUND, GSHSCENE_STROKE_CAP_ROUND);
     TextStyle u = style(84, 0.98, 0.85, 0.35);
     u.hint_mode = GSHSCENE_HINT_NONE;
     u.stroke = &wide;
@@ -2047,7 +2047,7 @@ int main(int argc, char ** argv) {
     return 2;
   }
   g_out = argv[3];
-  /* A line of text stroked 14 or 22 units wide is a dense stroke (the inner sides of every curve and counter overlap in a
+  /* A line of text stroked 14 units wide is a dense stroke (the inner sides of every curve and counter overlap in a
    * pixel), more pieces in one pixel than the default allows, so the CPU sink is given room for them: the stroke is exact
    * either way, and a pixel with more pieces than the limit is refused whole. */
   GSHCPU_Limits cpu_limits;
