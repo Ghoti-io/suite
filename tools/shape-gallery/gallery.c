@@ -1931,22 +1931,30 @@ static void image_strokes(void) {
   }
   /* Pieces that overlap (strokes story S4b): a stroke's coverage is the area of what its pieces cover, so a translucent
    * stroke is no darker where pieces overlap than anywhere else in it: square-cap dashes whose caps reach into their
-   * neighbours, the inner side of a tight zigzag, and a thin aligned stroke along the edge of a fill. */
+   * neighbours, the inner side of a tight zigzag, and a thin aligned stroke along the edge of a fill.  The first dashes are
+   * 44 on and 10 off with a stroke 28 wide, so the caps (14 past each end) cover the gap and the dashes read as one; the
+   * second are 20 on and 30 off, where the 28-unit squares show what a square cap is. */
   {
     double dash_d[2] = {44, 10};
     GSHSCENE_Stroke_Style st = style_new(28, GSHSCENE_STROKE_JOIN_ROUND, GSHSCENE_STROKE_CAP_SQUARE);
     st.dashes = dash_d;
     st.dash_count = 2;
-    stroke_map(L, scurve(40, 1030, 340, 60), NULL, &st, solid(0.1, 0.2, 0.45, 0.5));
-    label_c(L, "dashes, square caps, 10 apart", 18, 210, 1140, 0.2);
+    stroke_map(L, scurve(30, 1030, 300, 60), NULL, &st, solid(0.1, 0.2, 0.45, 0.5));
+    label_c(L, "dashes [44, 10], square caps", 18, 180, 1140, 0.2);
+    double dash_e[2] = {20, 30};
+    GSHSCENE_Stroke_Style sq = style_new(28, GSHSCENE_STROKE_JOIN_ROUND, GSHSCENE_STROKE_CAP_SQUARE);
+    sq.dashes = dash_e;
+    sq.dash_count = 2;
+    stroke_map(L, scurve(360, 1030, 300, 60), NULL, &sq, solid(0.1, 0.2, 0.45, 0.5));
+    label_c(L, "dashes [20, 30], square caps", 18, 510, 1140, 0.2);
     GSHSCENE_Stroke_Style zz = style_new(34, GSHSCENE_STROKE_JOIN_MITER, GSHSCENE_STROKE_CAP_BUTT);
-    stroke_map(L, zigzag(440, 1010, 320, 110), NULL, &zz, solid(0.85, 0.2, 0.1, 0.5));
-    label_c(L, "tight joins, translucent", 18, 600, 1140, 0.2);
-    fill(L, star(960, 1065, 75), solid(0.8, 0.82, 0.86, 1));
+    stroke_map(L, zigzag(690, 1010, 250, 110), NULL, &zz, solid(0.85, 0.2, 0.1, 0.5));
+    label_c(L, "tight joins, translucent", 18, 815, 1140, 0.2);
+    fill(L, star(1070, 1065, 75), solid(0.8, 0.82, 0.86, 1));
     GSHSCENE_Stroke_Style th = style_new(5, GSHSCENE_STROKE_JOIN_MITER, GSHSCENE_STROKE_CAP_BUTT);
     th.alignment = GSHSCENE_STROKE_ALIGN_INSIDE;
-    stroke_map(L, star(960, 1065, 75), NULL, &th, solid(0.1, 0.2, 0.45, 0.6));
-    label_c(L, "a thin inside stroke", 18, 960, 1160, 0.2);
+    stroke_map(L, star(1070, 1065, 75), NULL, &th, solid(0.1, 0.2, 0.45, 0.6));
+    label_c(L, "a thin inside stroke", 18, 1070, 1160, 0.2);
   }
   /* Stroked text (strokes story S5): a line of text is one run, and its stroke is one path's: the stroke of the glyphs'
    * outlines, united across the line, unhinted.  A wide translucent stroke is no darker where neighbouring letters' strokes
