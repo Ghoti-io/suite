@@ -565,7 +565,9 @@ int sb_scene_load(const char * path, SB_Scene * out, char * err, size_t errlen) 
   return 0;
 }
 
-/* Coordinates are multiples of 1/64, which %.6f writes exactly. */
+/* Coordinates are written with every digit a double has (%.17g), so that what is read is what was written: a multiple of 1/64
+ * is exact, and so is a picture's curve, whose exact coincidences (the overlapping segments of a closed curve) a rounded
+ * coordinate would turn into thousands of tiny crossings. */
 int sb_scene_save(const char * path, const SB_Scene * s) {
   FILE * f = fopen(path, "w");
   if (!f) {
@@ -600,7 +602,7 @@ int sb_scene_save(const char * path, const SB_Scene * s) {
         int n = cmd_arity(m->op);
         fputc(m->op, f);
         for (int j = 0; j < n; j++) {
-          fprintf(f, " %.6f", m->p[j]);
+          fprintf(f, " %.17g", m->p[j]);
         }
         fputc('\n', f);
       }
@@ -610,7 +612,7 @@ int sb_scene_save(const char * path, const SB_Scene * s) {
         const SB_Gradient * g = &s->gradients[it->gradient - 1];
         fprintf(f, "gradient %s %s", KIND_NAMES[g->kind], EXTEND_NAMES[g->extend]);
         for (int j = 0; j < gradient_arity(g->kind); j++) {
-          fprintf(f, " %.6f", g->g[j]);
+          fprintf(f, " %.17g", g->g[j]);
         }
         fprintf(f, " %zu\n", g->n_stops);
         for (size_t k = 0; k < g->n_stops; k++) {
@@ -624,7 +626,7 @@ int sb_scene_save(const char * path, const SB_Scene * s) {
         int n = cmd_arity(m->op);
         fputc(m->op, f);
         for (int j = 0; j < n; j++) {
-          fprintf(f, " %.6f", m->p[j]);
+          fprintf(f, " %.17g", m->p[j]);
         }
         fputc('\n', f);
       }
@@ -635,7 +637,7 @@ int sb_scene_save(const char * path, const SB_Scene * s) {
         const SB_Gradient * g = &s->gradients[it->gradient - 1];
         fprintf(f, "gradient %s %s", KIND_NAMES[g->kind], EXTEND_NAMES[g->extend]);
         for (int j = 0; j < gradient_arity(g->kind); j++) {
-          fprintf(f, " %.6f", g->g[j]);
+          fprintf(f, " %.17g", g->g[j]);
         }
         fprintf(f, " %zu\n", g->n_stops);
         for (size_t k = 0; k < g->n_stops; k++) {
@@ -654,7 +656,7 @@ int sb_scene_save(const char * path, const SB_Scene * s) {
         int n = cmd_arity(m->op);
         fputc(m->op, f);
         for (int j = 0; j < n; j++) {
-          fprintf(f, " %.6f", m->p[j]);
+          fprintf(f, " %.17g", m->p[j]);
         }
         fputc('\n', f);
       }
