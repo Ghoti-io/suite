@@ -345,7 +345,16 @@ typedef struct TextStyle {
   GFNT_BidiDirection dir;
   int32_t width;        /* whole pixels; 0 = unbounded */
   GSHSCENE_Paint paint;
+  /* Strokes story S5: the same run is also stroked.  `stroke_first` paints the stroke under the fill (SVG's paint-order),
+   * `stroke_only` leaves the fill out.  One run, two items: all the fills of a chunk and then all its strokes. */
+  const GSHSCENE_Stroke_Style * stroke;
+  GSHSCENE_Paint stroke_paint;
+  int stroke_first;
+  int stroke_only;
 } TextStyle;
+
+static void stroke_map(GSHSCENE_List * L, const GSHSCENE_Resource * res, const GSHGEOM_Map * map,
+    const GSHSCENE_Stroke_Style * st, GSHSCENE_Paint paint);
 
 static TextStyle style(double px, double r, double g, double b) {
   TextStyle s;
@@ -425,7 +434,20 @@ static TextBox text_draw(GSHSCENE_List * L, Font * const * fonts, size_t nf, con
       if (gshscene_store_intern_glyph_run(g_store, &gr, &res) != GSHSCENE_OK) {
         fail("intern glyph run");
       } else {
-        fill_map(L, res, &at, GSHGEOM_FILL_NONZERO, s->paint);
+        /* Each item takes a reference of its own. */
+        int items = (s->stroke ? 1 : 0) + (s->stroke_only ? 0 : 1);
+        for (int extra = 1; extra < items; extra++) {
+          gshscene_resource_retain(res);
+        }
+        if (s->stroke && s->stroke_first) {
+          stroke_map(L, res, &at, s->stroke, s->stroke_paint);
+        }
+        if (!s->stroke_only) {
+          fill_map(L, res, &at, GSHGEOM_FILL_NONZERO, s->paint);
+        }
+        if (s->stroke && !s->stroke_first) {
+          stroke_map(L, res, &at, s->stroke, s->stroke_paint);
+        }
       }
       free(gl);
     }
@@ -1784,7 +1806,7 @@ static const GSHSCENE_Resource * scurve(double x, double y, double w, double h) 
 }
 
 static void image_strokes(void) {
-  const int W = 1200, H = 1210;
+  const int W = 1200, H = 1530;
   GIMG_Raster * R = raster_new(W, H);
   GSHSCENE_List * L = list_new();
   background(L, W, H, 0.97);
@@ -1925,6 +1947,86 @@ static void image_strokes(void) {
     th.alignment = GSHSCENE_STROKE_ALIGN_INSIDE;
     stroke_map(L, star(960, 1065, 75), NULL, &th, solid(0.1, 0.2, 0.45, 0.6));
     label_c(L, "a thin inside stroke", 18, 960, 1160, 0.2);
+  }
+  /* Stroked text (strokes story S5): a line of text is one run, and its stroke is one path's: the stroke of the glyphs'
+   * outlines, united across the line, unhinted.  A wide translucent stroke is no darker where neighbouring letters' strokes
+   * overlap; the stroke can be painted under the fill (paint-order); a gradient spans the line; dashes follow each contour. */
+  {
+    GSHSCENE_Stroke_Style outline = style_new(3, GSHSCENE_STROKE_JOIN_ROUND, GSHSCENE_STROKE_CAP_ROUND);
+    TextStyle t = style(84, 0.1, 0.2, 0.45);
+    t.hint_mode = GSHSCENE_HINT_NONE;
+    t.stroke = &outline;
+    t.stroke_paint = solid(0.85, 0.2, 0.1, 1);
+    t.stroke_only = 1;
+    text_draw(L, &g_dejavu, 1, "Outline", &t, 40, 1215);
+    label_c(L, "a stroked line of text", 18, 210, 1345, 0.2);
+
+    GSHSCENE_Stroke_Style wide = style_new(22, GSHSCENE_STROKE_JOIN_ROUND, GSHSCENE_STROKE_CAP_ROUND);
+    TextStyle u = style(84, 0.98, 0.85, 0.35);
+    u.hint_mode = GSHSCENE_HINT_NONE;
+    u.stroke = &wide;
+    u.stroke_paint = solid(0.1, 0.2, 0.45, 0.45);
+    text_draw(L, &g_dejavu, 1, "Union", &u, 440, 1215);
+    label_c(L, "translucent: one union across the line", 18, 610, 1345, 0.2);
+
+    GSHSCENE_Stroke_Style behind = style_new(14, GSHSCENE_STROKE_JOIN_ROUND, GSHSCENE_STROKE_CAP_ROUND);
+    TextStyle b = style(84, 1, 1, 1);
+    b.hint_mode = GSHSCENE_HINT_NONE;
+    b.stroke = &behind;
+    b.stroke_paint = solid(0.15, 0.15, 0.2, 1);
+    b.stroke_first = 1;
+    text_draw(L, &g_dejavu, 1, "Behind", &b, 820, 1215);
+    label_c(L, "stroke first, then the fill", 18, 985, 1345, 0.2);
+
+    GSHSCENE_Gradient g = grad_new(GSHSCENE_GRADIENT_LINEAR);
+    g.p0[0] = 40;
+    g.p0[1] = 0;
+    g.p1[0] = 420;
+    g.p1[1] = 0;
+    const GSHSCENE_Gradient_Stop gs[2] = {stop(0, 0.1, 0.3, 0.9, 1), stop(1, 0.95, 0.4, 0.05, 1)};
+    g.stops = gs;
+    g.stop_count = 2;
+    const GSHSCENE_Resource * gr = NULL;
+    if (gshscene_store_intern_gradient(g_store, &g, &gr) != GSHSCENE_OK) {
+      fail("intern text gradient");
+    } else {
+      GSHSCENE_Paint gp;
+      memset(&gp, 0, sizeof gp);
+      gp.kind = GSHSCENE_PAINT_GRADIENT;
+      gp.rgba[3] = 1.0;
+      gp.gradient = gr;
+      GSHSCENE_Stroke_Style gstroke = style_new(6, GSHSCENE_STROKE_JOIN_ROUND, GSHSCENE_STROKE_CAP_ROUND);
+      TextStyle gt = style(84, 0, 0, 0);
+      gt.hint_mode = GSHSCENE_HINT_NONE;
+      gt.stroke = &gstroke;
+      gt.stroke_paint = gp;
+      gt.stroke_only = 1;
+      text_draw(L, &g_dejavu, 1, "Gradient", &gt, 40, 1370);
+      gshscene_resource_release(gr);
+    }
+    label_c(L, "one gradient across the whole line", 18, 230, 1500, 0.2);
+
+    double text_dashes[2] = {9, 6};
+    GSHSCENE_Stroke_Style dashed = style_new(3, GSHSCENE_STROKE_JOIN_ROUND, GSHSCENE_STROKE_CAP_ROUND);
+    dashed.dashes = text_dashes;
+    dashed.dash_count = 2;
+    TextStyle d = style(84, 0, 0, 0);
+    d.hint_mode = GSHSCENE_HINT_NONE;
+    d.stroke = &dashed;
+    d.stroke_paint = solid(0.1, 0.2, 0.45, 1);
+    d.stroke_only = 1;
+    text_draw(L, &g_dejavu, 1, "Dashes", &d, 520, 1370);
+    label_c(L, "dashes along each contour", 18, 650, 1500, 0.2);
+
+    /* The fill is hinted where the font hints, and a stroke never is: hint mode NONE on the run is the request for a
+     * registered pair (the line above uses it); the same text hinted shows the fill grid-fitted under an unhinted stroke. */
+    GSHSCENE_Stroke_Style thin = style_new(1.5, GSHSCENE_STROKE_JOIN_MITER, GSHSCENE_STROKE_CAP_BUTT);
+    TextStyle h = style(24, 0.98, 0.85, 0.35);
+    h.hint_mode = GSHSCENE_HINT_FONT;
+    h.stroke = &thin;
+    h.stroke_paint = solid(0.1, 0.1, 0.1, 1);
+    text_draw(L, &g_dejavu, 1, "hinted fill, unhinted stroke", &h, 900, 1385);
+    label_c(L, "a stroke is never hinted", 18, 1030, 1500, 0.2);
   }
   render("strokes", L, R);
   save_png(R, "strokes.png");
