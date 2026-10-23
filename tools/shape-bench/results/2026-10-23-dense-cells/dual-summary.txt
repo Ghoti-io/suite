@@ -1,0 +1,181 @@
+== corpus
+  the hashes it prints differ:
+141c141
+< shape-cpu.dense-hash 6fcd676171efb9a7
+---
+> shape-cpu.dense-hash 993ee1ff86d24120
+  targets that differ byte for byte: 1
+exact-dual: 39726 cells compared; 39650 the same; 76 differ (76 by one doubled unit, 0 by more, largest 1; 0 of them in a cell of more than 512 pieces of a part); 0 with another status (the earlier step refused 0 that the library drew, the library refused 0 that the earlier drew)
+exact-dual: the steps' own time: the library's 0.065 s, the earlier one's 0.140 s; by the pieces of the busiest part:
+  <=8          14054 cells: library     214.3 ns a cell, earlier     357.9 ns a cell
+  <=16          6222 cells: library     471.4 ns a cell, earlier     956.3 ns a cell
+  <=64         15420 cells: library    1944.0 ns a cell, earlier    3833.5 ns a cell
+  <=256         3954 cells: library    6866.0 ns a cell, earlier   15697.0 ns a cell
+  <=1024          76 cells: library   30545.3 ns a cell, earlier  105828.2 ns a cell
+cells judged: 76 of 76 (0 too large for the reference)
+  the exact value is a tie, the two steps rounded it differently: 76
+  the library's step is the rounding of the exact value and the earlier one is not: 0
+  the earlier step is the rounding and the library's is not: 0
+  neither is: 0
+  the worst distance from the exact value, in doubled units: library 0.500000, earlier 0.500000
+== font-fixtures
+  the hashes it prints differ:
+10c10
+< font-scene.stroke-fixture outline-composite.ttf 6ddd603d1a76dfb8
+---
+> font-scene.stroke-fixture outline-composite.ttf 43dae075decf3abf
+15c15
+< font-scene.stroke-fixture outline-simple.ttf 6ddd603d1a76dfb8
+---
+> font-scene.stroke-fixture outline-simple.ttf 43dae075decf3abf
+43c43
+< font-scene.stroke-hash ca5256a21455d6d4
+---
+> font-scene.stroke-hash bdcfb526871c6660
+  targets that differ byte for byte: 1
+exact-dual: 43624 cells compared; 43438 the same; 186 differ (142 by one doubled unit, 44 by more, largest 16; 94 of them in a cell of more than 512 pieces of a part); 0 with another status (the earlier step refused 0 that the library drew, the library refused 0 that the earlier drew)
+exact-dual: the steps' own time: the library's 0.251 s, the earlier one's 5.278 s; by the pieces of the busiest part:
+  <=8          21470 cells: library     205.2 ns a cell, earlier     335.0 ns a cell
+  <=16          6648 cells: library     476.4 ns a cell, earlier     980.5 ns a cell
+  <=64         11814 cells: library    1574.8 ns a cell, earlier    3119.9 ns a cell
+  <=256         2566 cells: library    8050.1 ns a cell, earlier   22720.3 ns a cell
+  <=1024         876 cells: library   57490.4 ns a cell, earlier  385759.0 ns a cell
+  <=16384        250 cells: library  617124.6 ns a cell, earlier 19323386.2 ns a cell
+cells judged: 106 of 186 (80 too large for the reference)
+  the exact value is a tie, the two steps rounded it differently: 106
+  the library's step is the rounding of the exact value and the earlier one is not: 0
+  the earlier step is the rounding and the library's is not: 0
+  neither is: 0
+  the worst distance from the exact value, in doubled units: library 0.500000, earlier 0.500000
+== strokes
+  differs between the steps: shape-cpu.strokes.frame.pam (28 bytes)
+  pixel-diff: 26 of 2073600 pixels differ, by at most 1 level; channels that differ (R G B A order): [7, 10, 11, 0]
+  targets that differ byte for byte: 1
+exact-dual: 3693250 cells compared; 3688053 the same; 5197 differ (5196 by one doubled unit, 1 by more, largest 6; 2 of them in a cell of more than 512 pieces of a part); 0 with another status (the earlier step refused 0 that the library drew, the library refused 0 that the earlier drew)
+exact-dual: the steps' own time: the library's 1.208 s, the earlier one's 2.614 s; by the pieces of the busiest part:
+  <=8        1975102 cells: library     112.3 ns a cell, earlier     200.7 ns a cell
+  <=16        977618 cells: library     317.4 ns a cell, earlier     681.4 ns a cell
+  <=64        737608 cells: library     888.2 ns a cell, earlier    1821.7 ns a cell
+  <=256         2845 cells: library    4426.0 ns a cell, earlier    8676.7 ns a cell
+  <=1024          64 cells: library   34388.7 ns a cell, earlier  101769.0 ns a cell
+  <=16384         13 cells: library  433237.8 ns a cell, earlier 13557540.7 ns a cell
+cells judged: 5196 of 5197 (1 too large for the reference)
+  the exact value is a tie, the two steps rounded it differently: 5196
+  the library's step is the rounding of the exact value and the earlier one is not: 0
+  the earlier step is the rounding and the library's is not: 0
+  neither is: 0
+  the worst distance from the exact value, in doubled units: library 0.500000, earlier 0.500000
+== strokes-dashed
+  differs between the steps: shape-cpu.strokes-dashed.frame.pam (36 bytes)
+  pixel-diff: 25 of 2073600 pixels differ, by at most 1 level; channels that differ (R G B A order): [15, 8, 13, 0]
+  targets that differ byte for byte: 1
+exact-dual: 1043032 cells compared; 1041447 the same; 1585 differ (1585 by one doubled unit, 0 by more, largest 1; 0 of them in a cell of more than 512 pieces of a part); 0 with another status (the earlier step refused 0 that the library drew, the library refused 0 that the earlier drew)
+exact-dual: the steps' own time: the library's 0.384 s, the earlier one's 0.794 s; by the pieces of the busiest part:
+  <=8         444642 cells: library     153.3 ns a cell, earlier     278.8 ns a cell
+  <=16        350764 cells: library     306.7 ns a cell, earlier     665.4 ns a cell
+  <=64        244305 cells: library     818.4 ns a cell, earlier    1717.5 ns a cell
+  <=256         3321 cells: library    2532.7 ns a cell, earlier    5003.8 ns a cell
+cells judged: 1585 of 1585 (0 too large for the reference)
+  the exact value is a tie, the two steps rounded it differently: 1585
+  the library's step is the rounding of the exact value and the earlier one is not: 0
+  the earlier step is the rounding and the library's is not: 0
+  neither is: 0
+  the worst distance from the exact value, in doubled units: library 0.500000, earlier 0.500000
+== gallery
+  differs between the steps: strokes.png (76921 bytes)
+  pixel-diff: 3 of 1836000 pixels differ, by at most 1 level; channels that differ (R G B A order): [1, 3, 1, 0]
+  targets that differ byte for byte: 1
+exact-dual: 93756 cells compared; 93672 the same; 84 differ (84 by one doubled unit, 0 by more, largest 1; 2 of them in a cell of more than 512 pieces of a part); 0 with another status (the earlier step refused 0 that the library drew, the library refused 0 that the earlier drew)
+exact-dual: the steps' own time: the library's 0.070 s, the earlier one's 0.169 s; by the pieces of the busiest part:
+  <=8          36548 cells: library     126.6 ns a cell, earlier     224.6 ns a cell
+  <=16         23340 cells: library     281.8 ns a cell, earlier     626.5 ns a cell
+  <=64         30629 cells: library    1184.4 ns a cell, earlier    2424.3 ns a cell
+  <=256         3168 cells: library    5526.0 ns a cell, earlier   12277.2 ns a cell
+  <=1024          60 cells: library   54771.9 ns a cell, earlier  349302.5 ns a cell
+  <=16384         11 cells: library  121001.8 ns a cell, earlier 1093675.5 ns a cell
+cells judged: 83 of 84 (1 too large for the reference)
+  the exact value is a tie, the two steps rounded it differently: 81
+  the library's step is the rounding of the exact value and the earlier one is not: 2
+  the earlier step is the rounding and the library's is not: 0
+  neither is: 0
+  the worst distance from the exact value, in doubled units: library 0.500000, earlier 0.503333
+== text-14
+  targets that differ byte for byte: 0
+exact-dual: 31958 cells compared; 31911 the same; 47 differ (40 by one doubled unit, 7 by more, largest 16; 16 of them in a cell of more than 512 pieces of a part); 0 with another status (the earlier step refused 0 that the library drew, the library refused 0 that the earlier drew)
+exact-dual: the steps' own time: the library's 0.091 s, the earlier one's 1.683 s; by the pieces of the busiest part:
+  <=8           5741 cells: library     185.7 ns a cell, earlier     301.0 ns a cell
+  <=16          4975 cells: library     375.1 ns a cell, earlier     832.1 ns a cell
+  <=64         18128 cells: library    1457.3 ns a cell, earlier    2948.1 ns a cell
+  <=256         2751 cells: library    5096.6 ns a cell, earlier   10931.5 ns a cell
+  <=1024         284 cells: library   48411.5 ns a cell, earlier  163755.9 ns a cell
+  <=16384         79 cells: library  434876.4 ns a cell, earlier 19583062.9 ns a cell
+cells judged: 31 of 47 (16 too large for the reference)
+  the exact value is a tie, the two steps rounded it differently: 31
+  the library's step is the rounding of the exact value and the earlier one is not: 0
+  the earlier step is the rounding and the library's is not: 0
+  neither is: 0
+  the worst distance from the exact value, in doubled units: library 0.500000, earlier 0.500000
+== text-16
+  targets that differ byte for byte: 0
+exact-dual: 34596 cells compared; 34551 the same; 45 differ (31 by one doubled unit, 14 by more, largest 14; 33 of them in a cell of more than 512 pieces of a part); 0 with another status (the earlier step refused 0 that the library drew, the library refused 0 that the earlier drew)
+exact-dual: the steps' own time: the library's 0.159 s, the earlier one's 3.093 s; by the pieces of the busiest part:
+  <=8           6143 cells: library     177.9 ns a cell, earlier     311.6 ns a cell
+  <=16          5220 cells: library     390.3 ns a cell, earlier     855.0 ns a cell
+  <=64         18873 cells: library    1479.2 ns a cell, earlier    3018.1 ns a cell
+  <=256         3403 cells: library    5004.6 ns a cell, earlier   10972.5 ns a cell
+  <=1024         727 cells: library   48283.4 ns a cell, earlier  141235.0 ns a cell
+  <=16384        230 cells: library  330173.7 ns a cell, earlier 12562107.4 ns a cell
+cells judged: 13 of 45 (32 too large for the reference)
+  the exact value is a tie, the two steps rounded it differently: 13
+  the library's step is the rounding of the exact value and the earlier one is not: 0
+  the earlier step is the rounding and the library's is not: 0
+  neither is: 0
+  the worst distance from the exact value, in doubled units: library 0.500000, earlier 0.500000
+== text-18
+  targets that differ byte for byte: 0
+exact-dual: 37138 cells compared; 37071 the same; 67 differ (40 by one doubled unit, 27 by more, largest 95; 55 of them in a cell of more than 512 pieces of a part); 0 with another status (the earlier step refused 0 that the library drew, the library refused 0 that the earlier drew)
+exact-dual: the steps' own time: the library's 0.278 s, the earlier one's 9.816 s; by the pieces of the busiest part:
+  <=8           6237 cells: library     191.5 ns a cell, earlier     309.5 ns a cell
+  <=16          5426 cells: library     377.3 ns a cell, earlier     843.3 ns a cell
+  <=64         19974 cells: library    1526.2 ns a cell, earlier    3059.5 ns a cell
+  <=256         3800 cells: library    5268.4 ns a cell, earlier   11322.3 ns a cell
+  <=1024        1274 cells: library   48266.8 ns a cell, earlier  130003.4 ns a cell
+  <=16384        427 cells: library  381534.4 ns a cell, earlier 22341950.3 ns a cell
+cells judged: 14 of 67 (53 too large for the reference)
+  the exact value is a tie, the two steps rounded it differently: 14
+  the library's step is the rounding of the exact value and the earlier one is not: 0
+  the earlier step is the rounding and the library's is not: 0
+  neither is: 0
+  the worst distance from the exact value, in doubled units: library 0.500000, earlier 0.500000
+== text-20
+  targets that differ byte for byte: 0
+exact-dual: 40297 cells compared; 40212 the same; 85 differ (41 by one doubled unit, 44 by more, largest 161; 68 of them in a cell of more than 512 pieces of a part); 0 with another status (the earlier step refused 0 that the library drew, the library refused 0 that the earlier drew)
+exact-dual: the steps' own time: the library's 0.437 s, the earlier one's 19.570 s; by the pieces of the busiest part:
+  <=8           6972 cells: library     195.7 ns a cell, earlier     337.4 ns a cell
+  <=16          6067 cells: library     412.5 ns a cell, earlier     910.2 ns a cell
+  <=64         20773 cells: library    1712.2 ns a cell, earlier    3428.9 ns a cell
+  <=256         3960 cells: library    5969.7 ns a cell, earlier   13101.8 ns a cell
+  <=1024        1919 cells: library   49932.4 ns a cell, earlier  135772.2 ns a cell
+  <=16384        606 cells: library  458983.4 ns a cell, earlier 31647279.3 ns a cell
+cells judged: 20 of 85 (65 too large for the reference)
+  the exact value is a tie, the two steps rounded it differently: 20
+  the library's step is the rounding of the exact value and the earlier one is not: 0
+  the earlier step is the rounding and the library's is not: 0
+  neither is: 0
+  the worst distance from the exact value, in doubled units: library 0.500000, earlier 0.500000
+== text-22
+  targets that differ byte for byte: 0
+exact-dual: 43766 cells compared; 43660 the same; 106 differ (50 by one doubled unit, 56 by more, largest 198; 99 of them in a cell of more than 512 pieces of a part); 0 with another status (the earlier step refused 0 that the library drew, the library refused 0 that the earlier drew)
+exact-dual: the steps' own time: the library's 0.662 s, the earlier one's 27.323 s; by the pieces of the busiest part:
+  <=8           7250 cells: library     174.0 ns a cell, earlier     293.7 ns a cell
+  <=16          6684 cells: library     369.1 ns a cell, earlier     816.1 ns a cell
+  <=64         20974 cells: library    1533.7 ns a cell, earlier    3052.8 ns a cell
+  <=256         4017 cells: library    5646.5 ns a cell, earlier   12357.4 ns a cell
+  <=1024        3613 cells: library   46890.3 ns a cell, earlier  134082.1 ns a cell
+  <=16384       1228 cells: library  353370.5 ns a cell, earlier 21757017.6 ns a cell
+cells judged: 8 of 106 (98 too large for the reference)
+  the exact value is a tie, the two steps rounded it differently: 8
+  the library's step is the rounding of the exact value and the earlier one is not: 0
+  the earlier step is the rounding and the library's is not: 0
+  neither is: 0
+  the worst distance from the exact value, in doubled units: library 0.500000, earlier 0.500000

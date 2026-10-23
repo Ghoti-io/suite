@@ -74,8 +74,13 @@ Both steps ran in one run on the same host. The raw records are `2026-10-23-dens
 
 | Scene | the exact step of this story | the step of S4b (preloaded) |
 |---|---|---|
-| `strokes` | 4225 ms | 6192 ms |
-| `strokes-dashed` | 1686 ms | 2158 ms |
+| `strokes` | 4208 ms | 5659 ms |
+| `strokes-dashed` | 1684 ms | 2191 ms |
 
-S4b's own figures (5990 and 2197 ms) and S4's (2050 and 1047 ms) were taken on other runs. The step is 1.47x and 1.28x faster than
+S4b's own figures (5990 and 2197 ms) and S4's (2050 and 1047 ms) were taken on other runs. The step is faster than
 S4b's on the same run; it is not back at S4's frame time, which had no exact union step at all.
+
+The tree measured is shape-cpu `0ec81ac` (the sweep, the cost cut of ordinary cells, the default of 32768 pieces). `2026-10-23-dense-cells/dual-summary.txt`
+is the output of `dual.sh` on it: every image that differs between the two steps (the gallery's `strokes.png`, the two benchmark frames) differs by
+one level at most (3, 26 and 25 pixels), and every cell that was judged against the exact area is a tie the two steps round differently, or one in which the sweep is
+the exact rounding and the earlier step is not.
