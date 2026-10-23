@@ -24,7 +24,7 @@
  * Stroked text through shape-cpu, one line of real text at a time: the densest everyday input of the exact union step
  * (every counter and curve of a line of text stroked wide piles hundreds of outline pieces into one pixel).
  *
- *     stroke-text FONT [--cells N] [--points N] [--fragments N] [--pam DIR] [WORD WIDTH]...
+ *     stroke-text FONT [--cells N] [--points N] [--fragments N] [--crossings N] [--pam DIR] [WORD WIDTH]...
  *
  * FONT is DejaVu Sans (suite/tools/shape-success/fetch.sh fetches the pinned file).  Each WORD is laid out at 84 pixels
  * and stroked WIDTH units wide with round joins and caps, unhinted, as an item of its own on a white 1280 by 160 target;
@@ -195,7 +195,7 @@ static int draw(GSHSCENE_Sink * sink, GSHSCENE_Store * store, GSHSCENE_Report * 
 
 int main(int argc, char ** argv) {
   if (argc < 2) {
-    fprintf(stderr, "usage: stroke-text FONT [--cells N] [--points N] [--fragments N] [--pam DIR] [WORD WIDTH]...\n");
+    fprintf(stderr, "usage: stroke-text FONT [--cells N] [--points N] [--fragments N] [--crossings N] [--pam DIR] [WORD WIDTH]...\n");
     return 2;
   }
   GSHCPU_Limits limits;
@@ -209,6 +209,8 @@ int main(int argc, char ** argv) {
       limits.max_points = (size_t)strtoull(argv[i + 1], NULL, 0);
     } else if (!strcmp(argv[i], "--fragments")) {
       limits.max_exact_fragments = strtoull(argv[i + 1], NULL, 0);
+    } else if (!strcmp(argv[i], "--crossings")) {
+      limits.max_exact_crossings = strtoull(argv[i + 1], NULL, 0);
     } else if (!strcmp(argv[i], "--pam")) {
       pam_dir = argv[i + 1];
     } else {

@@ -2047,12 +2047,10 @@ int main(int argc, char ** argv) {
     return 2;
   }
   g_out = argv[3];
-  /* A line of text stroked 14 units wide is a dense stroke (the inner sides of every curve and counter overlap in a
-   * pixel), more pieces in one pixel than the default allows, so the CPU sink is given room for them: the stroke is exact
-   * either way, and a pixel with more pieces than the limit is refused whole. */
+  /* The sink's limits are its defaults: a line of text stroked wide is a dense stroke (the inner sides of every curve and counter
+   * overlap in a pixel), which the default of `max_exact_fragments` and `max_exact_crossings` draws with room to spare. */
   GSHCPU_Limits cpu_limits;
   gshcpu_limits_default(&cpu_limits);
-  cpu_limits.max_exact_fragments = 1u << 16;
   if (gshscene_store_create(NULL, NULL, &g_store) != GSHSCENE_OK ||
       gshcpu_sink_create(NULL, NULL, &cpu_limits, &g_cpu) != GSHCPU_OK ||
       gshscene_report_create(NULL, NULL, &g_report) != GSHSCENE_OK) {

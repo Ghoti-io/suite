@@ -851,12 +851,11 @@ static int shape_setup(Shape * e, const SB_Scene * s, const char * dir, int cont
   sb_background_bytes(s, 0, e->bg);
   GIMG_Pixel_Format format = GIMG_PIXEL_RGBA8;
   format.alpha_form = GIMG_ALPHA_PREMULTIPLIED;
-  /* The strokes scenes draw tight bends under a wide stroke (a quadratic chain 8.7 pixels wide whose bends are tighter than half
-   * the width), where thousands of the outline's pieces lie in one pixel: past the sink's default of 512 a stroke is refused
-   * (its resource limit), so the field is raised, which is what it is for.  The cost of the exact step is part of the figure. */
+  /* The sink's limits are its defaults: the strokes scenes draw tight bends under a wide stroke (a quadratic chain 8.7 pixels
+   * wide whose bends are tighter than half the width), where thousands of the outline's pieces lie in one pixel, and the
+   * default of `max_exact_fragments` (16384) and of `max_exact_crossings` (2^20) draws them with room to spare. */
   GSHCPU_Limits limits;
   gshcpu_limits_default(&limits);
-  limits.max_exact_fragments = 1u << 16;
   if (!e->pixels || !e->res || !e->paint || !e->grad || !e->style || gshscene_store_create(NULL, NULL, &e->store) != GSHSCENE_OK ||
       gshscene_list_create(NULL, NULL, e->store, &e->list) != GSHSCENE_OK ||
       gshcpu_sink_create(NULL, NULL, &limits, &e->sink) != GSHCPU_OK ||
@@ -1169,7 +1168,17 @@ static int font_submit(void * ctx) {
 
 static int run(const char * dir, const char * out) {
   int failures = 0;
+  const char * only = getenv("SHAPE_BENCH_ONLY"); /* a comma-separated list of the scenes to run; none named is all of them */
   for (size_t i = 0; i < N_SCENES; i++) {
+    if (only && *only) {
+      char listed[512];
+      snprintf(listed, sizeof listed, ",%s,", only);
+      char wanted[64];
+      snprintf(wanted, sizeof wanted, ",%s,", SCENES[i]);
+      if (!strstr(listed, wanted)) {
+        continue;
+      }
+    }
     char path[1024], err[256], pam[1024], name[256];
     SB_Scene s;
     snprintf(path, sizeof path, "%s/%s.scene", dir, SCENES[i]);
