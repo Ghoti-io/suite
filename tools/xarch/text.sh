@@ -129,14 +129,18 @@ mk text -k -j"$JOBS" "${targets[@]}" > "$S/build-tests.log" 2>&1 || { grep -a -E
 
 heading "Running ($ARCH, GTEXT_TEST_FULL=${FULL}, GTEXT_TEST_SLOWDOWN=${TEXT_XARCH_SLOWDOWN:-40})"
 dir="$SRC/text/build/linux/release/apps"
-# A target under emulation cannot run localedef (the shell a test starts is not of the target), and the CSS number tests need a locale whose
-# decimal separator is a comma and fail, not skip, without one (tests/test-css-oom.cpp). The locale is made here, with the host's own
-# localedef, and handed to the tests as LOCPATH: the files are the same for any target of the same byte order.
-LOC="$S/locale"
+# A target under emulation cannot run localedef, and the CSS number tests need a locale whose decimal separator is a comma and fail, not
+# skip, without one (tests/test-css-oom.cpp). The locale is made here, with the host's own localedef, and handed to the tests as LOCPATH:
+# the files are the same for any target of the same byte order. localedef needs the charmaps of glibc's locales package; an image
+# without them (the image of Containerfile.text has none) cannot make it, and TEXT_XARCH_LOCPATH then names a directory that holds one
+# made elsewhere (a de_DE.UTF-8 directory from any host with localedef and the charmaps).
+LOC="${TEXT_XARCH_LOCPATH:-$S/locale}"
 mkdir -p "$LOC"
-if command -v localedef >/dev/null 2>&1 && [ ! -e "$LOC/de_DE.UTF-8" ]; then
-  env -u LD_PRELOAD -u LD_LIBRARY_PATH localedef -i de_DE -f UTF-8 "$LOC/de_DE.UTF-8" >/dev/null 2>&1 || say "text.sh: localedef could not make de_DE.UTF-8; the tests that need a comma locale will fail"
+if [ ! -e "$LOC/de_DE.UTF-8/LC_NUMERIC" ] && command -v localedef >/dev/null 2>&1; then
+  # (-c: write the locale even when localedef has warnings to give; what counts is that the files are there)
+  env -u LD_PRELOAD -u LD_LIBRARY_PATH localedef -c -i de_DE -f UTF-8 "$LOC/de_DE.UTF-8" > "$S/localedef.log" 2>&1
 fi
+[ -e "$LOC/de_DE.UTF-8/LC_NUMERIC" ] || { say "text.sh: no de_DE.UTF-8 locale ($LOC), so the tests that need a comma locale will fail; set TEXT_XARCH_LOCPATH to a directory that has one"; tail -3 "$S/localedef.log" 2>/dev/null; }
 fails=(); total=0; ran=0; skips=()
 limit_ran=0; limit_skipped=0
 for n in $sel; do
