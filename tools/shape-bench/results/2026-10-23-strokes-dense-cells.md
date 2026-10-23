@@ -66,3 +66,16 @@ The sink's cache holds 16 MiB of expansions and both scenes' expansions are larg
 
 So on the ordinary scene the second pass is 34.5 % of the exact step's cost (`exact_band` 43.7 % of the frame, of which the
 step is 28.6 %), above the quarter the story names as the threshold for lever L1.
+
+## Frame times (`frames.sh`, `ghoti-build:gcc16`)
+
+One thread, 1920x1080, the median of 31 timed frames after the warm-up, pinned to one core of a 32-thread x86-64 build host
+Both steps ran both steps in one run on the same host. The raw records are `2026-10-23-dense-cells/frames.txt`.
+
+| Scene | the exact step of this story | the step of S4b (preloaded) |
+|---|---|---|
+| `strokes` | 4225 ms | 6192 ms |
+| `strokes-dashed` | 1686 ms | 2158 ms |
+
+S4b's own figures (5990 and 2197 ms) and S4's (2050 and 1047 ms) were taken on other runs. The step is 1.47x and 1.28x faster than
+S4b's on the same run; it is not back at S4's frame time, which had no exact union step at all.
