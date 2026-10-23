@@ -17,7 +17,7 @@
 # readers) before it runs one; builds cutil, unicode, chron, regex, security, math and text for the target into a
 # prefix of its own in the scratch directory (cutil's float.h is made by running its generator under
 # qemu); builds every test program whose name matches $TEXT_XARCH_TESTS (default: Html, Xml, Xhtml,
-# Encoding, Markup, Quadratic) and runs each with GTEXT_TEST_FULL=$TEXT_XARCH_FULL (default 0), a
+# Encoding, Markup, Quadratic, Css) and runs each with GTEXT_TEST_FULL=$TEXT_XARCH_FULL (default 0), a
 # time limit each (TEXT_XARCH_TIMEOUT, default 3600 s).  Every failure is reported at the end with the
 # program's name; a program that passes no tests is a failure; skips are listed by name.  On i686 it
 # also requires that the 32-bit source-map limit test (HtmlSourceMapLimit) ran and did not skip, and on
@@ -35,7 +35,7 @@ esac
 WORK="${WORK:-/work}"
 S="${SCRATCH:-/scratch}/$ARCH"
 JOBS="${JOBS:-$(nproc)}"
-FILTER="${TEXT_XARCH_TESTS:-^test(Html|Xml|Xhtml|Encoding|Markup|Quadratic)}"
+FILTER="${TEXT_XARCH_TESTS:-^test(Html|Xml|Xhtml|Encoding|Markup|Quadratic|Css)}"
 FULL="${TEXT_XARCH_FULL:-0}"
 TMO="${TEXT_XARCH_TIMEOUT:-3600}"
 P="$S/prefix"
@@ -129,6 +129,14 @@ mk text -k -j"$JOBS" "${targets[@]}" > "$S/build-tests.log" 2>&1 || { grep -a -E
 
 heading "Running ($ARCH, GTEXT_TEST_FULL=${FULL}, GTEXT_TEST_SLOWDOWN=${TEXT_XARCH_SLOWDOWN:-40})"
 dir="$SRC/text/build/linux/release/apps"
+# A target under emulation cannot run localedef (the shell a test starts is not of the target), and the CSS number tests need a locale whose
+# decimal separator is a comma and fail, not skip, without one (tests/test-css-oom.cpp). The locale is made here, with the host's own
+# localedef, and handed to the tests as LOCPATH: the files are the same for any target of the same byte order.
+LOC="$S/locale"
+mkdir -p "$LOC"
+if command -v localedef >/dev/null 2>&1 && [ ! -e "$LOC/de_DE.UTF-8" ]; then
+  env -u LD_PRELOAD -u LD_LIBRARY_PATH localedef -i de_DE -f UTF-8 "$LOC/de_DE.UTF-8" >/dev/null 2>&1 || say "text.sh: localedef could not make de_DE.UTF-8; the tests that need a comma locale will fail"
+fi
 fails=(); total=0; ran=0; skips=()
 limit_ran=0; limit_skipped=0
 for n in $sel; do
@@ -138,7 +146,7 @@ for n in $sel; do
   start=$(date +%s)
   # GTEXT_TEST_FULL is read by its presence, so it is set only when asked for; the emulator's slowness is declared to the one
   # test that reads a clock (testEncodingFuzzSeeds).
-  envs=(LD_LIBRARY_PATH="$P/lib/ghoti.io:$dir" GTEXT_TEST_SLOWDOWN="${TEXT_XARCH_SLOWDOWN:-40}")
+  envs=(LD_LIBRARY_PATH="$P/lib/ghoti.io:$dir" GTEXT_TEST_SLOWDOWN="${TEXT_XARCH_SLOWDOWN:-40}" LOCPATH="$LOC")
   [ "$FULL" = 1 ] && envs+=(GTEXT_TEST_FULL=1)
   out=$(cd "$SRC/text" && run_env "${envs[@]}" -- "$bin" 2>&1)
   rc=$?

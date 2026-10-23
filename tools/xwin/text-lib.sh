@@ -3,13 +3,13 @@
 #
 # Runs INSIDE ghoti-cross-mingw64:deb13 or the wine image (through m1-win.sh, which sources m1-env.sh first),
 # with the scratch tree at /w and text's dependencies and text itself installed in $WPREFIX by
-# `m1-lib.sh deps` (M1_DEPS without ctang).  Builds the test programs of the XML, HTML, Encoding and markup
+# `m1-lib.sh deps` (M1_DEPS without ctang).  Builds the test programs of the XML, HTML, Encoding, markup and CSS
 # work for win64 with text's own Makefile and runs each under wine, from the library directory (the tests read
 # tests/ and third_party/ by relative path).  One SUMMARY line; exit 0 only if every program passed and ran at
 # least one test.  The skips are listed by name (this script asserts none: a Windows skip is a finding to be read).
 set -u
 P=$WPREFIX
-FILTER=${TEXT_XWIN_TESTS:-^test(Html|Xml|Xhtml|Encoding|Markup|Quadratic)}
+FILTER=${TEXT_XWIN_TESTS:-^test(Html|Xml|Xhtml|Encoding|Markup|Quadratic|Css)}
 mkdir -p /w/logs
 cd /w/text || exit 2
 names=$(echo 'print-%: ; @echo $($*)' | make -s --no-print-directory -f Makefile -f - PREFIX=$P print-TEST_NAMES 2>/dev/null)
