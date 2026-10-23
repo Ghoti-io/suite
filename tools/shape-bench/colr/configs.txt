@@ -1,0 +1,24 @@
+# The configurations of the COLRv1 comparison with Skia (run-colr.sh): one line each,
+#   <name> <font file> <size> <cell> <every> <shape coords or -> <skia axes or ->
+# size and cell in pixels (the glyph's origin is at (cell / 8, cell - cell / 8)); every keeps each Nth color glyph;
+# coords are the instance as normalised 2.14 integers in axis order (colr-shape), axes the same instance in the
+# font's own axis values (colr-skia). Every configuration is lowered in the encoded space, the one Skia draws in.
+# Noto Color Emoji's COLR version 1 build: every glyph at 128 pixels, a sample of two hundred at 24.
+noto-128 Noto-COLRv1.ttf 100 128 1 - -
+noto-24 Noto-COLRv1.ttf 20 32 20 - -
+# Nabla (variable outlines under static paints): the default instance and three others, a sample at 24.
+nabla-128 Nabla-EDPT-EHLT.ttf 100 128 1 - -
+nabla-128-a Nabla-EDPT-EHLT.ttf 100 128 1 -8192,-8192 EDPT=50,EHLT=6
+nabla-128-b Nabla-EDPT-EHLT.ttf 100 128 1 8192,8192 EDPT=150,EHLT=18
+nabla-128-c Nabla-EDPT-EHLT.ttf 100 128 1 16384,-16384 EDPT=200,EHLT=0
+nabla-24 Nabla-EDPT-EHLT.ttf 20 32 2 - -
+# Google's test glyphs (every paint format, extend, transform and composite), the producers' samples and Twemoji.
+test-glyphs test_glyphs-glyf_colr_1.ttf 100 128 1 - -
+test-glyphs-no-cliplist test_glyphs-glyf_colr_1_no_cliplist.ttf 100 128 1 - -
+samples samples-glyf_colr_1.ttf 100 128 1 - -
+twemoji twemoji-glyf_colr_1.ttf 100 128 1 - -
+noto-sample noto-glyf_colr_1.ttf 100 128 1 - -
+# Not here: font's committed fixtures. Their layer glyphs have a left side bearing of 0 in hmtx that is not their xMin,
+# and FreeType (Skia's outline source) moves each such outline by the difference; font's provider draws the outline where
+# its coordinates are, as it does for every real font (whose bearing is its xMin). The fixtures are held to fontTools
+# instead (make check-oracle-colr-scene).

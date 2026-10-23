@@ -1503,14 +1503,8 @@ static void image_text(const char * fontdir) {
 
 static const char * refusal_name(uint32_t r) {
   switch (r) {
-    case GFNT_COLOR_REFUSED_GRADIENT:
-      return "gradient";
-    case GFNT_COLOR_REFUSED_BLEND_MODE:
-      return "blend mode";
-    case GFNT_COLOR_REFUSED_VARIABLE:
-      return "variable paint";
     case GFNT_COLOR_REFUSED_UNBOUNDED:
-      return "unbounded solid";
+      return "unbounded (no clip box)";
     case GFNT_COLOR_REFUSED_NO_RECORD:
       return "no v1 record";
     default:
@@ -1553,7 +1547,7 @@ static void image_color_glyphs(const char * fontdir) {
   GIMG_Raster * R = raster_new(W, H);
   GSHSCENE_List * L = list_new();
   background(L, W, H, 0.97);
-  label(L, "COLR color glyphs from font's test fixtures, lowered into shape-scene lists (story 14c), CPAL palette 0", 22,
+  label(L, "COLR color glyphs from font's test fixtures, lowered into shape-scene lists (all of COLRv1), CPAL palette 0", 22,
       30, 16, 0.1);
   render("color-glyphs background", L, R);
 

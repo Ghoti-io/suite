@@ -1,0 +1,71 @@
+# Glyphs outside the Skia comparison's bound (colr-report.py), each with the reason.
+# <configuration> <glyph> <reason>
+noto-128 258 edge antialiasing only: mean 1.05 over the cell, no pixel outside its neighbourhood's range
+noto-128 2560 edge antialiasing only: mean 1.12 over the cell, no pixel outside its neighbourhood's range
+noto-128 3456 edge antialiasing only: mean 1.03 over the cell, no pixel outside its neighbourhood's range
+noto-128 3789 edge antialiasing only: mean 1.29 over the cell, no pixel outside its neighbourhood's range
+noto-128 3796 edge antialiasing only: mean 1.21 over the cell, no pixel outside its neighbourhood's range
+noto-128 3800 edge antialiasing only: mean 1.21 over the cell, no pixel outside its neighbourhood's range
+noto-128 3823 edge antialiasing only: mean 1.33 over the cell, no pixel outside its neighbourhood's range
+noto-128 3875 edge antialiasing only: mean 1.33 over the cell, no pixel outside its neighbourhood's range
+noto-128 3949 edge antialiasing only: mean 1.22 over the cell, no pixel outside its neighbourhood's range
+noto-128 4002 edge antialiasing only: mean 1.00 over the cell, no pixel outside its neighbourhood's range
+noto-128 4004 edge antialiasing only: mean 1.00 over the cell, no pixel outside its neighbourhood's range
+noto-128 4011 edge antialiasing only: mean 1.02 over the cell, no pixel outside its neighbourhood's range
+noto-128 4018 edge antialiasing only: mean 1.07 over the cell, no pixel outside its neighbourhood's range
+noto-24 113 edge antialiasing only: mean 1.80 over the cell, no pixel outside its neighbourhood's range
+noto-24 253 edge antialiasing only: mean 1.16 over the cell, no pixel outside its neighbourhood's range
+noto-24 273 edge antialiasing only: mean 1.32 over the cell, no pixel outside its neighbourhood's range
+noto-24 333 edge antialiasing only: mean 1.30 over the cell, no pixel outside its neighbourhood's range
+noto-24 373 edge antialiasing only: mean 1.02 over the cell, no pixel outside its neighbourhood's range
+noto-24 433 edge antialiasing only: mean 1.02 over the cell, no pixel outside its neighbourhood's range
+noto-24 453 edge antialiasing only: mean 1.08 over the cell, no pixel outside its neighbourhood's range
+noto-24 693 edge antialiasing only: mean 1.04 over the cell, no pixel outside its neighbourhood's range
+noto-24 1113 edge antialiasing only: mean 1.03 over the cell, no pixel outside its neighbourhood's range
+noto-24 1473 edge antialiasing only: mean 1.10 over the cell, no pixel outside its neighbourhood's range
+noto-24 1653 edge antialiasing only: mean 1.18 over the cell, no pixel outside its neighbourhood's range
+noto-24 1673 edge antialiasing only: mean 1.09 over the cell, no pixel outside its neighbourhood's range
+noto-24 1693 edge antialiasing only: mean 1.37 over the cell, no pixel outside its neighbourhood's range
+noto-24 2073 edge antialiasing only: mean 1.11 over the cell, no pixel outside its neighbourhood's range
+noto-24 2113 edge antialiasing only: mean 1.30 over the cell, no pixel outside its neighbourhood's range
+noto-24 2133 edge antialiasing only: mean 1.10 over the cell, no pixel outside its neighbourhood's range
+noto-24 2153 edge antialiasing only: mean 1.37 over the cell, no pixel outside its neighbourhood's range
+noto-24 2213 edge antialiasing only: mean 1.31 over the cell, no pixel outside its neighbourhood's range
+noto-24 2533 edge antialiasing only: mean 1.34 over the cell, no pixel outside its neighbourhood's range
+noto-24 2733 edge antialiasing only: mean 1.09 over the cell, no pixel outside its neighbourhood's range
+noto-24 2833 edge antialiasing only: mean 1.00 over the cell, no pixel outside its neighbourhood's range
+noto-24 3293 edge antialiasing only: mean 1.15 over the cell, no pixel outside its neighbourhood's range
+noto-24 3353 edge antialiasing only: mean 1.05 over the cell, no pixel outside its neighbourhood's range
+noto-24 3653 edge antialiasing only: mean 1.20 over the cell, no pixel outside its neighbourhood's range
+noto-24 3793 edge antialiasing only: mean 1.11 over the cell, no pixel outside its neighbourhood's range
+noto-24 3853 edge antialiasing only: mean 1.18 over the cell, no pixel outside its neighbourhood's range
+noto-24 3893 edge antialiasing only: mean 1.16 over the cell, no pixel outside its neighbourhood's range
+noto-24 3973 edge antialiasing only: mean 1.10 over the cell, no pixel outside its neighbourhood's range
+noto-24 4013 edge antialiasing only: mean 1.03 over the cell, no pixel outside its neighbourhood's range
+noto-sample 256 edge antialiasing only: mean 1.05 over the cell, no pixel outside its neighbourhood's range
+noto-sample 2384 edge antialiasing only: mean 1.12 over the cell, no pixel outside its neighbourhood's range
+noto-sample 3163 edge antialiasing only: mean 1.03 over the cell, no pixel outside its neighbourhood's range
+noto-sample 3466 edge antialiasing only: mean 1.29 over the cell, no pixel outside its neighbourhood's range
+noto-sample 3473 edge antialiasing only: mean 1.24 over the cell, no pixel outside its neighbourhood's range
+noto-sample 3477 edge antialiasing only: mean 1.21 over the cell, no pixel outside its neighbourhood's range
+noto-sample 3499 edge antialiasing only: mean 1.34 over the cell, no pixel outside its neighbourhood's range
+noto-sample 3551 edge antialiasing only: mean 1.33 over the cell, no pixel outside its neighbourhood's range
+noto-sample 3625 edge antialiasing only: mean 1.22 over the cell, no pixel outside its neighbourhood's range
+noto-sample 3678 edge antialiasing only: mean 1.01 over the cell, no pixel outside its neighbourhood's range
+noto-sample 3680 edge antialiasing only: mean 1.01 over the cell, no pixel outside its neighbourhood's range
+noto-sample 3687 edge antialiasing only: mean 1.04 over the cell, no pixel outside its neighbourhood's range
+noto-sample 3694 edge antialiasing only: mean 1.06 over the cell, no pixel outside its neighbourhood's range
+test-glyphs-no-cliplist 148 outline 100 units left of FreeType's: the glyph has a left side bearing of 100 and a header xMin of 0, and font's glyf provider does not move an outline by their difference as FreeType and fontTools do (shifted 10 pixels the outline matches Skia's, 154 and 155 exactly)
+test-glyphs-no-cliplist 149 same reason as 148 (the glyph's left side bearing is not its xMin)
+test-glyphs-no-cliplist 150 same reason as 148 (the glyph's left side bearing is not its xMin)
+test-glyphs-no-cliplist 151 same reason as 148 (the glyph's left side bearing is not its xMin)
+test-glyphs-no-cliplist 152 same reason as 148 (the glyph's left side bearing is not its xMin)
+test-glyphs-no-cliplist 153 same reason as 148 (the glyph's left side bearing is not its xMin)
+test-glyphs-no-cliplist 154 same reason as 148 (the glyph's left side bearing is not its xMin)
+test-glyphs-no-cliplist 155 same reason as 148 (the glyph's left side bearing is not its xMin)
+twemoji 106 edge antialiasing only: mean 1.02 over the cell, no pixel outside its neighbourhood's range
+twemoji 163 edge antialiasing only: mean 1.02 over the cell, no pixel outside its neighbourhood's range
+twemoji 302 edge antialiasing only: mean 1.08 over the cell, no pixel outside its neighbourhood's range
+twemoji 304 edge antialiasing only: mean 1.08 over the cell, no pixel outside its neighbourhood's range
+twemoji 502 edge antialiasing only: mean 1.12 over the cell, no pixel outside its neighbourhood's range
+twemoji 1778 edge antialiasing only: mean 1.16 over the cell, no pixel outside its neighbourhood's range

@@ -93,6 +93,29 @@ exceed the bound against every one, and a frame with 3000 of its drawn pixels
 inverted must still have those pixels counted and exceed the bound, or the rule
 would be hiding wrong frames and the scene is reported blind.
 
+## COLRv1 against Skia
+
+`colr/` holds the comparison of `font`'s lowering of COLRv1 with Skia's renderer (color-paint story P4). Each glyph of a font
+with a color description is drawn twice, unhinted, palette 0, a black foreground, at the same size and origin into an 8-bit
+RGBA premultiplied cell: by `shape-cpu` from `font`'s lowered list (`colr-shape.c`, lowered in the encoded space, the one
+Skia draws in) and by Skia's CPU raster backend in the pinned image (`colr-skia.cpp`, public API only). `colr-cmp.c`
+compares the two atlases cell by cell with the measure above: the mean absolute difference over every channel of the
+cell, and the fraction of the cell's pixels that differ by more than 32 levels, counted as `tbig`: a pixel whose value is
+also more than 32 levels outside the range of the other picture's values within one pixel, either way round. That is the
+bound's second figure for glyphs. Two engines that antialias an edge differently put different values on an edge pixel (a
+straight edge a sixth of a pixel apart is 38 levels apart along its whole length), and over a 128-pixel cell the raw count
+fails for four glyphs in five of Noto Color Emoji with nothing wrong: the bound's figure was set for whole frames of large
+shapes. A wrong color, a gradient running the wrong way or a layer in the wrong place is out of range. The bound is the mean at
+most 1.0 and `tbig` at most 0.1 % of the cell (`colr-report.py`); `skia-allow.txt` lists the glyphs outside it, each with
+the reason, and the gate fails when a glyph outside is not listed and when the list names one that is inside. The control
+leaves out every eighth fill of each of the first two hundred glyphs of the first configuration and must put at least half of
+the glyphs it changes outside the bound, or the gate reports itself blind.
+
+`configs.txt` names the runs: Noto Color Emoji's COLR version 1 build (every glyph at 128 pixels, a sample of two hundred at
+24), Nabla at four instances and a sample at 24, Google's test glyphs and Twemoji. `run-colr.sh` has the phases (`build`,
+`shape`, `skia` inside Skia's image, `compare`). The fonts are fetched by digest (`libs/font/tools/oracle/colr_real_fonts.py`)
+and are never committed.
+
 ## Provenance
 
 Every result carries the image reference and its image ID, the base image's
