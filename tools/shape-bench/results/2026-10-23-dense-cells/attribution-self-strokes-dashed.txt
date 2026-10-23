@@ -1,0 +1,45 @@
+--------------------------------------------------------------------------------
+Profile data file 'callgrind-strokes-dashed.out.1' (creator: callgrind-3.24.0)
+--------------------------------------------------------------------------------
+I1 cache: 
+D1 cache: 
+LL cache: 
+Timerange: Basic block 0 - 5444030394
+Trigger: Client Request
+Profiled target:  /work/tmp/attribute-7/bench-build/bench-shape frame /work/tmp/attribute-7/scenes /work/results/frames strokes-dashed (PID 4523, part 1)
+Events recorded:  Ir
+Events shown:     Ir
+Event sort order: Ir
+Thresholds:       99
+Include dirs:     
+User annotated:   
+Auto-annotation:  on
+
+--------------------------------------------------------------------------------
+Ir                      
+--------------------------------------------------------------------------------
+30,106,325,014 (100.0%)  PROGRAM TOTALS
+
+--------------------------------------------------------------------------------
+Ir                      file:function
+--------------------------------------------------------------------------------
+8,506,826,942 (28.26%)  /work/ws/libs/shape-cpu/src/render/exact.c:gshcpu_exact_cell [/work/prefix/lib/ghoti.io/libghoti.io-shape-cpu-0.so.0.0.0]
+4,406,661,745 (14.64%)  /work/ws/libs/shape-cpu/src/render/cover.c:edge [/work/prefix/lib/ghoti.io/libghoti.io-shape-cpu-0.so.0.0.0]
+2,018,188,392 ( 6.70%)  /work/ws/libs/shape-geometry/src/orient/orient.c:ghotiio_shape_geometry_0_gshgeom_orient2d [/work/prefix/lib/ghoti.io/libghoti.io-shape-geometry-0.so.0.0.0]
+1,718,053,823 ( 5.71%)  /work/ws/libs/shape-cpu/src/render/cover.c:piece [/work/prefix/lib/ghoti.io/libghoti.io-shape-cpu-0.so.0.0.0]
+1,712,473,454 ( 5.69%)  /work/ws/libs/shape-geometry/src/exact/exact.c:ghotiio_shape_geometry_0_gshgeom_exact_sign [/work/prefix/lib/ghoti.io/libghoti.io-shape-geometry-0.so.0.0.0]
+1,347,312,350 ( 4.48%)  /work/ws/libs/shape-geometry/src/stroke/emit.c:convex_hull [/work/prefix/lib/ghoti.io/libghoti.io-shape-geometry-0.so.0.0.0]
+1,250,921,920 ( 4.16%)  /work/ws/libs/shape-cpu/src/render/cover.c:path_edges [/work/prefix/lib/ghoti.io/libghoti.io-shape-cpu-0.so.0.0.0]
+  797,466,384 ( 2.65%)  /work/ws/libs/shape-geometry/src/along/along.c:deriv.part.0 [/work/prefix/lib/ghoti.io/libghoti.io-shape-geometry-0.so.0.0.0]
+  787,430,628 ( 2.62%)  /work/ws/libs/shape-cpu/src/render/cover.c:exact_band [/work/prefix/lib/ghoti.io/libghoti.io-shape-cpu-0.so.0.0.0]
+  597,414,795 ( 1.98%)  ./string/../sysdeps/x86_64/multiarch/memset-vec-unaligned-erms.S:__memset_avx2_unaligned_erms [/usr/lib/x86_64-linux-gnu/libc.so.6]
+  568,503,902 ( 1.89%)  /work/ws/libs/shape-geometry/src/stroke/emit.c:ghotiio_shape_geometry_0_gshgeom_sk_norm [/work/prefix/lib/ghoti.io/libghoti.io-shape-geometry-0.so.0.0.0]
+  432,537,671 ( 1.44%)  /work/ws/libs/shape-geometry/src/stroke/body.c:piece'2 [/work/prefix/lib/ghoti.io/libghoti.io-shape-geometry-0.so.0.0.0]
+  431,960,958 ( 1.43%)  /work/ws/libs/shape-geometry/src/along/along.c:bez [/work/prefix/lib/ghoti.io/libghoti.io-shape-geometry-0.so.0.0.0]
+  396,707,660 ( 1.32%)  /work/ws/libs/shape-cpu/src/render/cover.c:gshcpu_render_cover_exact [/work/prefix/lib/ghoti.io/libghoti.io-shape-cpu-0.so.0.0.0]
+  375,192,012 ( 1.25%)  ./string/../sysdeps/x86_64/multiarch/memmove-vec-unaligned-erms.S:__memcpy_avx_unaligned_erms [/usr/lib/x86_64-linux-gnu/libc.so.6]
+  343,502,382 ( 1.14%)  /work/ws/libs/math/src/elementary/hypot.c:ghotiio_math_0_gmath_hypot [/work/prefix/lib/ghoti.io/libghoti.io-math-0.so.0.0.0]
+  326,388,560 ( 1.08%)  /work/ws/libs/shape-cpu/src/render/cover.c:count_piece [/work/prefix/lib/ghoti.io/libghoti.io-shape-cpu-0.so.0.0.0]
+  315,663,777 ( 1.05%)  /work/ws/libs/shape-geometry/src/along/along.c:e_derivative [/work/prefix/lib/ghoti.io/libghoti.io-shape-geometry-0.so.0.0.0]
+  287,792,482 ( 0.96%)  /work/ws/libs/shape-geometry/src/stroke/emit.c:ghotiio_shape_geometry_0_gshgeom_sk_emit [/work/prefix/lib/ghoti.io/libghoti.io-shape-geometry-0.so.0.0.0]
+  275,709,872 ( 0.92%)  /work/ws/libs/shape-cpu/src/render/sink.c:paint_coverage [/work/prefix/lib/ghoti.io/libghoti.io-shape-cpu-0.so.0.0.0]

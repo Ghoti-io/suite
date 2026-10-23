@@ -60,6 +60,13 @@
 #include <ghoti.io/shape-geometry/shape-geometry.h>
 #include <ghoti.io/shape-scene/shape-scene.h>
 
+#if defined(__has_include)
+#if __has_include(<valgrind/callgrind.h>)
+#include <valgrind/callgrind.h>
+#define SB_CALLGRIND 1
+#endif
+#endif
+
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1249,7 +1256,10 @@ static int run(const char * dir, const char * out) {
 /*
  * One frame of each named scene with shape-cpu, written as PAMs and nothing timed: for a census of the cells the exact step
  * handles (libs/shape-cpu/tools/exact-census.c), and for comparing two builds of the step byte for byte.  The names are those
- * of the scenes in the directory (strokes, strokes-dashed, ...); none named is every scene.
+ * of the scenes in the directory (strokes, strokes-dashed, ...); none named is every scene.  SHAPE_BENCH_FRAMES=N draws N
+ * frames of each and writes the last, whose instructions are the only ones counted when the program runs under
+ * `valgrind --tool=callgrind --instr-atstart=no` (the sink caches the expansions of the strokes, so the last frame is a
+ * warm one, which is what the timed frames of a run are).
  */
 static int frames(const char * dir, const char * out, int count, char ** names) {
   int failures = 0;
@@ -1270,7 +1280,26 @@ static int frames(const char * dir, const char * out, int count, char ** names) 
     }
     Shape e;
     int rc = shape_setup(&e, &s, dir, 0);
-    if (rc == 0 && !(rc = shape_clear(&e)) && !(rc = shape_build(&e)) && !(rc = shape_submit(&e))) {
+    const char * want = getenv("SHAPE_BENCH_FRAMES");
+    long nframes = want ? strtol(want, NULL, 10) : 1;
+    for (long f = 0; f < (nframes < 1 ? 1 : nframes) && rc == 0; f++) {
+#ifdef SB_CALLGRIND
+      if (f == nframes - 1 && nframes > 1) {
+        CALLGRIND_START_INSTRUMENTATION;
+        CALLGRIND_ZERO_STATS;
+      }
+#endif
+      rc = shape_clear(&e);
+      rc = rc ? rc : shape_build(&e);
+      rc = rc ? rc : shape_submit(&e);
+#ifdef SB_CALLGRIND
+      if (f == nframes - 1 && nframes > 1) {
+        CALLGRIND_STOP_INSTRUMENTATION;
+        CALLGRIND_DUMP_STATS;
+      }
+#endif
+    }
+    if (rc == 0) {
       snprintf(pam, sizeof pam, "%s/shape-cpu.%s.frame.pam", out, s.name);
       rc = sb_write_pam(pam, s.width, s.height, e.pixels, e.stride, 0);
     }

@@ -1,0 +1,33 @@
+exact-census: 39684 cells handed to the step, 0.151 s in it
+  raw pieces (all parts) max 359        p99.9 292      p99 164      p50 16      
+  raw pieces (one part)  max 359        p99.9 292      p99 164      p50 16      
+  distinct fragments     max 161        p99.9 112      p99 63       p50 6       
+  pieces after seams     max 174        p99.9 123      p99 70       p50 6       
+  slabs                  max 61         p99.9 51       p99 36       p50 5       
+  crossings K            max 534        p99.9 177      p99 32       p50 0       
+  largest winding        max 10         p99.9 8        p99 6        p50 2       
+  step time (ns)         max 394428     p99.9 140349   p99 34440    p50 1340    
+  cells the step refused: 0; cells with more than 512 raw pieces in a part: 0, 0.000 s of the step
+  raw pieces of the busiest part, cells in each band: <=8 14032, <=16 6216, <=64 15408, <=256 3952, <=1024 76, <=4096 0, <=16384 0, more 0
+  the ten cells with the most raw pieces:
+    raw 359 (part 359) distinct 119 after seams 133 slabs 43 K 440 winding 8 status 0 time 0.347 ms
+    raw 359 (part 359) distinct 119 after seams 133 slabs 43 K 440 winding 8 status 0 time 0.346 ms
+    raw 359 (part 359) distinct 119 after seams 133 slabs 43 K 440 winding 8 status 0 time 0.338 ms
+    raw 359 (part 359) distinct 119 after seams 133 slabs 43 K 440 winding 8 status 0 time 0.341 ms
+    raw 354 (part 354) distinct 120 after seams 132 slabs 44 K 470 winding 8 status 0 time 0.363 ms
+    raw 354 (part 354) distinct 120 after seams 132 slabs 44 K 470 winding 8 status 0 time 0.365 ms
+    raw 354 (part 354) distinct 120 after seams 132 slabs 44 K 470 winding 8 status 0 time 0.356 ms
+    raw 354 (part 354) distinct 120 after seams 132 slabs 44 K 470 winding 8 status 0 time 0.353 ms
+    raw 350 (part 350) distinct 98 after seams 112 slabs 48 K 8 winding 4 status 0 time 0.062 ms
+    raw 350 (part 350) distinct 98 after seams 112 slabs 48 K 8 winding 4 status 0 time 0.059 ms
+  the ten cells with the most crossings:
+    raw 218 (part 218) distinct 68 after seams 84 slabs 35 K 534 winding 10 status 0 time 0.394 ms
+    raw 218 (part 218) distinct 68 after seams 84 slabs 35 K 534 winding 10 status 0 time 0.390 ms
+    raw 218 (part 218) distinct 68 after seams 84 slabs 35 K 534 winding 10 status 0 time 0.382 ms
+    raw 218 (part 218) distinct 68 after seams 84 slabs 35 K 534 winding 10 status 0 time 0.386 ms
+    raw 219 (part 219) distinct 67 after seams 77 slabs 30 K 478 winding 8 status 0 time 0.341 ms
+    raw 219 (part 219) distinct 67 after seams 77 slabs 30 K 478 winding 8 status 0 time 0.335 ms
+    raw 219 (part 219) distinct 67 after seams 77 slabs 30 K 478 winding 8 status 0 time 0.330 ms
+    raw 219 (part 219) distinct 67 after seams 77 slabs 30 K 478 winding 8 status 0 time 0.333 ms
+    raw 354 (part 354) distinct 120 after seams 132 slabs 44 K 470 winding 8 status 0 time 0.363 ms
+    raw 354 (part 354) distinct 120 after seams 132 slabs 44 K 470 winding 8 status 0 time 0.365 ms

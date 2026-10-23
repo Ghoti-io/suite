@@ -1,0 +1,33 @@
+exact-census: 1043032 cells handed to the step, 0.894 s in it
+  raw pieces (all parts) max 118        p99.9 72       p99 54       p50 11      
+  raw pieces (one part)  max 118        p99.9 72       p99 54       p50 11      
+  distinct fragments     max 35         p99.9 17       p99 12       p50 2       
+  pieces after seams     max 42         p99.9 20       p99 14       p50 3       
+  slabs                  max 23         p99.9 12       p99 10       p50 3       
+  crossings K            max 17         p99.9 7        p99 3        p50 0       
+  largest winding        max 7          p99.9 5        p99 4        p50 2       
+  step time (ns)         max 36000      p99.9 6670     p99 4370     p50 570     
+  cells the step refused: 0; cells with more than 512 raw pieces in a part: 0, 0.000 s of the step
+  raw pieces of the busiest part, cells in each band: <=8 444642, <=16 350764, <=64 244305, <=256 3321, <=1024 0, <=4096 0, <=16384 0, more 0
+  the ten cells with the most raw pieces:
+    raw 118 (part 118) distinct 8 after seams 10 slabs 7 K 0 winding 3 status 0 time 0.010 ms
+    raw 108 (part 108) distinct 4 after seams 4 slabs 4 K 0 winding 2 status 0 time 0.008 ms
+    raw 100 (part 100) distinct 9 after seams 12 slabs 10 K 0 winding 4 status 0 time 0.008 ms
+    raw 99 (part 99) distinct 12 after seams 13 slabs 4 K 1 winding 2 status 0 time 0.008 ms
+    raw 98 (part 98) distinct 8 after seams 10 slabs 8 K 0 winding 4 status 0 time 0.008 ms
+    raw 97 (part 97) distinct 9 after seams 11 slabs 8 K 2 winding 4 status 0 time 0.008 ms
+    raw 96 (part 96) distinct 3 after seams 4 slabs 3 K 0 winding 3 status 0 time 0.007 ms
+    raw 96 (part 96) distinct 12 after seams 16 slabs 9 K 0 winding 3 status 0 time 0.008 ms
+    raw 95 (part 95) distinct 9 after seams 11 slabs 6 K 1 winding 4 status 0 time 0.008 ms
+    raw 94 (part 94) distinct 6 after seams 6 slabs 6 K 0 winding 2 status 0 time 0.007 ms
+  the ten cells with the most crossings:
+    raw 53 (part 53) distinct 19 after seams 25 slabs 12 K 17 winding 7 status 0 time 0.012 ms
+    raw 38 (part 38) distinct 19 after seams 24 slabs 11 K 15 winding 5 status 0 time 0.008 ms
+    raw 32 (part 32) distinct 13 after seams 18 slabs 7 K 14 winding 5 status 0 time 0.006 ms
+    raw 32 (part 32) distinct 13 after seams 18 slabs 7 K 14 winding 5 status 0 time 0.006 ms
+    raw 54 (part 54) distinct 19 after seams 26 slabs 10 K 14 winding 5 status 0 time 0.010 ms
+    raw 30 (part 30) distinct 13 after seams 18 slabs 7 K 14 winding 5 status 0 time 0.006 ms
+    raw 33 (part 33) distinct 14 after seams 19 slabs 10 K 14 winding 5 status 0 time 0.008 ms
+    raw 39 (part 39) distinct 17 after seams 23 slabs 9 K 14 winding 6 status 0 time 0.008 ms
+    raw 53 (part 53) distinct 22 after seams 29 slabs 15 K 13 winding 5 status 0 time 0.010 ms
+    raw 53 (part 53) distinct 20 after seams 25 slabs 12 K 13 winding 6 status 0 time 0.011 ms

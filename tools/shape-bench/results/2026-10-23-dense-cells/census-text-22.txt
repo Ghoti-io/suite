@@ -1,0 +1,33 @@
+exact-census: 43766 cells handed to the step, 30.055 s in it
+  raw pieces (all parts) max 13363      p99.9 5852     p99 2078     p50 28      
+  raw pieces (one part)  max 13363      p99.9 5852     p99 2078     p50 28      
+  distinct fragments     max 1084       p99.9 727      p99 273      p50 7       
+  pieces after seams     max 4213       p99.9 1850     p99 510      p50 8       
+  slabs                  max 64         p99.9 64       p99 64       p50 7       
+  crossings K            max 333496     p99.9 17179    p99 515      p50 0       
+  largest winding        max 494        p99.9 261      p99 18       p50 3       
+  step time (ns)         max 7050152641 p99.9 96904899 p99 1406453  p50 2340    
+  cells the step refused: 0; cells with more than 512 raw pieces in a part: 3704, 29.829 s of the step
+  raw pieces of the busiest part, cells in each band: <=8 7250, <=16 6684, <=64 20974, <=256 4017, <=1024 3613, <=4096 1121, <=16384 107, more 0
+  the ten cells with the most raw pieces:
+    raw 13363 (part 13363) distinct 1038 after seams 3507 slabs 64 K 333496 winding 426 status 0 time 7050.153 ms
+    raw 11636 (part 11636) distinct 823 after seams 2842 slabs 63 K 144260 winding 398 status 0 time 2142.233 ms
+    raw 10483 (part 10483) distinct 435 after seams 4213 slabs 35 K 1393 winding 322 status 0 time 17.102 ms
+    raw 9993 (part 9993) distinct 413 after seams 4075 slabs 32 K 905 winding 247 status 0 time 14.564 ms
+    raw 9827 (part 9827) distinct 738 after seams 2527 slabs 64 K 88651 winding 230 status 0 time 765.776 ms
+    raw 8834 (part 8834) distinct 763 after seams 3198 slabs 49 K 6469 winding 276 status 0 time 65.558 ms
+    raw 8043 (part 8043) distinct 443 after seams 1941 slabs 64 K 14929 winding 440 status 0 time 112.673 ms
+    raw 7859 (part 7859) distinct 579 after seams 1919 slabs 64 K 70540 winding 252 status 0 time 915.245 ms
+    raw 7858 (part 7858) distinct 577 after seams 1932 slabs 64 K 71895 winding 258 status 0 time 910.003 ms
+    raw 7858 (part 7858) distinct 577 after seams 1932 slabs 64 K 71895 winding 258 status 0 time 912.822 ms
+  the ten cells with the most crossings:
+    raw 13363 (part 13363) distinct 1038 after seams 3507 slabs 64 K 333496 winding 426 status 0 time 7050.153 ms
+    raw 11636 (part 11636) distinct 823 after seams 2842 slabs 63 K 144260 winding 398 status 0 time 2142.233 ms
+    raw 9827 (part 9827) distinct 738 after seams 2527 slabs 64 K 88651 winding 230 status 0 time 765.776 ms
+    raw 7508 (part 7508) distinct 481 after seams 1834 slabs 64 K 75772 winding 451 status 0 time 891.332 ms
+    raw 7479 (part 7479) distinct 650 after seams 1895 slabs 64 K 73330 winding 204 status 0 time 821.342 ms
+    raw 7858 (part 7858) distinct 577 after seams 1932 slabs 64 K 71895 winding 258 status 0 time 910.003 ms
+    raw 7858 (part 7858) distinct 577 after seams 1932 slabs 64 K 71895 winding 258 status 0 time 912.822 ms
+    raw 7859 (part 7859) distinct 579 after seams 1919 slabs 64 K 70540 winding 252 status 0 time 915.245 ms
+    raw 7720 (part 7720) distinct 596 after seams 1894 slabs 64 K 68441 winding 246 status 0 time 672.352 ms
+    raw 6219 (part 6219) distinct 627 after seams 1687 slabs 64 K 68289 winding 209 status 0 time 448.224 ms

@@ -1,0 +1,75 @@
+--------------------------------------------------------------------------------
+Profile data file 'callgrind-strokes.out.1' (creator: callgrind-3.24.0)
+--------------------------------------------------------------------------------
+I1 cache: 
+D1 cache: 
+LL cache: 
+Timerange: Basic block 0 - 16679313601
+Trigger: Client Request
+Profiled target:  /work/tmp/attribute-7/bench-build/bench-shape frame /work/tmp/attribute-7/scenes /work/results/frames strokes (PID 4531, part 1)
+Events recorded:  Ir
+Events shown:     Ir
+Event sort order: Ir
+Thresholds:       99
+Include dirs:     
+User annotated:   
+Auto-annotation:  on
+
+--------------------------------------------------------------------------------
+Ir                      
+--------------------------------------------------------------------------------
+90,613,790,492 (100.0%)  PROGRAM TOTALS
+
+--------------------------------------------------------------------------------
+Ir                        file:function
+--------------------------------------------------------------------------------
+114,017,510,806 (125.8%)  /work/ws/libs/shape-geometry/src/stroke/body.c:piece'2 [/work/prefix/lib/ghoti.io/libghoti.io-shape-geometry-0.so.0.0.0]
+ 90,613,790,492 (100.0%)  /work/ws/suite/tools/shape-bench/bench-shape.c:frames [/work/tmp/attribute-7/bench-build/bench-shape]
+ 90,597,373,796 (99.98%)  /work/ws/suite/tools/shape-bench/bench-shape.c:shape_submit [/work/tmp/attribute-7/bench-build/bench-shape]
+ 90,597,373,737 (99.98%)  /work/ws/libs/shape-scene/src/sink/sink.c:ghotiio_shape_scene_0_gshscene_sink_render [/work/prefix/lib/ghoti.io/libghoti.io-shape-scene-0.so.0.0.0]
+ 90,597,372,107 (99.98%)  /work/ws/libs/shape-scene/src/sink/sink.c:ghotiio_shape_scene_0_gshscene_sink_begin [/work/prefix/lib/ghoti.io/libghoti.io-shape-scene-0.so.0.0.0]
+ 90,597,371,970 (99.98%)  /work/ws/libs/shape-scene/src/sink/sink.c:ghotiio_shape_scene_0_gshscene_sink_begin.part.0 [/work/prefix/lib/ghoti.io/libghoti.io-shape-scene-0.so.0.0.0]
+ 90,591,098,078 (99.97%)  /work/ws/libs/shape-cpu/src/render/sink.c:op_begin [/work/prefix/lib/ghoti.io/libghoti.io-shape-cpu-0.so.0.0.0]
+ 67,801,030,840 (74.82%)  /work/ws/libs/shape-cpu/src/render/stroke.c:gshcpu_render_stroke_cover [/work/prefix/lib/ghoti.io/libghoti.io-shape-cpu-0.so.0.0.0]
+ 66,826,927,268 (73.75%)  /work/ws/libs/shape-cpu/src/render/cover.c:gshcpu_render_cover_exact [/work/prefix/lib/ghoti.io/libghoti.io-shape-cpu-0.so.0.0.0]
+ 48,008,476,948 (52.98%)  /work/ws/libs/shape-cpu/src/render/cover.c:exact_band [/work/prefix/lib/ghoti.io/libghoti.io-shape-cpu-0.so.0.0.0]
+ 31,155,006,759 (34.38%)  /work/ws/libs/shape-cpu/src/render/exact.c:gshcpu_exact_cell [/work/prefix/lib/ghoti.io/libghoti.io-shape-cpu-0.so.0.0.0]
+ 27,270,380,704 (30.10%)  /work/ws/libs/shape-cpu/src/render/cover.c:path_edges [/work/prefix/lib/ghoti.io/libghoti.io-shape-cpu-0.so.0.0.0]
+ 21,374,958,498 (23.59%)  /work/ws/libs/shape-cpu/src/render/cover.c:edge [/work/prefix/lib/ghoti.io/libghoti.io-shape-cpu-0.so.0.0.0]
+ 18,620,604,389 (20.55%)  /work/ws/libs/shape-cpu/src/render/stroke.c:gshcpu_render_stroke_open [/work/prefix/lib/ghoti.io/libghoti.io-shape-cpu-0.so.0.0.0]
+ 18,490,974,808 (20.41%)  /work/ws/libs/shape-geometry/src/stroke/expand.c:ghotiio_shape_geometry_0_gshgeom_stroke_expand [/work/prefix/lib/ghoti.io/libghoti.io-shape-geometry-0.so.0.0.0]
+ 18,490,952,308 (20.41%)  /work/ws/libs/shape-geometry/src/stroke/expand.c:ghotiio_shape_geometry_0_gshgeom_stroke_expand_with_tolerance [/work/prefix/lib/ghoti.io/libghoti.io-shape-geometry-0.so.0.0.0]
+ 18,490,347,308 (20.41%)  /work/ws/libs/shape-geometry/src/stroke/expand.c:expand_core.part.0 [/work/prefix/lib/ghoti.io/libghoti.io-shape-geometry-0.so.0.0.0]
+ 18,434,368,787 (20.34%)  /work/ws/libs/shape-geometry/src/stroke/expand.c:ghotiio_shape_geometry_0_gshgeom_sk_solid_sub [/work/prefix/lib/ghoti.io/libghoti.io-shape-geometry-0.so.0.0.0]
+ 17,694,983,219 (19.53%)  /work/ws/libs/shape-geometry/src/stroke/body.c:ghotiio_shape_geometry_0_gshgeom_sk_body [/work/prefix/lib/ghoti.io/libghoti.io-shape-geometry-0.so.0.0.0]
+ 17,303,265,336 (19.10%)  /work/ws/libs/shape-geometry/src/stroke/body.c:piece [/work/prefix/lib/ghoti.io/libghoti.io-shape-geometry-0.so.0.0.0]
+ 11,831,929,889 (13.06%)  /work/ws/libs/shape-geometry/src/stroke/emit.c:ghotiio_shape_geometry_0_gshgeom_sk_emit [/work/prefix/lib/ghoti.io/libghoti.io-shape-geometry-0.so.0.0.0]
+  7,157,189,233 ( 7.90%)  /work/ws/libs/shape-geometry/src/orient/orient.c:ghotiio_shape_geometry_0_gshgeom_orient2d [/work/prefix/lib/ghoti.io/libghoti.io-shape-geometry-0.so.0.0.0]
+  6,577,760,326 ( 7.26%)  /work/ws/libs/shape-geometry/src/stroke/emit.c:convex_hull [/work/prefix/lib/ghoti.io/libghoti.io-shape-geometry-0.so.0.0.0]
+  6,516,274,739 ( 7.19%)  /work/ws/libs/shape-cpu/src/render/cover.c:piece [/work/prefix/lib/ghoti.io/libghoti.io-shape-cpu-0.so.0.0.0]
+  3,742,209,663 ( 4.13%)  /work/ws/libs/shape-cpu/src/render/sink.c:paint_coverage [/work/prefix/lib/ghoti.io/libghoti.io-shape-cpu-0.so.0.0.0]
+  3,185,515,488 ( 3.52%)  /work/ws/libs/shape-geometry/src/stroke/body.c:band_analyze.isra.0 [/work/prefix/lib/ghoti.io/libghoti.io-shape-geometry-0.so.0.0.0]
+  2,927,190,168 ( 3.23%)  ./string/../sysdeps/x86_64/multiarch/memset-vec-unaligned-erms.S:__memset_avx2_unaligned_erms [/usr/lib/x86_64-linux-gnu/libc.so.6]
+  2,890,524,316 ( 3.19%)  /work/ws/libs/shape-geometry/src/exact/exact.c:ghotiio_shape_geometry_0_gshgeom_exact_sign [/work/prefix/lib/ghoti.io/libghoti.io-shape-geometry-0.so.0.0.0]
+  2,763,923,004 ( 3.05%)  /work/ws/libs/shape-geometry/src/orient/orient.c:exact2.isra.0 [/work/prefix/lib/ghoti.io/libghoti.io-shape-geometry-0.so.0.0.0]
+  2,010,004,204 ( 2.22%)  /work/ws/libs/shape-geometry/src/stroke/emit.c:ghotiio_shape_geometry_0_gshgeom_sk_norm [/work/prefix/lib/ghoti.io/libghoti.io-shape-geometry-0.so.0.0.0]
+  1,093,295,084 ( 1.21%)  /work/ws/libs/shape-cpu/src/render/compose.c:gshcpu_render_apply [/work/prefix/lib/ghoti.io/libghoti.io-shape-cpu-0.so.0.0.0]
+  1,074,827,960 ( 1.19%)  /work/ws/libs/shape-cpu/src/render/sink.c:weigh_clips [/work/prefix/lib/ghoti.io/libghoti.io-shape-cpu-0.so.0.0.0]
+  1,046,317,191 ( 1.15%)  /work/ws/libs/shape-cpu/src/render/cover.c:count_piece [/work/prefix/lib/ghoti.io/libghoti.io-shape-cpu-0.so.0.0.0]
+  1,021,291,876 ( 1.13%)  /work/ws/libs/shape-cpu/src/render/cover.c:gshcpu_render_cells_bound [/work/prefix/lib/ghoti.io/libghoti.io-shape-cpu-0.so.0.0.0]
+    995,371,188 ( 1.10%)  /work/ws/libs/shape-geometry/src/stroke/body.c:quarter_cone [/work/prefix/lib/ghoti.io/libghoti.io-shape-geometry-0.so.0.0.0]
+    831,077,849 ( 0.92%)  /work/ws/libs/shape-geometry/src/stroke/body.c:units [/work/prefix/lib/ghoti.io/libghoti.io-shape-geometry-0.so.0.0.0]
+
+--------------------------------------------------------------------------------
+The following files chosen for auto-annotation could not be found:
+--------------------------------------------------------------------------------
+  ./string/../sysdeps/x86_64/multiarch/memset-vec-unaligned-erms.S
+  /work/ws/libs/shape-cpu/src/render/compose.c
+  /work/ws/libs/shape-cpu/src/render/cover.c
+  /work/ws/libs/shape-cpu/src/render/exact.c
+  /work/ws/libs/shape-cpu/src/render/sink.c
+  /work/ws/libs/shape-cpu/src/render/stroke.c
+  /work/ws/libs/shape-geometry/src/exact/exact.c
+  /work/ws/libs/shape-geometry/src/orient/orient.c
+  /work/ws/libs/shape-geometry/src/stroke/body.c
+  /work/ws/libs/shape-geometry/src/stroke/emit.c
