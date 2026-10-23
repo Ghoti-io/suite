@@ -35,15 +35,27 @@
  *     work <unit> <amount>                what one frame does (pixels, paths, glyphs, items)
  *     font <file> <size>                  text only: the font file (beside the scene) and the em size in pixels
  *     clip <x0> <y0> <x1> <y1>            push a rectangular clip
- *     unclip                              pop it
+ *     clippath <count>                    push the clip of a path (anti-aliased, non-zero), then <count> commands as a fill's
+ *     unclip                              pop the innermost clip
+ *     group <composite> <opacity> [linear]  begin an isolated group: what follows, up to the matching `endgroup`, is drawn on
+ *                                         a transparent layer of the extent, and the layer is then composited onto what is
+ *                                         beneath with the named operator after its result is scaled by <opacity> (0 to 1);
+ *                                         groups nest, and nest well with the clips.  `linear` says the group composites in
+ *                                         linear light (its layer and the backdrop converted from the target's encoded
+ *                                         values, blended there, and converted back), which is what shape-scene's
+ *                                         `blend_space` says; a reference whose layers blend in the encoded values only
+ *                                         draws it encoded, and its driver says so
+ *     endgroup                            end it
  *     fill <r> <g> <b> <a> <count>        a path filled non-zero, then <count> commands:
  *     M x y | L x y | Q x1 y1 x y | C x1 y1 x2 y2 x y | Z
+ *     fill-eo <r> <g> <b> <a> <count>     as `fill`, by the even-odd rule
  *     run <r> <g> <b> <a> <count>         a glyph run, then <count> lines "g <id> <x> <y>" (baseline origin)
  *     stroke <r> <g> <b> <a> <width> <join> <cap> <miter> <offset> <ndash> <dash>... <count>
  *                                         a path stroked (strokes story S4): then <count> commands as a fill's.
  *                                         <join> is miter, round or bevel; <cap> butt, round or square; the width is in
  *                                         pixels under the identity map (every engine's local width); <miter> the miter
- *                                         limit; <ndash> lengths in pixels (an even count, 0 for solid) restarting at each
+ *                                         limit (`miterclip` and `arcs` are SVG 2's joins, which a reference may not have:
+ *                                         its driver then names the nearest it has); <ndash> lengths in pixels (an even count, 0 for solid) restarting at each
  *                                         subpath, from the phase <offset>.  Non-zero winding, a union of what the
  *                                         stroke covers, one blend: each engine's own stroker.
  *     gradient <kind> <extend> <geometry> <count>
@@ -55,8 +67,8 @@
  * Colors are straight 8-bit sRGB; every engine composites source-over in the
  * target's own (sRGB-encoded) values.
  *
- * A gradient record paints the fill record that comes next, and nothing else:
- * any other record after it is an error.  That fill's color is then `0 0 0 a`,
+ * A gradient record paints the fill (or stroke) record that comes next, and nothing else:
+ * any other record after it is an error.  That item's color is then `0 0 0 a`,
  * `a` the alpha multiplier.  `<kind>` and its `<geometry>`:
  *
  *     linear x0 y0 x1 y1                  offset 0 at (x0, y0), 1 at (x1, y1), isolines perpendicular
@@ -90,9 +102,60 @@ typedef struct SB_Color {
   uint8_t r, g, b, a;
 } SB_Color;
 
-typedef enum SB_Kind { SB_FILL = 1, SB_RUN = 2, SB_CLIP = 3, SB_UNCLIP = 4, SB_STROKE = 5 } SB_Kind;
+typedef enum SB_Kind {
+  SB_FILL = 1,
+  SB_RUN = 2,
+  SB_CLIP = 3,
+  SB_UNCLIP = 4,
+  SB_STROKE = 5,
+  SB_GROUP = 6,
+  SB_ENDGROUP = 7,
+  SB_CLIPPATH = 8
+} SB_Kind;
 
-typedef enum SB_Join { SB_JOIN_MITER = 0, SB_JOIN_ROUND = 1, SB_JOIN_BEVEL = 2 } SB_Join;
+typedef enum SB_Join {
+  SB_JOIN_MITER = 0,
+  SB_JOIN_ROUND = 1,
+  SB_JOIN_BEVEL = 2,
+  SB_JOIN_MITER_CLIP = 3,
+  SB_JOIN_ARCS = 4
+} SB_Join;
+
+/** The composite operators of a group, in shape-scene's order (the names are those the file spells, lower case). */
+typedef enum SB_Composite {
+  SB_COMPOSITE_SRC_OVER = 0,
+  SB_COMPOSITE_CLEAR,
+  SB_COMPOSITE_SRC,
+  SB_COMPOSITE_DEST,
+  SB_COMPOSITE_DEST_OVER,
+  SB_COMPOSITE_SRC_IN,
+  SB_COMPOSITE_DEST_IN,
+  SB_COMPOSITE_SRC_OUT,
+  SB_COMPOSITE_DEST_OUT,
+  SB_COMPOSITE_SRC_ATOP,
+  SB_COMPOSITE_DEST_ATOP,
+  SB_COMPOSITE_XOR,
+  SB_COMPOSITE_PLUS,
+  SB_COMPOSITE_SCREEN,
+  SB_COMPOSITE_OVERLAY,
+  SB_COMPOSITE_DARKEN,
+  SB_COMPOSITE_LIGHTEN,
+  SB_COMPOSITE_COLOR_DODGE,
+  SB_COMPOSITE_COLOR_BURN,
+  SB_COMPOSITE_HARD_LIGHT,
+  SB_COMPOSITE_SOFT_LIGHT,
+  SB_COMPOSITE_DIFFERENCE,
+  SB_COMPOSITE_EXCLUSION,
+  SB_COMPOSITE_MULTIPLY,
+  SB_COMPOSITE_HUE,
+  SB_COMPOSITE_SATURATION,
+  SB_COMPOSITE_COLOR,
+  SB_COMPOSITE_LUMINOSITY,
+  SB_COMPOSITE_COUNT
+} SB_Composite;
+
+/** The name a composite is spelled with in a scene file. */
+const char * sb_composite_name(SB_Composite op);
 typedef enum SB_Cap { SB_CAP_BUTT = 0, SB_CAP_ROUND = 1, SB_CAP_SQUARE = 2 } SB_Cap;
 
 /** The most dash lengths a stroke record carries. */
@@ -148,6 +211,10 @@ typedef struct SB_Item {
   double rect[4];  ///< clip: x0, y0, x1, y1
   size_t gradient; ///< fill: 1 + the index of its paint in SB_Scene.gradients; 0 for a solid color
   size_t stroke;   ///< stroke: 1 + the index of its style in SB_Scene.strokes
+  int evenodd;     ///< fill: the even-odd rule (else non-zero)
+  int composite;   ///< group: an SB_Composite
+  double opacity;  ///< group: 0 to 1
+  int linear;      ///< group: composites in linear light (sRGB primaries)
 } SB_Item;
 
 typedef struct SB_Scene {

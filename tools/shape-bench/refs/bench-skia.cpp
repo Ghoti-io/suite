@@ -57,6 +57,19 @@
  *           applied outside [a0, a1], as the scene's.
  *
  * pad, repeat and reflect are SkTileMode kClamp, kRepeat and kMirror.
+ *
+ * The pictures (README.md, "The pictures") add, by Skia's own public API:
+ *
+ *   group      SkCanvas::saveLayer with a paint holding the group's blend mode and its opacity (setAlphaf), restored at
+ *              the group's end: an isolated layer composited with that mode, in the surface's encoded values.  A group
+ *              the scene says composites `linear` is still composited in encoded values here (the surface has no color
+ *              space, and an 8-bit layer is not made linear): that is a difference of the picture, and is reported in the
+ *              scene's mismatch list, not here.
+ *   clippath   clipPath(path, kIntersect, antialias), restored at the matching unclip.
+ *   fill-eo    SkPathFillType::kEvenOdd.
+ *   joins      miterclip and arcs (SVG 2) have no Skia join: both are drawn as kMiter_Join, which is a bevel past the
+ *              limit, the nearest Skia has.
+ *   gradients  on strokes as on fills (the shader on the stroking paint).
  */
 
 #include "include/core/SkCanvas.h"
@@ -120,10 +133,53 @@ void draw(Engine & e, SkCanvas * c) {
     case SB_UNCLIP:
       c->restore();
       break;
+    case SB_CLIPPATH:
+      c->save();
+      c->clipPath(e.paths[i], SkClipOp::kIntersect, true);
+      break;
+    case SB_GROUP:
+      c->saveLayer(nullptr, &e.paints[i]);
+      break;
+    case SB_ENDGROUP:
+      c->restore();
+      break;
     case SB_RUN:
       c->drawTextBlob(e.blobs[i], 0, 0, e.paints[i]);
       break;
     }
+  }
+}
+
+SkBlendMode blend_mode(int op) {
+  switch (op) {
+  case SB_COMPOSITE_CLEAR: return SkBlendMode::kClear;
+  case SB_COMPOSITE_SRC: return SkBlendMode::kSrc;
+  case SB_COMPOSITE_DEST: return SkBlendMode::kDst;
+  case SB_COMPOSITE_DEST_OVER: return SkBlendMode::kDstOver;
+  case SB_COMPOSITE_SRC_IN: return SkBlendMode::kSrcIn;
+  case SB_COMPOSITE_DEST_IN: return SkBlendMode::kDstIn;
+  case SB_COMPOSITE_SRC_OUT: return SkBlendMode::kSrcOut;
+  case SB_COMPOSITE_DEST_OUT: return SkBlendMode::kDstOut;
+  case SB_COMPOSITE_SRC_ATOP: return SkBlendMode::kSrcATop;
+  case SB_COMPOSITE_DEST_ATOP: return SkBlendMode::kDstATop;
+  case SB_COMPOSITE_XOR: return SkBlendMode::kXor;
+  case SB_COMPOSITE_PLUS: return SkBlendMode::kPlus;
+  case SB_COMPOSITE_SCREEN: return SkBlendMode::kScreen;
+  case SB_COMPOSITE_OVERLAY: return SkBlendMode::kOverlay;
+  case SB_COMPOSITE_DARKEN: return SkBlendMode::kDarken;
+  case SB_COMPOSITE_LIGHTEN: return SkBlendMode::kLighten;
+  case SB_COMPOSITE_COLOR_DODGE: return SkBlendMode::kColorDodge;
+  case SB_COMPOSITE_COLOR_BURN: return SkBlendMode::kColorBurn;
+  case SB_COMPOSITE_HARD_LIGHT: return SkBlendMode::kHardLight;
+  case SB_COMPOSITE_SOFT_LIGHT: return SkBlendMode::kSoftLight;
+  case SB_COMPOSITE_DIFFERENCE: return SkBlendMode::kDifference;
+  case SB_COMPOSITE_EXCLUSION: return SkBlendMode::kExclusion;
+  case SB_COMPOSITE_MULTIPLY: return SkBlendMode::kMultiply;
+  case SB_COMPOSITE_HUE: return SkBlendMode::kHue;
+  case SB_COMPOSITE_SATURATION: return SkBlendMode::kSaturation;
+  case SB_COMPOSITE_COLOR: return SkBlendMode::kColor;
+  case SB_COMPOSITE_LUMINOSITY: return SkBlendMode::kLuminosity;
+  default: return SkBlendMode::kSrcOver;
   }
 }
 
@@ -199,7 +255,11 @@ int setup(Engine & e, const SB_Scene & s, const std::string & dir) {
     p.setColor(SkColorSetARGB(it.color.a, it.color.r, it.color.g, it.color.b));
     p.setBlendMode(SkBlendMode::kSrcOver);
     p.setDither(false);
-    if (it.kind == SB_FILL && it.gradient) {
+    if (it.kind == SB_GROUP) {
+      p.setAlphaf(float(it.opacity));
+      p.setBlendMode(blend_mode(it.composite));
+    }
+    if ((it.kind == SB_FILL || it.kind == SB_STROKE) && it.gradient) {
       // The color's alpha is the gradient's multiplier; its r, g, b are 0 and unused under a shader.
       p.setShader(make_gradient(s, s.gradients[it.gradient - 1]));
       if (!p.getShader()) {
@@ -213,6 +273,7 @@ int setup(Engine & e, const SB_Scene & s, const std::string & dir) {
       const SB_Stroke & st = s.strokes[it.stroke - 1];
       p.setStyle(SkPaint::kStroke_Style);
       p.setStrokeWidth(SkScalar(st.width));
+      // miterclip and arcs have no Skia join: the nearest is its miter, a bevel past the limit.
       p.setStrokeJoin(st.join == SB_JOIN_ROUND ? SkPaint::kRound_Join
                           : st.join == SB_JOIN_BEVEL ? SkPaint::kBevel_Join
                                                      : SkPaint::kMiter_Join);
@@ -228,8 +289,8 @@ int setup(Engine & e, const SB_Scene & s, const std::string & dir) {
         p.setPathEffect(SkDashPathEffect::Make(SkSpan<const SkScalar>(iv, st.n_dashes), SkScalar(st.offset)));
       }
     }
-    if (it.kind == SB_FILL || it.kind == SB_STROKE) {
-      SkPathBuilder b(SkPathFillType::kWinding);
+    if (it.kind == SB_FILL || it.kind == SB_STROKE || it.kind == SB_CLIPPATH) {
+      SkPathBuilder b(it.evenodd ? SkPathFillType::kEvenOdd : SkPathFillType::kWinding);
       for (size_t k = 0; k < it.count; k++) {
         const SB_Cmd & c = s.cmds[it.first + k];
         auto x = [&](int j) { return SkScalar(c.p[j]); };
@@ -289,13 +350,18 @@ int submit(void * ctx) {
 }  // namespace
 
 int main(int argc, char ** argv) {
-  if (argc != 3) {
-    std::fprintf(stderr, "usage: bench-skia DIR OUT\n");
+  if (argc < 3) {
+    std::fprintf(stderr, "usage: bench-skia DIR OUT [SCENE...]\n");
     return 2;
   }
   static const char * const scenes[] = {"fill-rect", "fill-circle", "paths", "text", "ui", "gradients", "strokes", "strokes-dashed"};
+  // Scenes named after the two directories are the only ones drawn; none named is the benchmark's own.
+  std::vector<const char *> names(scenes, scenes + sizeof scenes / sizeof scenes[0]);
+  if (argc > 3) {
+    names.assign(argv + 3, argv + argc);
+  }
   int failures = 0;
-  for (const char * name : scenes) {
+  for (const char * name : names) {
     std::string path = std::string(argv[1]) + "/" + name + ".scene";
     char err[256];
     SB_Scene s;
@@ -319,6 +385,7 @@ int main(int argc, char ** argv) {
         sb_report(stdout, "skia", &s, &m, out.c_str(),
             e.record                              ? "build: SkPictureRecorder; submit: drawPicture"
                 : std::strcmp(s.metric, "text") == 0 ? "SkTextBlob built once; glyph masks cached by Skia's strike cache; text contrast 0 and gamma 1 (linear coverage)"
+                : std::strcmp(s.metric, "picture") == 0 ? "SkCanvas drawPath and saveLayer/clipPath, paths and shaders built once; Skia's own stroker and dasher; groups and clips by saveLayer and clipPath in encoded values"
                 : std::strncmp(s.name, "strokes", 7) == 0 ? "SkPaint stroke style (width, join, cap, miter limit) and SkDashPathEffect, Skia's own stroker and dasher, paths built once"
                 : s.n_gradients ? "SkShaders gradient shaders built once; paint dither off; 8-bit sRGB stops, destination interpolation on a surface with no color space, unpremultiplied"
                                                      : nullptr);

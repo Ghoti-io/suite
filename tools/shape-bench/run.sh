@@ -18,6 +18,10 @@
 #                              pamdiff, fetch the pinned font, write the scenes,
 #                              and run shape-cpu's `make test` (before anything
 #                              is timed).
+#   run.sh pictures WORK       on the machine itself, as `time`, for the pictures (README.md, "The pictures"): scenes
+#                              written into WORK/results/scenes by something else (named picture-*), each engine run
+#                              SHAPE_BENCH_REPS times (default 3) on them, pinned to one CPU; writes
+#                              WORK/results/pictures/{raw,prov,logs,frames}, and no report (report-pictures.py makes it).
 #   run.sh time WORK           on the machine itself, with a container engine:
 #                              run each engine in its own image, one after
 #                              another, pinned to one CPU, recording the
@@ -39,6 +43,10 @@
 #   SHAPE_BENCH_CLI        the container command for inspecting images (docker)
 #   GHOTI_CONTAINER_ENGINE the command that runs the images (default: SHAPE_BENCH_CLI)
 #   SHAPE_BENCH_BUILD_IMAGE the image shape-cpu runs in (ghoti-build:gcc16)
+#   SHAPE_BENCH_REPS       pictures: how many times every engine is run (default 3)
+#   SHAPE_BENCH_PICTURES   pictures: the scene names (default: picture-typography picture-geometry)
+#   SHAPE_BENCH_NATIVE_CMD pictures: a command, run in the build image from WORK like shape-cpu's, that draws the pictures
+#                          from their own lists and prints one JSON line per measurement; its engine is "shape-cpu-native"
 
 set -eu
 
@@ -134,7 +142,7 @@ state() {
 
 run_engine() {
   name=$1 image=$2 cmd=$3
-  info="$R/prov/$name.txt"
+  info="$R/prov/$name$RAWSUF.txt"
   "$CLI" image inspect "$image" > /dev/null 2>&1 || die "no image $image here (README.md says how to build it)"
   {
     echo "engine: $name"
@@ -152,13 +160,42 @@ run_engine() {
   } > "$info"
   echo "== $name"
   "$ENGINE" run --rm --cpuset-cpus="$CPU" --user "$(id -u):$(id -g)" -v "$WORK:$MNT" -w "$MNT" "$image" \
-    sh -c "$cmd" > "$R/raw/$name.jsonl" 2> "$R/logs/$name.err" ||
-    { cat "$R/logs/$name.err"; die "$name failed"; }
+    sh -c "$cmd" > "$R/raw/$name$RAWSUF.jsonl" 2> "$R/logs/$name$RAWSUF.err" ||
+    { cat "$R/logs/$name$RAWSUF.err"; die "$name failed"; }
   {
     echo "after:"
     state | sed 's/^/  /'
   } >> "$info"
-  cat "$R/logs/$name.err"
+  cat "$R/logs/$name$RAWSUF.err"
+}
+
+# One run of every wanted engine on the scenes, each in its own image: the frames go to $FRAMES (under WORK), $NAMES
+# limits the reference drivers to those scenes, $SHAPE_RUN is what shape-cpu's image runs.
+time_engines() {
+  if want shape-cpu; then
+    run_engine shape-cpu "$BUILD_IMAGE" \
+      "echo \"compiler: \$(gcc --version | head -n 1)\" >&2; $SHAPE_RUN"
+    echo "base: $base" >> "$R/prov/shape-cpu$RAWSUF.txt"
+  fi
+
+  want blend2d && run_engine blend2d "$BLEND2D_IMAGE" "set -e
+    lib=\$(find /opt/blend2d -name 'libblend2d*.a' | head -n 1)
+    flags='-O2 -DBL_STATIC -I/opt/blend2d/include'
+    echo \"driver: clang++-19 -std=c++20 \$flags (scene.c: clang-19 -std=c17 -O2)\" >&2
+    cat /opt/blend2d/share/PROVENANCE >&2
+    clang-19 -std=c17 -O2 -c $B/scene.c -o /tmp/scene.o
+    clang++-19 -std=c++20 \$flags -o /tmp/bench-blend2d $B/refs/bench-blend2d.cpp /tmp/scene.o \$lib -lpthread -lrt -ldl
+    /tmp/bench-blend2d results/scenes $FRAMES $NAMES"
+
+  want skia && run_engine skia "$SKIA_IMAGE" "set -e
+    defs=\$(grep -E '^ *[A-Z_][A-Z0-9_]*(=.*)?\$' /opt/skia/share/DEFINES | grep -v SKIA_IMPLEMENTATION | sed 's/^ */-D/' | tr '\n' ' ')
+    flags=\"-O2 -DNDEBUG \$defs -I/opt/skia\"
+    echo \"driver: clang++-19 -std=c++20 \$flags (scene.c: clang-19 -std=c17 -O2)\" >&2
+    cat /opt/skia/share/PROVENANCE /opt/skia/share/GN_ARGS >&2
+    clang-19 -std=c17 -O2 -c $B/scene.c -o /tmp/scene.o
+    clang++-19 -std=c++20 \$flags -o /tmp/bench-skia $B/refs/bench-skia.cpp /tmp/scene.o \
+      -Wl,--start-group /opt/skia/out/Release/*.a -Wl,--end-group -lfreetype -lpthread -ldl
+    /tmp/bench-skia results/scenes $FRAMES $NAMES"
 }
 
 timing() {
@@ -176,30 +213,8 @@ timing() {
   }
   base=$(sed -n 's/^FROM \([^ ]*\).*/\1/p' ws/suite/Containerfile.build | head -n 1)
 
-  if want shape-cpu; then
-    run_engine shape-cpu "$BUILD_IMAGE" \
-      "echo \"compiler: \$(gcc --version | head -n 1)\" >&2; bench-build/bench-shape run results/scenes results/frames"
-    echo "base: $base" >> "$R/prov/shape-cpu.txt"
-  fi
-
-  want blend2d && run_engine blend2d "$BLEND2D_IMAGE" "set -e
-    lib=\$(find /opt/blend2d -name 'libblend2d*.a' | head -n 1)
-    flags='-O2 -DBL_STATIC -I/opt/blend2d/include'
-    echo \"driver: clang++-19 -std=c++20 \$flags (scene.c: clang-19 -std=c17 -O2)\" >&2
-    cat /opt/blend2d/share/PROVENANCE >&2
-    clang-19 -std=c17 -O2 -c $B/scene.c -o /tmp/scene.o
-    clang++-19 -std=c++20 \$flags -o /tmp/bench-blend2d $B/refs/bench-blend2d.cpp /tmp/scene.o \$lib -lpthread -lrt -ldl
-    /tmp/bench-blend2d results/scenes results/frames"
-
-  want skia && run_engine skia "$SKIA_IMAGE" "set -e
-    defs=\$(grep -E '^ *[A-Z_][A-Z0-9_]*(=.*)?\$' /opt/skia/share/DEFINES | grep -v SKIA_IMPLEMENTATION | sed 's/^ */-D/' | tr '\n' ' ')
-    flags=\"-O2 -DNDEBUG \$defs -I/opt/skia\"
-    echo \"driver: clang++-19 -std=c++20 \$flags (scene.c: clang-19 -std=c17 -O2)\" >&2
-    cat /opt/skia/share/PROVENANCE /opt/skia/share/GN_ARGS >&2
-    clang-19 -std=c17 -O2 -c $B/scene.c -o /tmp/scene.o
-    clang++-19 -std=c++20 \$flags -o /tmp/bench-skia $B/refs/bench-skia.cpp /tmp/scene.o \
-      -Wl,--start-group /opt/skia/out/Release/*.a -Wl,--end-group -lfreetype -lpthread -ldl
-    /tmp/bench-skia results/scenes results/frames"
+  FRAMES=results/frames NAMES= SHAPE_RUN="bench-build/bench-shape run results/scenes results/frames" RAWSUF=
+  time_engines
 
   # The libraries' commits, for the record: SHIPPED when whoever laid out WORK
   # wrote one (each line "<lib> <commit> clean|dirty"), else read from git.
@@ -221,10 +236,59 @@ timing() {
     python3 "$B/report.py" --results results --pamdiff bench-build/pamdiff --corroborate bench-build/corroborate --shipped SHIPPED
 }
 
-[ $# -ge 2 ] || die "usage: run.sh build WORK [JOBS] | run.sh time WORK"
+# The pictures: the scenes named picture-* are in WORK/results/scenes already (written by whatever draws the pictures);
+# every engine is run on them REPS times, one after another, the raw figures, provenance and logs of a repetition under
+# its own name, the frames of the last one.
+pictures() {
+  reps=${SHAPE_BENCH_REPS:-3}
+  names=${SHAPE_BENCH_PICTURES:-picture-typography picture-geometry}
+  R=$WORK/results
+  cd "$WORK"
+  [ -f bench-build/WORKDIR ] || die "no $WORK/bench-build/WORKDIR; run the build phase first"
+  MNT=$(cat bench-build/WORKDIR)
+  CLI=${SHAPE_BENCH_CLI:-docker}
+  ENGINE=${GHOTI_CONTAINER_ENGINE:-$CLI}
+  CPU=${SHAPE_BENCH_CPU:-8}
+  ENGINES=${SHAPE_BENCH_ENGINES:-shape-cpu blend2d skia}
+  want() {
+    case " $ENGINES " in *" $1 "*) return 0 ;; esac
+    return 1
+  }
+  base=$(sed -n 's/^FROM \([^ ]*\).*/\1/p' ws/suite/Containerfile.build | head -n 1)
+  mkdir -p "$R/pictures/frames" "$R/pictures/native"
+  FRAMES=results/pictures/frames NAMES=$names
+  SHAPE_RUN="bench-build/bench-shape pictures results/scenes results/pictures/frames $names"
+  rep=1
+  while [ "$rep" -le "$reps" ]; do
+    RAWSUF=.$rep
+    echo "== repetition $rep of $reps"
+    time_engines
+    if [ -n "${SHAPE_BENCH_NATIVE_CMD:-}" ]; then
+      run_engine shape-cpu-native "$BUILD_IMAGE" "$SHAPE_BENCH_NATIVE_CMD"
+    fi
+    rep=$((rep + 1))
+  done
+  # raw, prov and logs of the pictures live apart from the benchmark's own
+  mkdir -p "$R/pictures/raw" "$R/pictures/prov" "$R/pictures/logs"
+  mv "$R"/raw/*.[0-9].jsonl "$R/pictures/raw/"
+  mv "$R"/prov/*.[0-9].txt "$R/pictures/prov/"
+  mv "$R"/logs/*.[0-9].err "$R/pictures/logs/"
+  if [ ! -f SHIPPED ]; then
+    for l in $LIBS; do
+      c=$(git -C "ws/libs/$l" rev-parse --short HEAD 2> /dev/null || echo unknown)
+      d=clean
+      [ -z "$(git -C "ws/libs/$l" status --porcelain --untracked-files=no 2> /dev/null)" ] || d=dirty
+      echo "$l $c $d"
+    done > SHIPPED
+  fi
+  echo "== pictures: raw figures in $R/pictures; report-pictures.py makes the record"
+}
+
+[ $# -ge 2 ] || die "usage: run.sh build WORK [JOBS] | run.sh time WORK | run.sh pictures WORK"
 WORK=$(cd "$2" && pwd)
 case "$1" in
 build) build "${3:-}" ;;
 time) timing ;;
-*) die "usage: run.sh build WORK [JOBS] | run.sh time WORK" ;;
+pictures) pictures ;;
+*) die "usage: run.sh build WORK [JOBS] | run.sh time WORK | run.sh pictures WORK" ;;
 esac

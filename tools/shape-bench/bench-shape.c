@@ -856,6 +856,12 @@ static int shape_setup(Shape * e, const SB_Scene * s, const char * dir, int cont
    * default of `max_exact_fragments` (16384) and of `max_exact_crossings` (2^20) draws them with room to spare. */
   GSHCPU_Limits limits;
   gshcpu_limits_default(&limits);
+  if (!strncmp(s->name, "picture-", 8)) {
+    /* The pictures draw a 46 pixel stroke around 210 pixel glyphs, which passes the default cell cap (2^22); these are the
+     * two limits raised, and the only ones, for the same render that makes the picture. */
+    limits.max_cells = (size_t)1 << 25;
+    limits.max_cache_bytes = (uint64_t)256 << 20;
+  }
   if (!e->pixels || !e->res || !e->paint || !e->grad || !e->style || gshscene_store_create(NULL, NULL, &e->store) != GSHSCENE_OK ||
       gshscene_list_create(NULL, NULL, e->store, &e->list) != GSHSCENE_OK ||
       gshcpu_sink_create(NULL, NULL, &limits, &e->sink) != GSHCPU_OK ||
@@ -920,6 +926,8 @@ static int shape_setup(Shape * e, const SB_Scene * s, const char * dir, int cont
       st.width = sk->width;
       st.join = sk->join == SB_JOIN_ROUND ? GSHSCENE_STROKE_JOIN_ROUND
           : sk->join == SB_JOIN_BEVEL     ? GSHSCENE_STROKE_JOIN_BEVEL
+          : sk->join == SB_JOIN_MITER_CLIP ? GSHSCENE_STROKE_JOIN_MITER_CLIP
+          : sk->join == SB_JOIN_ARCS      ? GSHSCENE_STROKE_JOIN_ARCS
                                           : GSHSCENE_STROKE_JOIN_MITER;
       st.cap = sk->cap == SB_CAP_ROUND ? GSHSCENE_STROKE_CAP_ROUND
           : sk->cap == SB_CAP_SQUARE   ? GSHSCENE_STROKE_CAP_SQUARE
@@ -935,6 +943,8 @@ static int shape_setup(Shape * e, const SB_Scene * s, const char * dir, int cont
       }
     }
     if (it->kind == SB_FILL || it->kind == SB_STROKE) {
+      e->res[i] = intern_cmds(e->store, s->cmds + it->first, it->count);
+    } else if (it->kind == SB_CLIPPATH) {
       e->res[i] = intern_cmds(e->store, s->cmds + it->first, it->count);
     } else if (it->kind == SB_CLIP) {
       SB_Cmd c[5] = {{'M', {it->rect[0], it->rect[1]}}, {'L', {it->rect[2], it->rect[1]}},
@@ -1024,7 +1034,8 @@ static int shape_build(void * ctx) {
     case SB_FILL:
     case SB_RUN:
       if (!(e->control && (e->drawables - 1 - drawable) % SB_CONTROL_STRIDE == 0)) {
-        r = gshscene_list_fill(e->list, e->res[i], NULL, GSHGEOM_FILL_NONZERO, &e->paint[i], 0, 0.0);
+        r = gshscene_list_fill(e->list, e->res[i], NULL, it->evenodd ? GSHGEOM_FILL_EVEN_ODD : GSHGEOM_FILL_NONZERO,
+            &e->paint[i], 0, 0.0);
       }
       drawable++;
       break;
@@ -1035,7 +1046,23 @@ static int shape_build(void * ctx) {
       drawable++;
       break;
     case SB_CLIP:
+    case SB_CLIPPATH:
       r = gshscene_list_clip_push(e->list, e->res[i], NULL, GSHGEOM_FILL_NONZERO, 0, 0.0);
+      break;
+    case SB_GROUP: {
+      GSHSCENE_Group g;
+      memset(&g, 0, sizeof g);
+      g.opacity = it->opacity;
+      g.composite = (uint32_t)it->composite;
+      if (it->linear) {
+        g.blend_space.primaries = GCOL_PRIMARIES_SRGB;
+        g.blend_space.transfer = GCOL_TRANSFER_LINEAR;
+      }
+      r = gshscene_list_group_push(e->list, &g, 0, 0.0);
+      break;
+    }
+    case SB_ENDGROUP:
+      r = gshscene_list_group_pop(e->list);
       break;
     case SB_UNCLIP:
       r = gshscene_list_clip_pop(e->list);
@@ -1272,17 +1299,13 @@ static int run(const char * dir, const char * out) {
  */
 static int frames(const char * dir, const char * out, int count, char ** names) {
   int failures = 0;
-  for (size_t i = 0; i < N_SCENES; i++) {
-    int named = count == 0;
-    for (int k = 0; k < count; k++) {
-      named = named || !strcmp(names[k], SCENES[i]);
-    }
-    if (!named) {
-      continue;
-    }
+  /* The scenes named, whatever they are (a picture's too); none named is every scene of the generator. */
+  size_t total = count ? (size_t)count : N_SCENES;
+  for (size_t i = 0; i < total; i++) {
+    const char * scene_name = count ? names[i] : SCENES[i];
     char path[1024], err[256], pam[1024];
     SB_Scene s;
-    snprintf(path, sizeof path, "%s/%s.scene", dir, SCENES[i]);
+    snprintf(path, sizeof path, "%s/%s.scene", dir, scene_name);
     if (sb_scene_load(path, &s, err, sizeof err)) {
       fprintf(stderr, "bench-shape: %s: %s\n", path, err);
       return 1;
@@ -1322,7 +1345,68 @@ static int frames(const char * dir, const char * out, int count, char ** names) 
   return failures ? 1 : 0;
 }
 
+/* ---------------------------------------------------------------- pictures */
+
+/*
+ * The pictures (README.md, "The pictures"): scenes written by something other than `emit`, each a whole picture that every
+ * engine is driven to draw.  For each named scene shape-cpu draws it from the scene file, as for any scene, and the first
+ * frame on a sink whose expansion cache is empty is timed apart from the rest ("shape-cpu-cold", one frame); the frames of
+ * the protocol that follow have the cache warm.  The last frame is written as shape-cpu.<scene>.pam.  There is no control
+ * frame and no empty-list measurement here: the comparison with the references is by picture-compare.py.
+ */
+static int pictures(const char * dir, const char * out, int count, char ** names) {
+  int failures = 0;
+  for (int k = 0; k < count; k++) {
+    char path[1024], err[256], pam[1024], name[256];
+    SB_Scene s;
+    snprintf(path, sizeof path, "%s/%s.scene", dir, names[k]);
+    if (sb_scene_load(path, &s, err, sizeof err)) {
+      fprintf(stderr, "bench-shape: %s: %s\n", path, err);
+      return 1;
+    }
+    Shape e;
+    SB_Measure m;
+    SB_Engine eng = {&e, shape_clear, shape_build, shape_submit};
+    int rc = shape_setup(&e, &s, dir, 0);
+    if (rc == 0) {
+      rc = shape_clear(&e);
+      double t0 = sb_now();
+      rc = rc ? rc : shape_build(&e);
+      double t1 = sb_now();
+      rc = rc ? rc : shape_submit(&e);
+      double t2 = sb_now();
+      if (rc == 0) {
+        printf("{\"engine\":\"shape-cpu-cold\",\"scene\":\"%s\",\"cold\":{\"build\":%.9g,\"submit\":%.9g,\"frame\":%.9g}}\n",
+            s.name, t1 - t0, t2 - t1, t2 - t0);
+        fflush(stdout);
+      }
+    }
+    if (rc == 0) {
+      rc = sb_measure(&eng, &m);
+    }
+    if (rc == 0) {
+      snprintf(name, sizeof name, "shape-cpu.%s.pam", s.name);
+      snprintf(pam, sizeof pam, "%s/%s", out, name);
+      rc = sb_write_pam(pam, s.width, s.height, e.pixels, e.stride, 0);
+    }
+    if (rc == 0) {
+      sb_report(stdout, "shape-cpu", &s, &m, name,
+          "the scene file's paths (glyph outlines as paths), gradients interned once; each frame records the list (build) and "
+          "renders it (submit), strict; the expansion cache of the strokes is warm after the first frame");
+    } else {
+      fprintf(stderr, "bench-shape: shape-cpu failed on %s (%d)\n", s.name, rc);
+      failures++;
+    }
+    shape_teardown(&e);
+    sb_scene_free(&s);
+  }
+  return failures ? 1 : 0;
+}
+
 int main(int argc, char ** argv) {
+  if (argc >= 5 && !strcmp(argv[1], "pictures")) {
+    return pictures(argv[2], argv[3], argc - 4, argv + 4);
+  }
   if (argc == 4 && !strcmp(argv[1], "emit")) {
     return emit(argv[2], argv[3]);
   }
@@ -1332,6 +1416,6 @@ int main(int argc, char ** argv) {
   if (argc >= 4 && !strcmp(argv[1], "frame")) {
     return frames(argv[2], argv[3], argc - 4, argv + 4);
   }
-  fprintf(stderr, "usage: bench-shape emit DIR FONT | bench-shape run DIR OUT | bench-shape frame DIR OUT [SCENE...]\n");
+  fprintf(stderr, "usage: bench-shape emit DIR FONT | bench-shape run DIR OUT | bench-shape frame DIR OUT [SCENE...] | bench-shape pictures DIR OUT SCENE...\n");
   return 2;
 }

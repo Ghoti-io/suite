@@ -117,7 +117,17 @@ int sb_scene_add_stroke(SB_Scene * scene, const SB_Stroke * stroke) {
   return 0;
 }
 
-static const char * const JOIN_NAMES[] = {"miter", "round", "bevel"};
+static const char * const JOIN_NAMES[] = {"miter", "round", "bevel", "miterclip", "arcs"};
+#define N_JOINS 5
+
+static const char * const COMPOSITE_NAMES[SB_COMPOSITE_COUNT] = {"srcover", "clear", "src", "dest", "destover", "srcin",
+    "destin", "srcout", "destout", "srcatop", "destatop", "xor", "plus", "screen", "overlay", "darken", "lighten",
+    "colordodge", "colorburn", "hardlight", "softlight", "difference", "exclusion", "multiply", "hue", "saturation",
+    "color", "luminosity"};
+
+const char * sb_composite_name(SB_Composite op) {
+  return (unsigned)op < SB_COMPOSITE_COUNT ? COMPOSITE_NAMES[op] : "srcover";
+}
 static const char * const CAP_NAMES[] = {"butt", "round", "square"};
 
 static const char * const KIND_NAMES[] = {"", "linear", "radial", "sweep"};
@@ -209,8 +219,8 @@ int sb_scene_load(const char * path, SB_Scene * out, char * err, size_t errlen) 
       break;
     }
     const char * rest = buf + used;
-    if (pending && strcmp(word, "fill") != 0) {
-      status = fail(err, errlen, line, "a gradient not followed by a fill");
+    if (pending && strcmp(word, "fill") != 0 && strcmp(word, "fill-eo") != 0 && strcmp(word, "stroke") != 0) {
+      status = fail(err, errlen, line, "a gradient not followed by a fill or a stroke");
       break;
     }
     if (!strcmp(word, "name")) {
@@ -266,11 +276,71 @@ int sb_scene_load(const char * path, SB_Scene * out, char * err, size_t errlen) 
         status = fail(err, errlen, line, "out of memory");
         break;
       }
-    } else if (!strcmp(word, "fill") || !strcmp(word, "run")) {
+    } else if (!strcmp(word, "group")) {
+      SB_Item it;
+      memset(&it, 0, sizeof it);
+      it.kind = SB_GROUP;
+      char name[32] = {0}, flag[16] = {0};
+      int op = -1;
+      int got = sscanf(rest, " %31s %lf %15s", name, &it.opacity, flag);
+      it.linear = got == 3 && !strcmp(flag, "linear");
+      if (got < 2 || (got == 3 && !it.linear) || !(it.opacity >= 0 && it.opacity <= 1)) {
+        status = fail(err, errlen, line, "bad group");
+        break;
+      }
+      for (int k = 0; k < SB_COMPOSITE_COUNT; k++) {
+        op = !strcmp(name, COMPOSITE_NAMES[k]) ? k : op;
+      }
+      it.composite = op;
+      if (op < 0 || sb_scene_add_item(&s, &it)) {
+        status = fail(err, errlen, line, "bad group");
+        break;
+      }
+    } else if (!strcmp(word, "endgroup")) {
+      SB_Item it;
+      memset(&it, 0, sizeof it);
+      it.kind = SB_ENDGROUP;
+      if (sb_scene_add_item(&s, &it)) {
+        status = fail(err, errlen, line, "out of memory");
+        break;
+      }
+    } else if (!strcmp(word, "clippath")) {
+      SB_Item it;
+      memset(&it, 0, sizeof it);
+      it.kind = SB_CLIPPATH;
+      unsigned long count = 0;
+      if (sscanf(rest, " %lu", &count) != 1 || count == 0) {
+        status = fail(err, errlen, line, "bad clippath");
+        break;
+      }
+      it.first = s.n_cmds;
+      it.count = count;
+      for (unsigned long k = 0; k < count && status == 0; k++) {
+        if (!fgets(buf, sizeof buf, f) || !strchr(buf, '\n')) {
+          status = fail(err, errlen, line + 1, "truncated item");
+          break;
+        }
+        line++;
+        double p[6] = {0};
+        char op = buf[0];
+        int arity = cmd_arity(op);
+        int got = arity <= 0 ? 0 : sscanf(buf + 1, "%lf %lf %lf %lf %lf %lf", &p[0], &p[1], &p[2], &p[3], &p[4], &p[5]);
+        if (arity < 0 || got != arity || (k == 0 && op != 'M') || sb_scene_add_cmd(&s, op, p)) {
+          status = fail(err, errlen, line, "bad path command");
+        }
+      }
+      if (status == 0 && sb_scene_add_item(&s, &it)) {
+        status = fail(err, errlen, line, "out of memory");
+      }
+      if (status) {
+        break;
+      }
+    } else if (!strcmp(word, "fill") || !strcmp(word, "fill-eo") || !strcmp(word, "run")) {
       SB_Item it;
       memset(&it, 0, sizeof it);
       unsigned count = 0;
       it.kind = word[0] == 'f' ? SB_FILL : SB_RUN;
+      it.evenodd = word[4] == '-';
       if (read_color(rest, &it.color, &count) || count == 0) {
         status = fail(err, errlen, line, "bad fill or run");
         break;
@@ -331,8 +401,10 @@ int sb_scene_load(const char * path, SB_Scene * out, char * err, size_t errlen) 
         break;
       }
       int j = -1, cp = -1;
-      for (int k = 0; k < 3; k++) {
+      for (int k = 0; k < N_JOINS; k++) {
         j = !strcmp(join, JOIN_NAMES[k]) ? k : j;
+      }
+      for (int k = 0; k < 3; k++) {
         cp = !strcmp(cap, CAP_NAMES[k]) ? k : cp;
       }
       const char * at = rest + used;
@@ -360,8 +432,12 @@ int sb_scene_load(const char * path, SB_Scene * out, char * err, size_t errlen) 
       it.first = s.n_cmds;
       it.count = count;
       if (pending) {
-        status = fail(err, errlen, line, "a gradient is followed by a fill");
-        break;
+        if (r || g || b) {
+          status = fail(err, errlen, line, "a gradient stroke's color is not 0 0 0 a");
+          break;
+        }
+        it.gradient = pending;
+        pending = 0;
       }
       for (unsigned long k = 0; k < count && status == 0; k++) {
         if (!fgets(buf, sizeof buf, f) || !strchr(buf, '\n')) {
@@ -451,7 +527,7 @@ int sb_scene_load(const char * path, SB_Scene * out, char * err, size_t errlen) 
   }
   fclose(f);
   if (status == 0 && pending) {
-    status = fail(err, errlen, line, "a gradient not followed by a fill");
+    status = fail(err, errlen, line, "a gradient not followed by a fill or a stroke");
   }
   if (status == 0 && (!ended ||!s.name[0] || !s.metric[0] || !s.width || !s.work_unit[0])) {
     status = fail(err, errlen, line, "incomplete scene");
@@ -459,15 +535,27 @@ int sb_scene_load(const char * path, SB_Scene * out, char * err, size_t errlen) 
   if (status == 0 && !strcmp(s.metric, "text") && !s.font[0]) {
     status = fail(err, errlen, line, "a text scene names no font");
   }
-  int depth = 0;
+  /* Clips and groups nest well: each end closes the innermost open one, of its own kind. */
+  char open[256];
+  size_t depth = 0;
   for (size_t i = 0; status == 0 && i < s.n_items; i++) {
-    depth += s.items[i].kind == SB_CLIP ? 1 : s.items[i].kind == SB_UNCLIP ? -1 : 0;
-    if (depth < 0) {
-      status = fail(err, errlen, line, "unclip without clip");
+    SB_Kind k = s.items[i].kind;
+    if (k == SB_CLIP || k == SB_CLIPPATH || k == SB_GROUP) {
+      if (depth == sizeof open) {
+        status = fail(err, errlen, line, "clips and groups nest too deep");
+      } else {
+        open[depth++] = k == SB_GROUP ? 'g' : 'c';
+      }
+    } else if (k == SB_UNCLIP || k == SB_ENDGROUP) {
+      if (depth == 0 || open[depth - 1] != (k == SB_ENDGROUP ? 'g' : 'c')) {
+        status = fail(err, errlen, line, k == SB_ENDGROUP ? "endgroup without group" : "unclip without clip");
+      } else {
+        depth--;
+      }
     }
   }
   if (status == 0 && depth != 0) {
-    status = fail(err, errlen, line, "clip left open");
+    status = fail(err, errlen, line, "clip or group left open");
   }
   if (status) {
     sb_scene_free(&s);
@@ -499,6 +587,24 @@ int sb_scene_save(const char * path, const SB_Scene * s) {
     case SB_UNCLIP:
       fprintf(f, "unclip\n");
       break;
+    case SB_GROUP:
+      fprintf(f, "group %s %.9g%s\n", COMPOSITE_NAMES[it->composite], it->opacity, it->linear ? " linear" : "");
+      break;
+    case SB_ENDGROUP:
+      fprintf(f, "endgroup\n");
+      break;
+    case SB_CLIPPATH:
+      fprintf(f, "clippath %zu\n", it->count);
+      for (size_t k = 0; k < it->count; k++) {
+        const SB_Cmd * m = &s->cmds[it->first + k];
+        int n = cmd_arity(m->op);
+        fputc(m->op, f);
+        for (int j = 0; j < n; j++) {
+          fprintf(f, " %.6f", m->p[j]);
+        }
+        fputc('\n', f);
+      }
+      break;
     case SB_FILL:
       if (it->gradient) {
         const SB_Gradient * g = &s->gradients[it->gradient - 1];
@@ -512,7 +618,7 @@ int sb_scene_save(const char * path, const SB_Scene * s) {
           fprintf(f, "s %.6f %u %u %u %u\n", st->offset, st->color.r, st->color.g, st->color.b, st->color.a);
         }
       }
-      fprintf(f, "fill %u %u %u %u %zu\n", c->r, c->g, c->b, c->a, it->count);
+      fprintf(f, "%s %u %u %u %u %zu\n", it->evenodd ? "fill-eo" : "fill", c->r, c->g, c->b, c->a, it->count);
       for (size_t k = 0; k < it->count; k++) {
         const SB_Cmd * m = &s->cmds[it->first + k];
         int n = cmd_arity(m->op);
@@ -525,6 +631,18 @@ int sb_scene_save(const char * path, const SB_Scene * s) {
       break;
     case SB_STROKE: {
       const SB_Stroke * st = &s->strokes[it->stroke - 1];
+      if (it->gradient) {
+        const SB_Gradient * g = &s->gradients[it->gradient - 1];
+        fprintf(f, "gradient %s %s", KIND_NAMES[g->kind], EXTEND_NAMES[g->extend]);
+        for (int j = 0; j < gradient_arity(g->kind); j++) {
+          fprintf(f, " %.6f", g->g[j]);
+        }
+        fprintf(f, " %zu\n", g->n_stops);
+        for (size_t k = 0; k < g->n_stops; k++) {
+          const SB_Stop * sp = &s->stops[g->first_stop + k];
+          fprintf(f, "s %.6f %u %u %u %u\n", sp->offset, sp->color.r, sp->color.g, sp->color.b, sp->color.a);
+        }
+      }
       fprintf(f, "stroke %u %u %u %u %.6f %s %s %.6f %.6f %zu", c->r, c->g, c->b, c->a, st->width, JOIN_NAMES[st->join],
           CAP_NAMES[st->cap], st->miter, st->offset, st->n_dashes);
       for (size_t k = 0; k < st->n_dashes; k++) {

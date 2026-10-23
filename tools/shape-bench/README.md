@@ -118,6 +118,54 @@ start at 40 to 100 units, so they are the runs that hold `font`'s placement of a
 `shape`, `skia` inside Skia's image, `compare`). The fonts are fetched by digest (`libs/font/tools/oracle/colr_real_fonts.py`)
 and are never committed.
 
+## The pictures
+
+Two large pictures, each a whole composition of gradients, strokes, clips, groups and glyph outlines at 2400x1500, are drawn
+by every engine from one description, and timed. They are not generated here: a program that records a picture as a
+`shape-scene` list walks the closed list and writes it as a scene of this directory's format, named `picture-<name>`
+(`scene.h`; the walker puts every path in device space, a glyph run as the outlines of `font`'s own outline provider, a
+stroke with its width, join, cap, miter limit and dashes, a gradient with its geometry and its stops as 8-bit encoded values,
+and every group and clip). So that every engine rasterizes the same curves, text is **glyph outlines drawn as paths**: shaping,
+outline loading and glyph caches are not what is timed.
+
+The scene format carries what these pictures need beyond the benchmark's scenes: `group <composite> <opacity> [linear]` and
+`endgroup` (an isolated layer of the extent, composited with the named operator after its result is scaled by the opacity),
+`clippath`, `fill-eo`, the `miterclip` and `arcs` joins, and a gradient before a stroke as well as a fill.
+
+Three drivers draw a picture's scene, by their public API only, and two further arms time `shape-cpu`:
+
+- `shape-cpu` (scene arm): `bench-shape pictures` reads the scene file as it reads any scene. This is the like-for-like arm.
+- `shape-cpu` (own-list arm): the program that records the picture re-records its list each frame from resources interned once
+  and renders it, strict; it has the glyph runs, the palette and the linear-light gradient as they are, so it is the picture as
+  `shape-cpu` draws it. `run.sh pictures` runs it through `SHAPE_BENCH_NATIVE_CMD`.
+- Blend2D (`refs/bench-blend2d.cpp`): groups are `BLImage` layers of the extent blitted with the group's comp-op and its opacity
+  as the global alpha; a path clip is a layer multiplied by the path's coverage (`BL_COMP_OP_DST_IN`); a sweep over part of a
+  turn is the color line sampled into stops over one turn of the conic gradient; dashes are made by `BLPath::add_stroked_path`,
+  because this version's context draws a dash array solid.
+- Skia (`refs/bench-skia.cpp`): `saveLayer` with a paint holding the blend mode and the opacity, `clipPath`, `SkShaders` for every
+  gradient.
+
+**What the references cannot say by the same definition** is listed in each record, found by reading the scene
+(`report-pictures.py`): a group `shape-cpu` composites in linear light (the color-glyph lowering's choice) is composited in the
+target's encoded values by both references, which differs by construction wherever translucent layers overlap; Blend2D has no
+hue, saturation, color or luminosity operator; Skia has no miter-clip or arcs join and Blend2D has no arcs join (drawn as the
+miter, a bevel past the limit); Blend2D clips to rectangles only; a gradient `shape-cpu` interpolates in linear light is sampled
+into encoded stops in the scene. A speed for a picture a reference draws differently is for that picture.
+
+The comparison is with `shape-cpu`'s own picture (the PNG of its list), not with a reference: the share of the pixels whose
+largest colour-channel difference is past 1, 4 and 16 levels, the mean absolute difference, the largest difference and the
+tiles where the large differences are; `report-pictures.py --images DIR` also writes a side-by-side image of the four pictures
+and a heatmap of each reference's difference (it needs numpy and Pillow). The protocol is the benchmark's (one thread, one
+pinned CPU, warm-up, 31 timed frames and the median), the whole run repeated `SHAPE_BENCH_REPS` times (three) with the median
+of the repetitions' medians as the figure and their spread beside it, and, for `shape-cpu`, the build (recording the list) and
+the submit (rendering it) apart and together, with the first frame, whose expansion cache is cold, timed apart from the warm ones.
+
+```bash
+# on the machine, after `run.sh build` and the program that wrote results/scenes/picture-*.scene and results/pictures/native/*.png:
+SHAPE_BENCH_CPU=8 SHAPE_BENCH_NATIVE_CMD='...' sh "$WORK/ws/suite/tools/shape-bench/run.sh" pictures "$WORK"
+python3 tools/shape-bench/report-pictures.py --results "$WORK"/results --shipped "$WORK"/SHIPPED --images DIR
+```
+
 ## Provenance
 
 Every result carries the image reference and its image ID, the base image's
