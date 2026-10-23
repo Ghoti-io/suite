@@ -87,8 +87,16 @@ census() {
 mkdir -p "$WORK/scenes"
 "$WORK/bench-build/bench-shape" emit "$WORK/scenes" "$DEJAVU" > "$OUT/logs/emit.log" 2>&1 ||
   { tail "$OUT/logs/emit.log"; echo "census.sh: bench-shape emit failed" >&2; exit 1; }
+GSHCPU_CENSUS_DUMP="$OUT/cells-strokes.bin"
+GSHCPU_CENSUS_EVERY=50
+export GSHCPU_CENSUS_DUMP GSHCPU_CENSUS_EVERY
 census strokes "$WORK/bench-build/bench-shape" frame "$WORK/scenes" "$OUT/frames" strokes
+unset GSHCPU_CENSUS_DUMP GSHCPU_CENSUS_EVERY
+GSHCPU_CENSUS_DUMP="$OUT/cells-strokes-dashed.bin"
+GSHCPU_CENSUS_EVERY=20
+export GSHCPU_CENSUS_DUMP GSHCPU_CENSUS_EVERY
 census strokes-dashed "$WORK/bench-build/bench-shape" frame "$WORK/scenes" "$OUT/frames" strokes-dashed
+unset GSHCPU_CENSUS_DUMP GSHCPU_CENSUS_EVERY
 mkdir -p "$OUT/gallery"
 census gallery "$WORK/gallery" "$WS/libs/font/tests/data/fonts" "$DEJAVU" "$OUT/gallery"
 census corpus "$WORK/corpus-hash"
@@ -97,5 +105,11 @@ for w in 14 16 18 20 22; do
   census "text-$w" "$WORK/bench-build/stroke-text" "$DEJAVU" --cells 67108864 --points 16777216 --fragments 65536 \
     Union $w Gradient $w Outline $w
 done
+# The same lines of text at the sink's default limits, none of them raised: each must draw.
+echo "== text at the default limits"
+rc=0
+"$WORK/bench-build/stroke-text" "$DEJAVU" > "$OUT/text-defaults.txt" 2>&1 || rc=$?
+cat "$OUT/text-defaults.txt"
+[ "$rc" -eq 0 ] || echo "census.sh: a line of text was refused at the default limits" >&2
 rm -rf "$WORK"
 echo "census.sh: done"
