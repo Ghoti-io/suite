@@ -2029,11 +2029,11 @@ static void image_strokes(void) {
     /* The fill is hinted where the font hints, and a stroke never is: hint mode NONE on the run is the request for a
      * registered pair (the line above uses it); the same text hinted shows the fill grid-fitted under an unhinted stroke. */
     GSHSCENE_Stroke_Style thin = style_new(1.5, GSHSCENE_STROKE_JOIN_MITER, GSHSCENE_STROKE_CAP_BUTT);
-    TextStyle h = style(24, 0.98, 0.85, 0.35);
+    TextStyle h = style(20, 0.98, 0.85, 0.35);
     h.hint_mode = GSHSCENE_HINT_FONT;
     h.stroke = &thin;
     h.stroke_paint = solid(0.1, 0.1, 0.1, 1);
-    text_draw(L, &g_dejavu, 1, "hinted fill, unhinted stroke", &h, 900, 1385);
+    text_draw(L, &g_dejavu, 1, "hinted fill, unhinted stroke", &h, 890, 1390);
     label_c(L, "a stroke is never hinted", 18, 1030, 1500, 0.2);
   }
   render("strokes", L, R);
@@ -2047,8 +2047,14 @@ int main(int argc, char ** argv) {
     return 2;
   }
   g_out = argv[3];
+  /* A line of text stroked 14 or 22 units wide is a dense stroke (the inner sides of every curve and counter overlap in a
+   * pixel), more pieces in one pixel than the default allows, so the CPU sink is given room for them: the stroke is exact
+   * either way, and a pixel with more pieces than the limit is refused whole. */
+  GSHCPU_Limits cpu_limits;
+  gshcpu_limits_default(&cpu_limits);
+  cpu_limits.max_exact_fragments = 1u << 16;
   if (gshscene_store_create(NULL, NULL, &g_store) != GSHSCENE_OK ||
-      gshcpu_sink_create(NULL, NULL, NULL, &g_cpu) != GSHCPU_OK ||
+      gshcpu_sink_create(NULL, NULL, &cpu_limits, &g_cpu) != GSHCPU_OK ||
       gshscene_report_create(NULL, NULL, &g_report) != GSHSCENE_OK) {
     fprintf(stderr, "gallery: setup failed\n");
     return 1;
