@@ -72,7 +72,7 @@
 #      math, and cutil's real allocator.c and atomic.c, color's gamut.c and
 #      image's raster.c (the sink renders through shape-scene's contract into an
 #      image raster, story 13b), must print the hashes committed in
-#      libs/shape-cpu/tests/corpus/coverage.hash and render.hash on every target.
+#      libs/shape-cpu/tests/corpus/coverage.hash, render.hash and (strokes story S4c) dense.hash on every target.
 #      The coverage part fills random polygons under both fill rules, random
 #      curves, rectangles with an open subpath, and shapes moved to the corners
 #      of the 26.6 range, and hashes every coverage in the library's own
@@ -106,7 +106,9 @@
 #      stroke section, printed as a hash and count of its own beside the first
 #      pair (stroke styles read back canonical, SK10's bounds under composed
 #      maps, strokes' notices and features, renders by sinks that draw, expand
-#      or refuse them, a retained scene's diff of stroke nodes).  The maps
+#      or refuse them, a retained scene's diff of stroke nodes), a plane section
+#      (color-paint story P4) and a placeholder section, each a pair of its own: all
+#      four pairs of scene.hash are read and must be printed.  The maps
 #      are the composition of two general maps with entries over 1000, so their
 #      entries are sums of two products of inexact doubles:
 #      the two controls of section 4 (i686 without SSE, aarch64 with contraction
@@ -121,8 +123,9 @@
 #      shape-scene, shape-geometry and math and the parts of cutil, color and
 #      image section 7 uses (font's other dependencies are never reached and are
 #      stubbed), must print the hash committed in libs/font/tests/data/golden/
-#      scene.hash on every target, and exits 1 if AD-5's or AD-1's equality fails
-#      there.  Control: the probe folding in the host's byte order prints the
+#      scene.hash on every target (the pair of the renders and, strokes story S5, the
+#      pair of the stroked text, with every `fixture` and `stroke-fixture` line), and
+#      exits 1 if AD-5's or AD-1's equality fails there.  Control: the probe folding in the host's byte order prints the
 #      committed hash on a little-endian target and another on a big-endian one.
 #      The plant (one differing bit on each target in turn) is as in section 4.
 #
@@ -824,8 +827,12 @@ ch_count=$(awk '$1=="count"{print $2}' "$CPU/tests/corpus/coverage.hash")
 cr_hash=$(awk '$1=="hash"{print $2}' "$CPU/tests/corpus/render.hash")
 cr_count=$(awk '$1=="count"{print $2}' "$CPU/tests/corpus/render.hash")
 [ -n "$cr_hash" ] && [ -n "$cr_count" ] || { echo "   FAIL  no committed renders in $CPU/tests/corpus/render.hash"; status=1; }
-# What a probe must print: the coverage part's hash and count, then the renders' (story 13b).
-ch_want="$ch_hash $ch_count $cr_hash $cr_count"
+# Strokes story S4c: the dense cells of the exact union step, a pair of their own (tests/corpus/dense.hash).
+cd_hash=$(awk '$1=="hash"{print $2}' "$CPU/tests/corpus/dense.hash")
+cd_count=$(awk '$1=="count"{print $2}' "$CPU/tests/corpus/dense.hash")
+[ -n "$cd_hash" ] && [ -n "$cd_count" ] || { echo "   FAIL  no committed dense cells in $CPU/tests/corpus/dense.hash"; status=1; }
+# What a probe must print: the coverage part's hash and count, then the renders', then the dense cells' (story 13b, S4c).
+ch_want="$ch_hash $ch_count $cr_hash $cr_count $cd_hash $cd_count"
 # The probe is built with shape-scene's sources (the sink contract and the lists), shape-geometry's (the
 # flattener, the device path, the maps, the hash) and, because those call math, math's; with cutil's real
 # allocator.c and atomic.c (the scene's mutex and counts are cutil's), color's gamut.c and image's raster.c,
@@ -836,7 +843,7 @@ mkdir -p "$B/gen/scene-testing/ghoti.io/shape-scene/testing"
 cp "$ROOT/libs/shape-scene/tests/glyph_test_provider.h" "$B/gen/scene-testing/ghoti.io/shape-scene/testing/"
 CPUFLAGS="-std=c17 -O2 -pedantic-errors -Wall -Wextra -Werror -ffp-contract=off -pthread -DGSHCPU_BUILD -DGSHSCENE_BUILD -DGSHGEOM_BUILD -DGMATH_BUILD -DGCOL_BUILD -DGIMG_BUILD -I$CPU/include -I$gc/generated $CPU_DEP_INCLUDES -I$B/gen/scene-testing -I$GEOM/include -I$gg/generated -I$MATH/include -I$mg/generated"
 
-# cpu_run TRIPLE CC QEMU TAG FLAGS... -> prints "HASH COUNT RENDER-HASH RENDER-COUNT"
+# cpu_run TRIPLE CC QEMU TAG FLAGS... -> prints "HASH COUNT RENDER-HASH RENDER-COUNT DENSE-HASH DENSE-COUNT"
 cpu_run() {
   local triple=$1 cc=$2 qemu=$3 tag=$4 out
   shift 4
@@ -847,7 +854,8 @@ cpu_run() {
     -o "$B/cpu-$tag-$triple" 2> "$B/cpu-$tag-$triple.err" || return 1
   xarch_run "$triple" "$qemu" "$B/cpu-$tag-$triple" > "$B/cpu-$tag-$triple.txt" 2>> "$B/cpu-$tag-$triple.err" || return 1
   awk '/^shape-cpu.hash/{h=$2} /^shape-cpu.count/{c=$2} /^shape-cpu.render-hash/{rh=$2} /^shape-cpu.render-count/{rc=$2}
-    END{if (h != "" && rh != "") print h, c, rh, rc}' "$B/cpu-$tag-$triple.txt"
+    /^shape-cpu.dense-hash/{dh=$2} /^shape-cpu.dense-count/{dc=$2}
+    END{if (h != "" && rh != "" && dh != "") print h, c, rh, rc, dh, dc}' "$B/cpu-$tag-$triple.txt"
 }
 
 declare -A COK CPLANT
@@ -884,7 +892,7 @@ EOT2
   return $rc
 }
 
-echo " a. every target prints the committed hashes (coverage, then the renders)"
+echo " a. every target prints the committed hashes (coverage, then the renders, then the dense cells)"
 cpu_gate "" || status=1
 # Which render differs, when one does: the probe's lines against the committed goldens.
 while IFS='|' read -r triple cc qemu desc; do
@@ -982,14 +990,20 @@ sh_count=$(awk '$1=="count"{print $2}' "$SCENE/tests/corpus/scene.hash")
 # Strokes story S1: the stroke section's hash and count, a pair of their own, compared with the others.
 st_hash=$(awk '$1=="stroke-hash"{print $2}' "$SCENE/tests/corpus/scene.hash")
 st_count=$(awk '$1=="stroke-count"{print $2}' "$SCENE/tests/corpus/scene.hash")
-[ -n "$sh_hash" ] && [ -n "$sh_count" ] && [ -n "$st_hash" ] && [ -n "$st_count" ] || { echo "   FAIL  no committed hash in $SCENE/tests/corpus/scene.hash"; status=1; }
-sh_want="$sh_hash $sh_count $st_hash $st_count"
+# Color-paint story P4 and the placeholder section: the plane's and the placeholders' pairs, one of their own each.
+sp_hash=$(awk '$1=="plane-hash"{print $2}' "$SCENE/tests/corpus/scene.hash")
+sp_count=$(awk '$1=="plane-count"{print $2}' "$SCENE/tests/corpus/scene.hash")
+sk_hash=$(awk '$1=="placeholder-hash"{print $2}' "$SCENE/tests/corpus/scene.hash")
+sk_count=$(awk '$1=="placeholder-count"{print $2}' "$SCENE/tests/corpus/scene.hash")
+[ -n "$sh_hash" ] && [ -n "$sh_count" ] && [ -n "$st_hash" ] && [ -n "$st_count" ] && [ -n "$sp_hash" ] && [ -n "$sp_count" ] \
+  && [ -n "$sk_hash" ] && [ -n "$sk_count" ] || { echo "   FAIL  a pair is missing from $SCENE/tests/corpus/scene.hash"; status=1; }
+sh_want="$sh_hash $sh_count $st_hash $st_count $sp_hash $sp_count $sk_hash $sk_count"
 # The probe is built with shape-scene's sources, shape-geometry's (the paths, the maps, the hash) and, because
 # those call math, math's, and cutil's real allocator.c and atomic.c (the scene's mutex is cutil's header-only GCU_MUTEX_T and its
 # reference counts are cutil's GCU_Atomic_Size, on every target; no stand-in is used here).
 SCFLAGS="-std=c17 -O2 -pedantic-errors -Wall -Wextra -Werror -ffp-contract=off -pthread -DGSHSCENE_BUILD -DGSHGEOM_BUILD -DGMATH_BUILD -DGCOL_BUILD -DGIMG_BUILD -I$SCENE/include -I$gsc/generated -I$GEOM/include -I$gg/generated -I$MATH/include -I$mg/generated -I$ROOT/libs/cutil/include -I$B/gen/cutil/include -I$ROOT/libs/color/include -I$B/gen/color/generated -I$ROOT/libs/image/include -I$B/gen/image/generated"
 
-# scene_run TRIPLE CC QEMU TAG FLAGS... -> prints "HASH COUNT STROKE_HASH STROKE_COUNT"
+# scene_run TRIPLE CC QEMU TAG FLAGS... -> prints "HASH COUNT STROKE_HASH STROKE_COUNT PLANE_HASH PLANE_COUNT PLACEHOLDER_HASH PLACEHOLDER_COUNT"
 scene_run() {
   local triple=$1 cc=$2 qemu=$3 tag=$4 out
   shift 4
@@ -999,7 +1013,9 @@ scene_run() {
     "$ROOT/libs/image/src/raster/raster.c" "$ROOT/libs/image/src/core/allocator.c" -o "$B/scene-$tag-$triple" 2> "$B/scene-$tag-$triple.err" || return 1
   xarch_run "$triple" "$qemu" "$B/scene-$tag-$triple" > "$B/scene-$tag-$triple.txt" 2>> "$B/scene-$tag-$triple.err" || return 1
   awk '$1=="shape-scene.hash"{h=$2} $1=="shape-scene.count"{c=$2} $1=="shape-scene.stroke-hash"{sh=$2} $1=="shape-scene.stroke-count"{sc=$2}
-       END{if (h != "" && sh != "") print h, c, sh, sc}' "$B/scene-$tag-$triple.txt"
+       $1=="shape-scene.plane-hash"{ph=$2} $1=="shape-scene.plane-count"{pc=$2}
+       $1=="shape-scene.placeholder-hash"{kh=$2} $1=="shape-scene.placeholder-count"{kc=$2}
+       END{if (h != "" && sh != "" && ph != "" && kh != "") print h, c, sh, sc, ph, pc, kh, kc}' "$B/scene-$tag-$triple.txt"
 }
 
 declare -A SOK SPLANT
@@ -1086,8 +1102,12 @@ for lib in font compress security unicode; do
 done
 fh_hash=$(awk '$1=="hash"{print $2}' "$FONT/tests/data/golden/scene.hash")
 fh_count=$(awk '$1=="count"{print $2}' "$FONT/tests/data/golden/scene.hash")
-[ -n "$fh_hash" ] && [ -n "$fh_count" ] || { echo "   FAIL  no committed hash in $FONT/tests/data/golden/scene.hash"; status=1; }
-fh_want="$fh_hash $fh_count"
+# Strokes story S5: stroked text, a pair of its own beside the first (stroke-hash, stroke-count; stroke-fixture lines).
+fs_hash=$(awk '$1=="stroke-hash"{print $2}' "$FONT/tests/data/golden/scene.hash")
+fs_count=$(awk '$1=="stroke-count"{print $2}' "$FONT/tests/data/golden/scene.hash")
+[ -n "$fh_hash" ] && [ -n "$fh_count" ] && [ -n "$fs_hash" ] && [ -n "$fs_count" ] \
+  || { echo "   FAIL  a pair is missing from $FONT/tests/data/golden/scene.hash"; status=1; }
+fh_want="$fh_hash $fh_count $fs_hash $fs_count"
 # The probe (libs/font/tools/scene-hash.c) renders seven committed fixtures through shape-cpu by both routes and
 # draws glyphs directly and as one-glyph scenes, exits 1 if AD-5's or AD-1's equality fails, and prints a hash of
 # the pixels.  It is built with every source of font, shape-cpu, shape-scene, shape-geometry and math, and cutil's,
@@ -1127,13 +1147,16 @@ font_build() {
     && "$cc" -pthread -Wl,--gc-sections "$objs"/*.o -o "$bin" 2>> "$bin.err"
 }
 
-# font_run TRIPLE QEMU TAG [ENV=VALUE...] -> prints "HASH COUNT", or status 1 (a failed equality is a failed run)
+# font_run TRIPLE QEMU TAG [ENV=VALUE...] -> prints "HASH COUNT STROKE_HASH STROKE_COUNT", or status 1 (a failed equality is a
+# failed run); the fixture lines of the run are left in $B/font-TAG-TRIPLE.lines for the diagnosis below
 font_run() {
   local triple=$1 qemu=$2 tag=$3 out="$B/font-$3-$1"
   shift 3
   env "$@" bash -c '. "$1"/targets.sh; xarch_run "$2" "$3" "$4" "$5"' _ "$HERE" "$triple" "$qemu" "$out" "$FONT/tests/data/fonts" \
     > "$out.txt.$$" 2>> "$out.err" || { cat "$out.txt.$$" >> "$out.err"; rm -f "$out.txt.$$"; return 1; }
-  awk '$1=="font-scene.hash"{h=$2} $1=="font-scene.count"{c=$2} END{if (h != "") print h, c}' "$out.txt.$$"
+  awk '$1=="font-scene.fixture"{print "fixture", $2, $3} $1=="font-scene.stroke-fixture"{print "stroke-fixture", $2, $3}' "$out.txt.$$" | sort > "$out.lines"
+  awk '$1=="font-scene.hash"{h=$2} $1=="font-scene.count"{c=$2} $1=="font-scene.stroke-hash"{sh=$2} $1=="font-scene.stroke-count"{sc=$2}
+       END{if (h != "" && sh != "") print h, c, sh, sc}' "$out.txt.$$"
   rm -f "$out.txt.$$"
 }
 
@@ -1176,8 +1199,21 @@ EOT2
   return $rc
 }
 
-echo " a. every target prints the committed hash, with AD-5 and AD-1 holding there"
+echo " a. every target prints the committed hashes (renders, then stroked text), with AD-5 and AD-1 holding there"
 font_gate "" || status=1
+# Which fixture differs, when one does: the probe's lines against the committed ones.
+while IFS='|' read -r triple cc qemu desc; do
+  triple=$(echo "$triple" | tr -d ' ')
+  [ -z "$triple" ] && continue
+  [ -f "$B/font-ok-$triple.lines" ] || continue
+  if ! awk '$1=="fixture" || $1=="stroke-fixture"{print $1, $2, $3}' "$FONT/tests/data/golden/scene.hash" | sort | diff -q - "$B/font-ok-$triple.lines" > /dev/null; then
+    echo "   FAIL  $triple: these fixtures differ from the committed ones:"
+    awk '$1=="fixture" || $1=="stroke-fixture"{print $1, $2, $3}' "$FONT/tests/data/golden/scene.hash" | sort | diff - "$B/font-ok-$triple.lines" | sed -n 's/^> /   |   /p'
+    status=1
+  fi
+done <<EOT
+$XARCH_TARGETS
+EOT
 
 echo " b. the control: the probe sees a byte-order slip"
 while IFS='|' read -r triple cc qemu desc; do

@@ -18,6 +18,14 @@ font_hash=${12:?usage: shape-win.sh ... RENDER_HASH RENDER_COUNT FONT_HASH FONT_
 font_count=${13:?usage: shape-win.sh ... RENDER_HASH RENDER_COUNT FONT_HASH FONT_COUNT}
 stroke_hash=${14:?usage: shape-win.sh ... FONT_HASH FONT_COUNT STROKE_HASH STROKE_COUNT}
 stroke_count=${15:?usage: shape-win.sh ... FONT_HASH FONT_COUNT STROKE_HASH STROKE_COUNT}
+plane_hash=${16:?usage: shape-win.sh ... STROKE_HASH STROKE_COUNT PLANE_HASH PLANE_COUNT PLACEHOLDER_HASH PLACEHOLDER_COUNT DENSE_HASH DENSE_COUNT FONT_STROKE_HASH FONT_STROKE_COUNT}
+plane_count=${17:?usage: as above}
+placeholder_hash=${18:?usage: as above}
+placeholder_count=${19:?usage: as above}
+dense_hash=${20:?usage: as above}
+dense_count=${21:?usage: as above}
+font_stroke_hash=${22:?usage: as above}
+font_stroke_count=${23:?usage: as above}
 P=/tools/xarch/shape-hash-probe.c
 cd /w || exit 2
 
@@ -103,8 +111,9 @@ NF="-std=c17 -O2 -pedantic-errors -Wall -Wextra -Werror -ffp-contract=off -DGSHS
 x86_64-w64-mingw32-gcc $NF "$N/tools/corpus-hash.c" $(find "$N/src" -name '*.c' | sort) $(find "$G/src" -name '*.c' | sort) "$M"/src/elementary/*.c "$C/src/allocator.c" "$C/src/atomic.c" "$K/src/gamut.c" "$I/src/raster.c" "$I/core/allocator.c" -o scene-probe.exe || { echo "shape-win: the shape-scene probe did not build" >&2; exit 2; }
 x86_64-w64-mingw32-gcc $NF -DSHAPE_SCENE_PLANT_BIT "$N/tools/corpus-hash.c" $(find "$N/src" -name '*.c' | sort) $(find "$G/src" -name '*.c' | sort) "$M"/src/elementary/*.c "$C/src/allocator.c" "$C/src/atomic.c" "$K/src/gamut.c" "$I/src/raster.c" "$I/core/allocator.c" -o scene-plant.exe || { echo "shape-win: the planted shape-scene probe did not build" >&2; exit 2; }
 # Strokes story S1: the stroke section's pair is compared with the first.
-spick='$1=="shape-scene.hash"{h=$2} $1=="shape-scene.count"{c=$2} $1=="shape-scene.stroke-hash"{sh=$2} $1=="shape-scene.stroke-count"{sc=$2} END{if (h != "" && sh != "") print h, c, sh, sc}'
-swant="$scene_hash $scene_count $stroke_hash $stroke_count"
+# Color-paint story P4 and the placeholder section: the plane's and the placeholders' pairs are read too.
+spick='$1=="shape-scene.hash"{h=$2} $1=="shape-scene.count"{c=$2} $1=="shape-scene.stroke-hash"{sh=$2} $1=="shape-scene.stroke-count"{sc=$2} $1=="shape-scene.plane-hash"{ph=$2} $1=="shape-scene.plane-count"{pc=$2} $1=="shape-scene.placeholder-hash"{kh=$2} $1=="shape-scene.placeholder-count"{kc=$2} END{if (h != "" && sh != "" && ph != "" && kh != "") print h, c, sh, sc, ph, pc, kh, kc}'
+swant="$scene_hash $scene_count $stroke_hash $stroke_count $plane_hash $plane_count $placeholder_hash $placeholder_count"
 sgot=$(./scene-probe.exe 2>/dev/null | tr -d '\r' | awk "$spick")
 splant=$(./scene-plant.exe 2>/dev/null | tr -d '\r' | awk "$spick")
 echo "windows (wine) shape-scene hash: ${sgot:-none}   planted: ${splant:-none}   committed: $swant"
@@ -127,12 +136,13 @@ x86_64-w64-mingw32-gcc $UF "$U/tools/corpus-hash.c" $(find "$U/src" -name '*.c' 
 # shellcheck disable=SC2086
 x86_64-w64-mingw32-gcc $UF -DSHAPE_CPU_PLANT_BIT "$U/tools/corpus-hash.c" $(find "$U/src" -name '*.c' | sort) $(find "$N/src" -name '*.c' | sort) $(find "$G/src" -name '*.c' | sort) "$M"/src/elementary/*.c "$C/src/allocator.c" "$C/src/atomic.c" "$K/src/gamut.c" "$I/src/raster.c" "$I/core/allocator.c" -o cpu-plant.exe || { echo "shape-win: the planted shape-cpu probe did not build" >&2; exit 2; }
 ./cpu-probe.exe 2>/dev/null | tr -d '\r' > cpu-probe.txt
-cwant="$cpu_hash $cpu_count $render_hash $render_count"
-cgot=$(awk '/^shape-cpu.hash/{h=$2} /^shape-cpu.count/{c=$2} /^shape-cpu.render-hash/{rh=$2} /^shape-cpu.render-count/{rc=$2} END{if (h != "" && rh != "") print h, c, rh, rc}' cpu-probe.txt)
-cplant=$(./cpu-plant.exe 2>/dev/null | tr -d '\r' | awk '/^shape-cpu.hash/{h=$2} /^shape-cpu.count/{c=$2} /^shape-cpu.render-hash/{rh=$2} /^shape-cpu.render-count/{rc=$2} END{if (h != "" && rh != "") print h, c, rh, rc}')
+cwant="$cpu_hash $cpu_count $render_hash $render_count $dense_hash $dense_count"
+cpick='/^shape-cpu.hash/{h=$2} /^shape-cpu.count/{c=$2} /^shape-cpu.render-hash/{rh=$2} /^shape-cpu.render-count/{rc=$2} /^shape-cpu.dense-hash/{dh=$2} /^shape-cpu.dense-count/{dc=$2} END{if (h != "" && rh != "" && dh != "") print h, c, rh, rc, dh, dc}'
+cgot=$(awk "$cpick" cpu-probe.txt)
+cplant=$(./cpu-plant.exe 2>/dev/null | tr -d '\r' | awk "$cpick")
 echo "windows (wine) shape-cpu hashes: ${cgot:-none}   planted: ${cplant:-none}   committed: $cwant"
 if [ -n "$cgot" ] && [ "$cgot" = "$cwant" ]; then
-  echo "   ok    win64 prints the committed shape-cpu coverage hash and renders"
+  echo "   ok    win64 prints the committed shape-cpu coverage hash, renders and dense cells"
 else
   echo "   FAIL  win64 does not print the committed shape-cpu hashes"; rc=1
   awk '$1=="shape-cpu.render"{print $2, $3, $4}' cpu-probe.txt > cpu-renders.txt
@@ -165,18 +175,29 @@ if ! x86_64-w64-mingw32-gcc -Wl,--gc-sections font-obj/*.o -o font-probe.exe 2> 
     || { echo "shape-win: the font probe did not link with its stubs" >&2; exit 2; }
   echo "   |     $(wc -l < font-undefined.txt) symbols the font probe never reaches are stubbed (abort)"
 fi
-fwant="$font_hash $font_count"
+# Strokes story S5: the stroked-text pair is read too, and every fixture line of both pairs.
+fwant="$font_hash $font_count $font_stroke_hash $font_stroke_count"
+fpick='/^font-scene.hash/{h=$2} /^font-scene.count/{c=$2} /^font-scene.stroke-hash/{sh=$2} /^font-scene.stroke-count/{sc=$2} END{if (h != "" && sh != "") print h, c, sh, sc}'
 ./font-probe.exe font/fonts 2> font-probe.err | tr -d '\r' > font-probe.txt
 frc=${PIPESTATUS[0]}
-fgot=$(awk '/^font-scene.hash/{h=$2} /^font-scene.count/{c=$2} END{if (h != "") print h, c}' font-probe.txt)
-fplant=$(FONT_SCENE_PLANT=1 ./font-probe.exe font/fonts 2>/dev/null | tr -d '\r' | awk '/^font-scene.hash/{h=$2} /^font-scene.count/{c=$2} END{if (h != "") print h, c}')
+fgot=$(awk "$fpick" font-probe.txt)
+fplant=$(FONT_SCENE_PLANT=1 ./font-probe.exe font/fonts 2>/dev/null | tr -d '\r' | awk "$fpick")
+awk '$1=="font-scene.fixture"{print "fixture", $2, $3} $1=="font-scene.stroke-fixture"{print "stroke-fixture", $2, $3}' font-probe.txt | sort > font-lines.txt
+awk '$1=="fixture" || $1=="stroke-fixture"{print $1, $2, $3}' font/scene.hash | sort > font-lines-want.txt
 echo "windows (wine) font provider hash: ${fgot:-none} (exit $frc)   planted: ${fplant:-none}   committed: $fwant"
 if [ "$frc" -eq 0 ] && [ -n "$fgot" ] && [ "$fgot" = "$fwant" ]; then
   echo "   ok    win64 prints the committed font provider hash, with AD-5 and AD-1 holding"
 else
   echo "   FAIL  win64 does not print the committed font provider hash (or an equality failed)"; rc=1
+  diff font-lines-want.txt font-lines.txt | sed -n 's/^> /   |   differs: /p'
   grep '^font-scene.FAIL' font-probe.txt | sed 's/^/   |   /'
   tr -d '\r' < font-probe.err | grep 'stub reached' | sort -u | sed 's/^/   |   /'
+fi
+if diff -q font-lines-want.txt font-lines.txt > /dev/null && [ -s font-lines-want.txt ]; then
+  echo "   ok    win64 prints every committed font fixture line ($(wc -l < font-lines-want.txt), renders and stroked text)"
+else
+  echo "   FAIL  win64 does not print every committed font fixture line"; rc=1
+  diff font-lines-want.txt font-lines.txt | sed -n 's/^> /   |   differs: /p'
 fi
 if [ -n "$fplant" ] && [ "$fplant" != "$fwant" ]; then
   echo "   ok    planted: one differing bit in the font probe on win64 is not the committed hash"

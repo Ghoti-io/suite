@@ -97,6 +97,8 @@ cp -r "$CPU/include" "$W/cpu/include"
 cp -r "$CPU/src" "$W/cpu/src"
 cp "$CPU/tools/corpus-hash.c" "$W/cpu/tools/"
 cp "$CPU/tests/render_fixtures.h" "$CPU/tests/corpus/render.hash" "$W/cpu/tests/"
+# Strokes story S4c: the dense cells of the exact union step (the probe includes the vectors) and their committed pair.
+cp "$CPU/tests/dense_vectors.h" "$CPU/tests/corpus/dense.hash" "$W/cpu/tests/"
 # The fixtures' runs from a font use shape-scene's test glyph provider, at the path shape-scene installs it (story 14a).
 rm -rf "$W/scene-testing"
 mkdir -p "$W/scene-testing/ghoti.io/shape-scene/testing"
@@ -110,6 +112,10 @@ render_hash=$(awk '$1=="hash"{print $2}' "$CPU/tests/corpus/render.hash")
 render_count=$(awk '$1=="count"{print $2}' "$CPU/tests/corpus/render.hash")
 [ -n "$render_hash" ] && [ -n "$render_count" ] || { echo "shape.sh: no committed shape-cpu renders" >&2; exit 2; }
 echo "committed shape-cpu renders: $render_hash over $render_count"
+dense_hash=$(awk '$1=="hash"{print $2}' "$CPU/tests/corpus/dense.hash")
+dense_count=$(awk '$1=="count"{print $2}' "$CPU/tests/corpus/dense.hash")
+[ -n "$dense_hash" ] && [ -n "$dense_count" ] || { echo "shape.sh: no committed shape-cpu dense cells" >&2; exit 2; }
+echo "committed shape-cpu dense cells: $dense_hash over $dense_count"
 # The shape-scene sources and the committed hash (story 10); it is built with shape-geometry's and math's too.
 SCENE="$ROOT/libs/shape-scene"
 # cutil's real headers, its generated libver_gen.h, allocator.c and atomic.c: the scene's mutex and counts are cutil's.
@@ -148,8 +154,13 @@ scene_hash=$(awk '$1=="hash"{print $2}' "$SCENE/tests/corpus/scene.hash")
 scene_count=$(awk '$1=="count"{print $2}' "$SCENE/tests/corpus/scene.hash")
 stroke_hash=$(awk '$1=="stroke-hash"{print $2}' "$SCENE/tests/corpus/scene.hash")
 stroke_count=$(awk '$1=="stroke-count"{print $2}' "$SCENE/tests/corpus/scene.hash")
-[ -n "$scene_hash" ] && [ -n "$scene_count" ] && [ -n "$stroke_hash" ] && [ -n "$stroke_count" ] || { echo "shape.sh: no committed shape-scene hash" >&2; exit 2; }
-echo "committed shape-scene hash: $scene_hash over $scene_count results; strokes $stroke_hash over $stroke_count"
+plane_hash=$(awk '$1=="plane-hash"{print $2}' "$SCENE/tests/corpus/scene.hash")
+plane_count=$(awk '$1=="plane-count"{print $2}' "$SCENE/tests/corpus/scene.hash")
+placeholder_hash=$(awk '$1=="placeholder-hash"{print $2}' "$SCENE/tests/corpus/scene.hash")
+placeholder_count=$(awk '$1=="placeholder-count"{print $2}' "$SCENE/tests/corpus/scene.hash")
+[ -n "$scene_hash" ] && [ -n "$scene_count" ] && [ -n "$stroke_hash" ] && [ -n "$stroke_count" ] && [ -n "$plane_hash" ] && [ -n "$plane_count" ] \
+  && [ -n "$placeholder_hash" ] && [ -n "$placeholder_count" ] || { echo "shape.sh: a pair is missing from the committed shape-scene hash" >&2; exit 2; }
+echo "committed shape-scene hash: $scene_hash over $scene_count results; strokes $stroke_hash over $stroke_count; planes $plane_hash over $plane_count; placeholders $placeholder_hash over $placeholder_count"
 # The font provider's probe (story 14b) also takes cutil's file.c: a blob's destroy frees through it.
 cp "$CUTIL/src/file.c" "$CUTIL/src/file_internal.h" "$CUTIL/src/path_internal.h" "$W/cutil/src/"
 # The font provider's probe (story 14b): font's sources, its tools/scene-hash.c, the fixtures it renders and the
@@ -161,7 +172,8 @@ mkdir -p "$W/font/tools" "$W/font/fonts" "$W/font/gen"
 cp -r "$FONT/include" "$W/font/include"
 cp -r "$FONT/src" "$W/font/src"
 cp "$FONT/tools/scene-hash.c" "$W/font/tools/"
-for f in $(sed -n 's/^fixture \([^ ]*\) .*/\1/p' "$FONT/tests/data/golden/scene.hash"); do cp "$FONT/tests/data/fonts/$f" "$W/font/fonts/"; done
+for f in $(sed -n 's/^\(stroke-\)\{0,1\}fixture \([^ ]*\) .*/\2/p' "$FONT/tests/data/golden/scene.hash" | sort -u); do cp "$FONT/tests/data/fonts/$f" "$W/font/fonts/"; done
+cp "$FONT/tests/data/golden/scene.hash" "$W/font/scene.hash"
 for lib in font compress security unicode; do
   [ "$lib" = font ] || { rm -rf "$W/$lib"; mkdir -p "$W/$lib"; cp -r "$ROOT/libs/$lib/include" "$W/$lib/include"; }
   make -s -C "$ROOT/libs/$lib" SKIP_DEP_CHECK=1 BUILD_DIR="$W/$lib/gen" "$W/$lib/gen/generated/ghoti.io/$lib/libver_gen.h" > "$W/logs/$lib-libver.log" 2>&1 || { echo "shape.sh: $lib libver_gen.h failed (see $W/logs/$lib-libver.log)" >&2; exit 2; }
@@ -180,5 +192,8 @@ cp "$SUCCESS/expected.txt" "$W/success/"
 font_hash=$(awk '$1=="hash"{print $2}' "$FONT/tests/data/golden/scene.hash")
 font_count=$(awk '$1=="count"{print $2}' "$FONT/tests/data/golden/scene.hash")
 [ -n "$font_hash" ] && [ -n "$font_count" ] || { echo "shape.sh: no committed font provider hash" >&2; exit 2; }
-echo "committed font provider hash: $font_hash over $font_count renders"
-"$HERE/m1-win.sh" "$W" "bash /tools/xwin/shape-win.sh $want $math_hash $math_count $geom_hash $geom_count $cpu_hash $cpu_count $scene_hash $scene_count $render_hash $render_count $font_hash $font_count $stroke_hash $stroke_count"
+font_stroke_hash=$(awk '$1=="stroke-hash"{print $2}' "$FONT/tests/data/golden/scene.hash")
+font_stroke_count=$(awk '$1=="stroke-count"{print $2}' "$FONT/tests/data/golden/scene.hash")
+[ -n "$font_stroke_hash" ] && [ -n "$font_stroke_count" ] || { echo "shape.sh: no committed font stroked-text pair" >&2; exit 2; }
+echo "committed font provider hash: $font_hash over $font_count renders; stroked text $font_stroke_hash over $font_stroke_count"
+"$HERE/m1-win.sh" "$W" "bash /tools/xwin/shape-win.sh $want $math_hash $math_count $geom_hash $geom_count $cpu_hash $cpu_count $scene_hash $scene_count $render_hash $render_count $font_hash $font_count $stroke_hash $stroke_count $plane_hash $plane_count $placeholder_hash $placeholder_count $dense_hash $dense_count $font_stroke_hash $font_stroke_count"
