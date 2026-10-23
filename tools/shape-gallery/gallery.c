@@ -245,6 +245,17 @@ static void render(const char * what, GSHSCENE_List * L, GIMG_Raster * raster) {
     printf("  entry %s %s x%zu\n", gshscene_entry_class_string((GSHSCENE_Entry_Class)tally[k].c),
         gshscene_reason_string((GSHSCENE_Reason)tally[k].r), tally[k].n);
   }
+  /* A placeholder's entry names its source and code in `second`; the registry prints them without the front end. */
+  for (size_t i = 0; i < gshscene_report_count(g_report); i++) {
+    GSHSCENE_Report_Entry e;
+    gshscene_report_entry(g_report, i, &e);
+    if (e.reason == GSHSCENE_REASON_PLACEHOLDER) {
+      printf("  placeholder %s %s (source %u, code %u) at item %zu\n",
+          gshscene_entry_class_string(e.entry_class),
+          gshscene_placeholder_string((unsigned)(e.second >> 16), (unsigned)(e.second & 0xffffu)),
+          (unsigned)(e.second >> 16), (unsigned)(e.second & 0xffffu), e.chain_count ? e.chain[0] : (size_t)0);
+    }
+  }
   gshscene_list_destroy(L);
 }
 
@@ -1501,15 +1512,31 @@ static void image_text(const char * fontdir) {
 
 /* --- 6: color glyphs --------------------------------------------------------------------------------------------- */
 
-static const char * refusal_name(uint32_t r) {
-  switch (r) {
-    case GFNT_COLOR_REFUSED_UNBOUNDED:
-      return "unbounded (no clip box)";
-    case GFNT_COLOR_REFUSED_NO_RECORD:
-      return "no v1 record";
-    default:
-      return "?";
+/* A refused glyph is a placeholder item in the list, which the render report names with its (source, code) pair; the
+ * page draws what an application would draw for one, from the item's own box (the library draws nothing). */
+
+/** The item's box under its map in list space: the corners' bounds, or the cell when the item states none. */
+static void placeholder_box(const GSHSCENE_Item * it, double cell[4], double out[4]) {
+  if (!it->placeholder.has_box) {
+    memcpy(out, cell, 4 * sizeof out[0]);
+    return;
   }
+  double x0 = 1e300, y0 = 1e300, x1 = -1e300, y1 = -1e300;
+  for (int k = 0; k < 4; k++) {
+    GSHGEOM_Point p = {it->placeholder.box[(k & 1) ? 2 : 0], it->placeholder.box[(k & 2) ? 3 : 1], 0.0}, q;
+    if (gshgeom_map_apply_point(&it->map, p, &q) != GSHGEOM_OK) {
+      memcpy(out, cell, 4 * sizeof out[0]);
+      return;
+    }
+    x0 = q.x < x0 ? q.x : x0;
+    x1 = q.x > x1 ? q.x : x1;
+    y0 = q.y < y0 ? q.y : y0;
+    y1 = q.y > y1 ? q.y : y1;
+  }
+  out[0] = x0;
+  out[1] = y0;
+  out[2] = x1;
+  out[3] = y1;
 }
 
 static void image_color_glyphs(const char * fontdir) {
@@ -1529,7 +1556,7 @@ static void image_color_glyphs(const char * fontdir) {
       gfnt_face_num_glyphs(fonts[i]->face, &nglyphs[i], NULL);
       GSHSCENE_List * tmp = list_new();
       for (size_t g = 0; g < nglyphs[i]; g++) {
-        GFNT_ColorRun run = {100, 0, 100, 0, GSHSCENE_HINT_NONE, 0, 0};
+        GFNT_ColorRun run = {.size = 100, .x = 0, .y = 100, .hint_mode = GSHSCENE_HINT_NONE};
         GFNT_ColorLowering out;
         memset(&out, 0, sizeof out);
         gfnt_scene_record_color_glyph(fonts[i]->res, g_store, tmp, (uint32_t)g, &run, &out, NULL);
@@ -1582,7 +1609,8 @@ static void image_color_glyphs(const char * fontdir) {
     char reasons[512] = "";
     for (size_t g = 0; g < nglyphs[i]; g++) {
       double cx = x0 + col * cw, cy = y;
-      GFNT_ColorRun run = {100, (int32_t)(cx + 20), (int32_t)(cy + 110), 0, GSHSCENE_HINT_NONE, 0, 0};
+      GFNT_ColorRun run = {.size = 100, .x = (int32_t)(cx + 20), .y = (int32_t)(cy + 110),
+          .hint_mode = GSHSCENE_HINT_NONE};
       GFNT_ColorLowering out;
       memset(&out, 0, sizeof out);
       /* Cell background first, so the glyph lands on it: record the glyph into a scratch list to learn its fate. */
@@ -1595,59 +1623,71 @@ static void image_color_glyphs(const char * fontdir) {
       any = 1;
       fill_rect(L, cx, cy, cx + cw - 10, cy + ch - 40, solid(1, 1, 1, 1));
       char cap[128];
-      if (r == GFNT_OK) {
-        r = gfnt_scene_record_color_glyph(fonts[i]->res, g_store, L, (uint32_t)g, &run, &out, &err);
-        snprintf(cap, sizeof cap, "gid %zu  COLRv%d", g, out.source == GFNT_COLOR_SOURCE_V1 ? 1 : 0);
-        drawn++;
-        printf("color %s gid %zu: %zu items:", files[i], g, out.items);
-        for (size_t k = gshscene_list_count(L) - out.items; k < gshscene_list_count(L); k++) {
-          const GSHSCENE_Item * it = NULL;
-          gshscene_list_item(L, k, &it);
-          GSHSCENE_Glyph_Run gr;
-          long gid = -1;
-          if (it->resource && gshscene_resource_glyph_run(it->resource, &gr) == GSHSCENE_OK && gr.glyph_count == 1) {
-            gid = (long)gr.glyphs[0].id;
-          }
-          printf(" [kind %d glyph %ld paint %d entry %u alpha %g op %u]", (int)it->kind, gid, (int)it->paint.kind,
-              it->paint.entry, it->paint.rgba[3], it->group.composite);
-        }
-        printf("\n");
+      snprintf(cap, sizeof cap, "gid %zu  COLRv%d", g, out.source == GFNT_COLOR_SOURCE_V1 ? 1 : 0);
+      if (r != GFNT_OK) {
+        /* A failure of the call, not a refusal of the glyph (a refusal is a placeholder, below): say so and fail the run. */
+        GFNT_Error e2;
+        gfnt_error_clear(&e2);
+        GSHSCENE_List * p2 = list_new();
+        gfnt_scene_record_color_glyph(fonts[i]->res, g_store, p2, (uint32_t)g, &run, &out, &e2);
+        printf("color %s gid %zu: result %d\n", files[i], g, (int)r);
+        gfnt_error_dump(&e2, stdout);
+        gshscene_list_destroy(p2);
+        label_c(L, "failed", 14, cx + (cw - 10) / 2.0, cy + 60, 0.3);
+        g_failed = 1;
       } else {
-        /* Placeholder: a hatched box. */
-        fill_rect(L, cx + 10, cy + 10, cx + cw - 20, cy + ch - 50, solid(0.85, 0.85, 0.85, 1));
-        for (int k = 0; k < 8; k++) {
-          fill_rect(L, cx + 10, cy + 10 + k * 17, cx + cw - 20, cy + 14 + k * 17, solid(0.75, 0.75, 0.75, 1));
-        }
-        char errbuf[48];
-        snprintf(errbuf, sizeof errbuf, "error %d", (int)r);
-        const char * why = r == GFNT_ERR_UNSUPPORTED ? refusal_name(out.refusal)
-            : r == GFNT_ERR_LIMIT                     ? "walk limit"
-                                                      : errbuf;
-        if (r != GFNT_ERR_UNSUPPORTED) {
-          GFNT_Error e2;
-          gfnt_error_clear(&e2);
-          GSHSCENE_List * p2 = list_new();
-          gfnt_scene_record_color_glyph(fonts[i]->res, g_store, p2, (uint32_t)g, &run, &out, &e2);
-          printf("color %s gid %zu: result %d\n", files[i], g, (int)r);
-          gfnt_error_dump(&e2, stdout);
-          gshscene_list_destroy(p2);
-        }
-        label_c(L, "refused:", 14, cx + (cw - 10) / 2.0, cy + 50, 0.3);
-        label_c(L, why, 14, cx + (cw - 10) / 2.0, cy + 70, 0.3);
-        if (out.paint_format) {
-          char pf[64];
-          snprintf(pf, sizeof pf, "paint format %u", out.paint_format);
-          label_c(L, pf, 12, cx + (cw - 10) / 2.0, cy + 92, 0.35);
-        }
-        snprintf(cap, sizeof cap, "gid %zu  COLRv%d", g, out.source == GFNT_COLOR_SOURCE_V1 ? 1 : 0);
-        size_t n = strlen(reasons);
-        if (out.paint_format) {
-          snprintf(reasons + n, sizeof reasons - n, "%sgid %zu: %s (format %u)", n ? "; " : "", g, why,
-              out.paint_format);
+        const size_t first = gshscene_list_count(L);
+        r = gfnt_scene_record_color_glyph(fonts[i]->res, g_store, L, (uint32_t)g, &run, &out, &err);
+        if (r != GFNT_OK) {
+          fail("color glyph record");
+        } else if (out.outcome == GFNT_COLOR_OUTCOME_LOWERED) {
+          drawn++;
+          printf("color %s gid %zu: %zu items:", files[i], g, out.items);
+          for (size_t k = gshscene_list_count(L) - out.items; k < gshscene_list_count(L); k++) {
+            const GSHSCENE_Item * it = NULL;
+            gshscene_list_item(L, k, &it);
+            GSHSCENE_Glyph_Run gr;
+            long gid = -1;
+            if (it->resource && gshscene_resource_glyph_run(it->resource, &gr) == GSHSCENE_OK && gr.glyph_count == 1) {
+              gid = (long)gr.glyphs[0].id;
+            }
+            printf(" [kind %d glyph %ld paint %d entry %u alpha %g op %u]", (int)it->kind, gid, (int)it->paint.kind,
+                it->paint.entry, it->paint.rgba[3], it->group.composite);
+          }
+          printf("\n");
         } else {
-          snprintf(reasons + n, sizeof reasons - n, "%sgid %zu: %s", n ? "; " : "", g, why);
+          /* The glyph is refused: the list holds a placeholder (an item that draws nothing, reported by the render), and
+           * this page draws the box an application would, from the item, with the registry's name for the reason. */
+          const GSHSCENE_Item * it = NULL;
+          gshscene_list_item(L, first, &it);
+          const char * why = gshscene_placeholder_string(it->placeholder.source, it->placeholder.code);
+          double cell[4] = {cx + 10, cy + 10, cx + cw - 20, cy + ch - 50}, box[4];
+          placeholder_box(it, cell, box);
+          fill_rect(L, box[0], box[1], box[2], box[3], solid(0.85, 0.85, 0.85, 1));
+          for (int k = 0; k < 8; k++) {
+            double sy = box[1] + (box[3] - box[1]) * k / 8.0;
+            fill_rect(L, box[0], sy, box[2], sy + (box[3] - box[1]) / 24.0, solid(0.75, 0.75, 0.75, 1));
+          }
+          label_c(L, "placeholder:", 14, cx + (cw - 10) / 2.0, cy + 50, 0.3);
+          label_c(L, why, 14, cx + (cw - 10) / 2.0, cy + 70, 0.3);
+          if (out.paint_format) {
+            char pf[64];
+            snprintf(pf, sizeof pf, "paint format %u", out.paint_format);
+            label_c(L, pf, 12, cx + (cw - 10) / 2.0, cy + 92, 0.35);
+          }
+          printf("color %s gid %zu: placeholder item %zu, source %u code %u (%s)%s, paint format %u, box %s\n", files[i], g,
+              first, (unsigned)it->placeholder.source, (unsigned)it->placeholder.code, why,
+              it->placeholder.approximated ? ", approximated" : ", refused", out.paint_format,
+              it->placeholder.has_box ? "from the item" : "none");
+          size_t n = strlen(reasons);
+          if (out.paint_format) {
+            snprintf(reasons + n, sizeof reasons - n, "%sgid %zu: %s (format %u)", n ? "; " : "", g, why,
+                out.paint_format);
+          } else {
+            snprintf(reasons + n, sizeof reasons - n, "%sgid %zu: %s", n ? "; " : "", g, why);
+          }
+          refused++;
         }
-        refused++;
       }
       label_c(L, cap, 13, cx + (cw - 10) / 2.0, cy + ch - 34, 0.3);
       col++;
@@ -1664,7 +1704,7 @@ static void image_color_glyphs(const char * fontdir) {
     }
     if (reasons[0]) {
       char b[700];
-      snprintf(b, sizeof b, "Refused: %s", reasons);
+      snprintf(b, sizeof b, "Placeholders: %s", reasons);
       label(L, b, 14, 30, y - 12, 0.4);
       y += 22;
       size_t n = strlen(skipped);
@@ -1680,7 +1720,7 @@ static void image_color_glyphs(const char * fontdir) {
   label(L, "Not drawn here: sbix, CBDT and SVG glyphs (bitmap/SVG sources; the scene's image resource is reserved).", 15,
       30, y + 6, 0.45);
   render("color-glyphs footer", L, R);
-  printf("color glyphs: %d drawn, %d refused; refused: %s\n", drawn, refused, skipped);
+  printf("color glyphs: %d drawn, %d placeholders; placeholders: %s\n", drawn, refused, skipped);
   /* Crop to what was used. */
   int used = (int)y + 40;
   if (used < H) {

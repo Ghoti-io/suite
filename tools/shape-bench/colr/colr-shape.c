@@ -230,6 +230,7 @@ int main(int argc, char ** argv) {
     run.bits = 0;
     run.hint_mode = GSHSCENE_HINT_NONE;
     run.space = space;
+    run.refusal_policy = GFNT_COLOR_ON_REFUSAL_NONE;   /* the benchmark counts glyphs that do not lower */
     if (gshscene_list_create(NULL, NULL, store, &list) != GSHSCENE_OK) {
       die("list");
     }

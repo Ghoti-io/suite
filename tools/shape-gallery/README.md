@@ -20,11 +20,11 @@ would add edges to that library.
 | `gradients.png` | linear gradients with pad, repeat and reflect; radial (concentric, a focal point, and the cone when neither circle holds the other); sweep over a whole turn and over part of one with pad and repeat, showing its direction; the same stops interpolated in sRGB and linear light, and straight and premultiplied with a translucent stop, the middle pixels read back; and gradients under an item's map and under their own map |
 | `strokes.png` | joins (miter, round, bevel) on a zigzag, caps (butt, round, square), dashes (a pattern, round dots, dash-dot with an offset), local and device widths under a non-uniform map, device-width hairlines, inside, outside and centered alignment on a star, and a gradient as a stroke's paint, and translucent strokes whose pieces overlap (square-cap dashes with short gaps, a tight zigzag, a thin inside stroke), which are no darker where they overlap |
 | `text.png` | DejaVu Sans 2.37 at eight sizes, a justified paragraph, a 6x zoom of hinted, unhinted and general-route glyphs, nine scripts, and `font`'s committed test fixtures |
-| `color-glyphs.png` | the COLR glyphs of `font`'s fixtures lowered into scene lists (gradients of every kind, blend modes, clip boxes and the plane, variable paints at the default instance), with what is refused and why (a paint no clip bounds in a glyph that states no clip box, a glyph that names itself) |
+| `color-glyphs.png` | the COLR glyphs of `font`'s fixtures lowered into scene lists (gradients of every kind, blend modes, clip boxes and the plane, variable paints at the default instance), with the glyphs the lowering cannot express shown as placeholders: each is an item the render report names with its registered source and code (`colr:unbounded` for a paint no clip bounds in a glyph that states no clip box, `colr:walk-limit` for a glyph that names itself), and the page draws the box an application would from the item's own box |
 
 `gallery.log` beside them has each render's result and its report entries
-tallied by class and reason, diagnostics of a few fixture fonts, and the
-refused color glyphs.
+tallied by class and reason (a placeholder's entry by its name, `colr:unbounded` and the like), diagnostics
+of a few fixture fonts, and the color glyphs that are placeholders.
 
 ## Running it
 
