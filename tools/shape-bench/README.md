@@ -74,6 +74,25 @@ not ranked. The control, `shape-cpu` with every sixteenth drawable dropped,
 must exceed the bound on every scene, or that scene's check is reported blind
 and the run fails. `report.py` holds the bound.
 
+**The stroke scenes (`strokes`, `strokes-dashed`) are judged by corroboration**
+(Corey, 2026-10-22): two references' antialiasing and curve approximation differ
+from each other as much as either differs from `shape-cpu`, so a pixel where
+`shape-cpu` differs from a reference by more than 32 levels counts against it
+only when a second, independent source also differs from `shape-cpu` there by
+more than 32. The second source is the other reference engine where it draws
+the scene (`strokes`: Blend2D and Skia check each other), and otherwise the
+geometric oracle of the stroke (`strokes-dashed`, which Blend2D does not draw):
+the exact region of each stroke from the definition alone, sampled sixteen by
+sixteen in the pixel and composited in the scene's order with its paints,
+evaluated only at the pixels in question (`corroborate.cpp`, using the oracle
+header `shape-geometry` installs for the tests of a sink). The bounds do not
+change and are measured on the counted pixels, with the corroborated pixels'
+differences taken as zero in the mean. Two controls keep the rule honest: the
+dropped-drawable frame, judged by the same rule against each reference, must
+exceed the bound against every one, and a frame with 3000 of its drawn pixels
+inverted must still have those pixels counted and exceed the bound, or the rule
+would be hiding wrong frames and the scene is reported blind.
+
 ## Provenance
 
 Every result carries the image reference and its image ID, the base image's

@@ -29,7 +29,7 @@ endif
 
 BENCH_CFLAGS := -std=c17 -O2 -g -Wall -Wextra -Werror -ffp-contract=off
 
-all: $(BUILD_DIR)/bench-shape $(BUILD_DIR)/pamdiff
+all: $(BUILD_DIR)/bench-shape $(BUILD_DIR)/pamdiff $(BUILD_DIR)/corroborate
 
 $(BUILD_DIR)/bench-shape: bench-shape.c scene.c scene.h Makefile
 	@mkdir -p $(@D)
@@ -38,6 +38,16 @@ $(BUILD_DIR)/bench-shape: bench-shape.c scene.c scene.h Makefile
 $(BUILD_DIR)/pamdiff: pamdiff.c Makefile
 	@mkdir -p $(@D)
 	$(CC) $(BENCH_CFLAGS) -o $@ pamdiff.c
+
+# The stroke scenes' cross-check by corroboration (corroborate.cpp): it reads the geometric oracle that shape-geometry
+# installs for the tests of a sink, <ghoti.io/shape-geometry/testing/stroke_oracle.h>, which is C++20.
+CXX ?= g++
+BENCH_CXXFLAGS := -std=c++20 -O2 -g -Wall -Wextra -Werror -ffp-contract=off
+
+$(BUILD_DIR)/corroborate: corroborate.cpp scene.c scene.h Makefile
+	@mkdir -p $(@D)
+	$(CC) $(BENCH_CFLAGS) -c -o $(BUILD_DIR)/scene-corroborate.o scene.c
+	$(CXX) $(BENCH_CXXFLAGS) $(PKG_CFLAGS) -o $@ corroborate.cpp $(BUILD_DIR)/scene-corroborate.o $(PKG_LIBS) $(RPATH) -lm
 
 # The flags, as a recorded fact for the results.
 flags:

@@ -8,7 +8,7 @@
 #                                       lays them out
 #   WORK/prefix                         the install prefix ($PREFIX when set;
 #                                       it must be inside WORK)
-#   WORK/bench-build                    bench-shape and pamdiff
+#   WORK/bench-build                    bench-shape, pamdiff and corroborate
 #   WORK/results                        scenes, frames, raw figures, provenance,
 #                                       logs, and report/ (the results files)
 #
@@ -218,7 +218,7 @@ timing() {
   fi
   echo "== report"
   "$ENGINE" run --rm --user "$(id -u):$(id -g)" -v "$WORK:$MNT" -w "$MNT" "$BUILD_IMAGE" \
-    python3 "$B/report.py" --results results --pamdiff bench-build/pamdiff --shipped SHIPPED
+    python3 "$B/report.py" --results results --pamdiff bench-build/pamdiff --corroborate bench-build/corroborate --shipped SHIPPED
 }
 
 [ $# -ge 2 ] || die "usage: run.sh build WORK [JOBS] | run.sh time WORK"

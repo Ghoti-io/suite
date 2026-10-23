@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: LGPL-3.0-only
 """The shape benchmark's cross-check and results file.
 
-    report.py --results DIR --pamdiff PAMDIFF --shipped SHIPPED [--reuse EARLIER] [--tag TAG]
+    report.py --results DIR --pamdiff PAMDIFF --shipped SHIPPED [--corroborate TOOL] [--reuse EARLIER] [--tag TAG]
     report.py --markdown RECORD.json
 
 Reads what run.sh left in DIR (raw/<engine>.jsonl, frames/*.pam, prov/*.txt)
@@ -26,6 +26,17 @@ frame with every sixteenth drawable dropped - must exceed the bound for every
 scene, or the check could not have seen a wrong answer. An engine outside the
 bound on a scene is marked invalid there and not ranked.
 
+The stroke scenes are judged by corroboration (Corey, 2026-10-22), because two references' antialiasing and curve
+approximation differ from each other as much as either differs from shape-cpu: a pixel where shape-cpu differs from a
+reference by more than 32 levels counts against shape-cpu only when a second, independent source also differs from
+shape-cpu there within the same threshold.  The second source is the other reference engine where it draws the scene
+(`strokes`: Blend2D and Skia check each other), and otherwise the geometric oracle of the stroke
+(`strokes-dashed`, which Blend2D does not draw).  The bounds are the same and are measured on the counted pixels;
+`corroborate.cpp` says how.  Under this rule the control is shape-cpu's dropped-drawable frame judged against each
+reference, and it must exceed the bound against every one; and a perturbed frame (pixels made wrong on purpose) must
+still be counted, or the rule would be hiding frames and the check is reported blind.  `--corroborate TOOL` names the
+built `corroborate`; without it the scenes are judged as the others are.
+
 Exit 1 when a control does not exceed the bound or an input is missing;
 results outside the bound are a finding, recorded, not a failure of the run.
 """
@@ -43,6 +54,8 @@ BAD_FRACTION_MAX = 0.001
 BAD_THRESHOLD = 32
 CONTROL_STRIDE = 16
 ENGINES = ["shape-cpu", "font", "blend2d", "skia"]
+CORROBORATED = ("strokes", "strokes-dashed")
+PERTURBED_PIXELS = 3000
 SCENES = ["fill-rect", "fill-circle", "paths", "text", "ui", "gradients", "strokes", "strokes-dashed"]
 
 
@@ -138,12 +151,44 @@ def fmt_ms(s):
     return "%.3f" % (s * 1e3)
 
 
+def corroborate(tool, scene_file, candidate, reference, second_frame, perturb=0):
+    """One reference's cross-check by corroboration: `second_frame` is the other engine's frame, or None for the oracle."""
+    cmd = [tool, scene_file, candidate, reference] + (["--frame", second_frame] if second_frame else ["--oracle"])
+    if perturb:
+        cmd += ["--perturb", str(perturb)]
+    out = subprocess.run(cmd, capture_output=True, text=True)
+    if out.returncode != 0:
+        raise SystemExit("report.py: corroborate failed on %s: %s" % (" ".join(cmd[1:4]), out.stderr.strip()))
+    c = json.loads(out.stdout)
+    if c["bad_threshold"] != BAD_THRESHOLD:
+        raise SystemExit("report.py: corroborate's threshold %d is not the bound's %d" % (c["bad_threshold"], BAD_THRESHOLD))
+    return c
+
+
+def counted_view(c):
+    """The corroborated check in pamdiff's shape, so that the bound reads the counted figures."""
+    return {
+        "pixels": c["pixels"],
+        "mean_abs": c["counted_mean_abs"],
+        "bad_pixels": c["counted"],
+        "bad_fraction": c["counted_bad_fraction"],
+        "bad_threshold": c["bad_threshold"],
+        "rule": "corroborated",
+        "second_source": "the other engine's frame" if c["second"] == "frame" else "the oracle",
+        "raw_mean_abs": c["mean_abs_raw"],
+        "raw_disagreements": c["disagreements"],
+        "raw_disagreement_fraction": c["disagreements"] / c["pixels"],
+        "corroborated": c["corroborated"],
+    }
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--markdown", metavar="RECORD", help="write RECORD's .md again from it, and nothing else")
     ap.add_argument("--results")
     ap.add_argument("--pamdiff")
     ap.add_argument("--shipped")
+    ap.add_argument("--corroborate", help="the built corroborate tool: the stroke scenes are judged by corroboration")
     ap.add_argument("--reuse", help="an earlier run's results directory, for the reference engines")
     ap.add_argument("--tag", help="names the files <date>-<tag>.*")
     args = ap.parse_args()
@@ -199,10 +244,46 @@ def main():
             raise SystemExit("report.py: shape-cpu has no result for %s" % name)
         control = pamdiff(args.pamdiff, ref, os.path.join(frames, "shape-cpu.%s.control.pam" % name))
         control["exceeds_bound"] = not within(control)
+        corr = bool(args.corroborate) and name in CORROBORATED
+        scene_file = os.path.join(root, "scenes", name + ".scene")
+
+        def second_of(engine):
+            """The frame of the other reference engine that drew this scene, or None for the oracle."""
+            for other in ("blend2d", "skia"):
+                if other != engine and measures.get((other, name)):
+                    m2 = measures[(other, name)]
+                    return os.path.join(home(other), "frames", m2["output"])
+            return None
+
+        def frame_of(engine):
+            return os.path.join(home(engine), "frames", measures[(engine, name)]["output"])
+        perturbation = None
+        if corr:
+            # The control, judged as the cross-check judges shape-cpu: against each reference, by corroboration.
+            by_ref, perturbation = {}, {}
+            cpath = os.path.join(frames, "shape-cpu.%s.control.pam" % name)
+            for engine in ("blend2d", "skia"):
+                if not measures.get((engine, name)):
+                    continue
+                v = counted_view(corroborate(args.corroborate, scene_file, cpath, frame_of(engine), second_of(engine)))
+                v["exceeds_bound"] = not within(v)
+                by_ref[engine] = v
+                p = corroborate(args.corroborate, scene_file, ref, frame_of(engine), second_of(engine), PERTURBED_PIXELS)
+                p["counted_view"] = counted_view(p)
+                p["exceeds_bound"] = not within(p["counted_view"])
+                perturbation[engine] = {k: p[k] for k in ("perturbed", "perturbed_counted", "perturbed_second_frame_disagrees",
+                                                          "perturbed_oracle_disagrees", "counted", "counted_bad_fraction",
+                                                          "counted_mean_abs", "exceeds_bound")}
+            control["by_reference"] = by_ref
+            control["exceeds_bound"] = all(v["exceeds_bound"] for v in by_ref.values())
+            if not all(q["perturbed"] > 0 and q["perturbed_counted"] >= 0.99 * q["perturbed"] and q["exceeds_bound"]
+                       for q in perturbation.values()):
+                blind.append(name + " (the rule hides a perturbed frame)")
         if not control["exceeds_bound"]:
             blind.append(name)
         entry = {k: base[k] for k in ("metric", "extent", "work_unit", "work")}
         entry["control"] = control
+        entry["perturbation"] = perturbation
         empty = measures.get(("shape-cpu-empty", name))
         entry["shape_cpu_empty_list"] = empty["frame"] if empty else None
         entry["results"] = {}
@@ -219,7 +300,10 @@ def main():
                 r["cross_check"] = None
                 r["valid"] = True
             else:
-                d = pamdiff(args.pamdiff, ref, os.path.join(home(engine), "frames", m["output"]))
+                if corr:
+                    d = counted_view(corroborate(args.corroborate, scene_file, ref, frame_of(engine), second_of(engine)))
+                else:
+                    d = pamdiff(args.pamdiff, ref, os.path.join(home(engine), "frames", m["output"]))
                 d["within_bound"] = within(d)
                 r["cross_check"] = d
                 r["valid"] = d["within_bound"]
@@ -259,6 +343,15 @@ def main():
             "bad_fraction_max": BAD_FRACTION_MAX,
             "control": "shape-cpu with every %dth drawable, counted from the topmost, dropped must exceed the bound"
                        % CONTROL_STRIDE,
+            "corroboration": {
+                "scenes": list(CORROBORATED) if args.corroborate else [],
+                "rule": "a pixel where shape-cpu differs from a reference by more than %d levels counts against it only when "
+                        "a second independent source (the other reference engine where it draws the scene, otherwise the "
+                        "stroke's geometric oracle) also differs from it there by more than %d; the bound is measured on "
+                        "the counted pixels, with the corroborated pixels' differences taken as zero in the mean"
+                        % (BAD_THRESHOLD, BAD_THRESHOLD),
+                "perturbed_pixels": PERTURBED_PIXELS,
+            },
         },
         "shipped": shipped,
         "reused": reuse,
@@ -301,7 +394,9 @@ def write_markdown(rec, path, jname):
     L.append("Each row: the median frame over %d timed frames after warm-up, the quartiles, the throughput derived "
              "from the median, the speed relative to shape-cpu (above 1 is faster), and the cross-check against "
              "shape-cpu's frame (mean absolute difference in 8-bit levels; pixels more than %d levels apart). "
-             "Bound: mean at most %s, such pixels at most %s %%." % (
+             "Bound: mean at most %s, such pixels at most %s %%.  On the stroke scenes (those with a corroboration line "
+             "below) the figures are of the counted pixels: a pixel counts only when no second source agrees with "
+             "shape-cpu there." % (
                  rec["protocol"]["timed_frames"], rec["bound"]["bad_threshold_levels"], rec["bound"]["mean_abs_max"],
                  rec["bound"]["bad_fraction_max"] * 100))
     L.append("")
@@ -327,6 +422,28 @@ def write_markdown(rec, path, jname):
             16, c["mean_abs"], c["bad_threshold"], c["bad_fraction"] * 100,
             "exceeds the bound, so the check can see a wrong frame" if c["exceeds_bound"]
             else "**within the bound: this scene's check is blind**"))
+        if c.get("by_reference"):
+            for engine, v in c["by_reference"].items():
+                L.append("")
+                L.append("The control against %s, by corroboration (second source: %s): mean %.4f, counted pixels > %d "
+                         "%.4f %%: %s." % (engine, v["second_source"], v["mean_abs"], v["bad_threshold"],
+                                           v["bad_fraction"] * 100,
+                                           "exceeds the bound" if v["exceeds_bound"] else "**within the bound: blind**"))
+        for engine, r in s["results"].items():
+            cc = r["cross_check"]
+            if cc and cc.get("rule") == "corroborated":
+                L.append("")
+                L.append("%s: %d pixels differ from it by more than %d levels (%.4f %%, mean %.4f before the rule); "
+                         "%d of them are corroborated by the second source (%s) and %d counted." % (
+                             engine, cc["raw_disagreements"], cc["bad_threshold"], cc["raw_disagreement_fraction"] * 100,
+                             cc["raw_mean_abs"], cc["corroborated"], cc["second_source"], cc["bad_pixels"]))
+        for engine, q in (s.get("perturbation") or {}).items():
+            L.append("")
+            L.append("Perturbed frame against %s (%d of shape-cpu's drawn pixels inverted): %d counted; %d contradicted "
+                     "by the second frame, %d by the oracle; counted %.4f %%: %s." % (
+                         engine, q["perturbed"], q["perturbed_counted"], q["perturbed_second_frame_disagrees"],
+                         q["perturbed_oracle_disagrees"], q["counted_bad_fraction"] * 100,
+                         "exceeds the bound" if q["exceeds_bound"] else "**within the bound: blind**"))
         if s.get("shape_cpu_empty_list"):
             L.append("")
             L.append("shape-cpu rendering an empty list on this extent and target (its fixed cost a frame): %s ms "

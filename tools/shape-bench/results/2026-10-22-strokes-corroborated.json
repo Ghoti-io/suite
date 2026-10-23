@@ -1,0 +1,1349 @@
+{
+ "format": "shape-bench-results 1",
+ "date": "2026-10-22",
+ "tag": "corroborated",
+ "generated_by": "suite/tools/shape-bench/report.py",
+ "protocol": {
+  "threads": 1,
+  "warmup": "at least 5 frames and 0.25 s",
+  "timed_frames": 31,
+  "statistic": "median of the timed frames; quartiles, minimum and maximum; spread = (p75 - p25) / median",
+  "timed": "from the engine's first call until its output is complete; the clear to the background is not timed",
+  "throughput": "work / median frame time (build plus submit)",
+  "target": "caller-owned 8-bit RGBA premultiplied (Blend2D: BGRA in memory, its PRGB32), source-over, non-zero, anti-aliased"
+ },
+ "bound": {
+  "against": "shape-cpu's last frame",
+  "mean_abs_max": 1.0,
+  "bad_threshold_levels": 32,
+  "bad_fraction_max": 0.001,
+  "control": "shape-cpu with every 16th drawable, counted from the topmost, dropped must exceed the bound",
+  "corroboration": {
+   "scenes": [
+    "strokes",
+    "strokes-dashed"
+   ],
+   "rule": "a pixel where shape-cpu differs from a reference by more than 32 levels counts against it only when a second independent source (the other reference engine where it draws the scene, otherwise the stroke's geometric oracle) also differs from it there by more than 32; the bound is measured on the counted pixels, with the corroborated pixels' differences taken as zero in the mean",
+   "perturbed_pixels": 3000
+  }
+ },
+ "shipped": [
+  "cutil 40b429e clean",
+  "security 0b10e40 clean",
+  "compress f79a28c clean",
+  "unicode 613b976 clean",
+  "color e6d4b6b clean",
+  "image 473e4caf clean",
+  "math e2bf426 clean",
+  "shape-geometry 790b22c clean",
+  "shape-scene 5c14fd2 clean",
+  "shape-cpu 555f8d2 dirty",
+  "font e0affba clean",
+  "suite 3af9ae8 clean"
+ ],
+ "reused": null,
+ "engines": {
+  "shape-cpu": {
+   "engine": "shape-cpu",
+   "image": "ghoti-build:gcc16",
+   "image_id": "sha256:80878e37915cd8dcac59a79fccf42198d9bc47f78b7924d85eb9da01b46d1a72",
+   "cpu_model": "AMD RYZEN AI MAX+ 395 w/ Radeon 8060S",
+   "arch": "x86_64",
+   "cpus_online": "32",
+   "governor": "powersave",
+   "boost": "1",
+   "pinned_cpu": "30",
+   "nice": "the container runs at the default priority, its only competition what the busiest processes show",
+   "before": "time: 2026-10-22T22:15:45Z\nloadavg: 6.42 5.49 4.96 6/1226 24781\nother containers running: 9\nbusiest processes' %CPU: 99.7 99.7 99.7 29.6 4.9 4.9\n",
+   "after": "time: 2026-10-22T22:21:10Z\nloadavg: 9.61 9.04 6.76 14/1228 31990\nother containers running: 9\nbusiest processes' %CPU: 99.9 99.9 99.9 99.9 98.9 98.9\n",
+   "base": "docker.io/library/gcc:16.2.0@sha256:3f73339bf0d3d64081cac3f6d9fdafc6dd4cef2b9c49e0a09f91e97cb0eb139a",
+   "driver_log": [
+    "compiler: gcc (GCC) 16.2.0"
+   ],
+   "build": {
+    "compiler": "gcc (GCC) 16.2.0",
+    "harness_flags": "cc -std=c17 -O2 -g -Wall -Wextra -Werror -ffp-contract=off",
+    "shape-cpu_flags": "cc g++ -pedantic-errors -Wall -Wextra -Werror -Wfloat-conversion -fstrict-aliasing -Wstrict-aliasing=1 -Wno-error=unused-function -Wfatal-errors -std=c17 -O2 -ffp-contract=off  -g  -fvisibility=hidden -DGSHCPU_BUILD  -fPIC -pedantic-errors -Wall -Wextra -Werror -Wfloat-conversion -fstrict-aliasing -Wstrict-aliasing=1 -Wno-error=unused-function -Wfatal-errors -std=c17 -O2 -ffp-contract=off  -g  -pedantic-errors -Wall -Wextra -Werror -Wno-error=unused-function -Wfatal-errors -std=c++20 -O1 -g -ffp-contract=off   -L /usr/lib -lstdc++ -lm  -Wl,-rpath,/work/prefix/lib/ghoti.io -I include/ -I ./build/linux/release/generated/ -I/work/prefix/include/ghoti.io/cutil-0 -I/work/prefix/include/ghoti.io/color-0 -I/work/prefix/include/ghoti.io/security-0 -I/work/prefix/include/ghoti.io/math-0 -I/work/prefix/include/ghoti.io/image-0 -I/work/prefix/include/ghoti.io/compress-0 -I/work/prefix/include/ghoti.io/shape-geometry-0 -I/work/prefix/include/ghoti.io/shape-scene-0  -Wl,--whole-archive ./build/linux/release/apps/libghoti.io-shape-cpu-0.a -Wl,--no-whole-archive -L/work/prefix/lib/ghoti.io -lghoti.io-shape-scene-0 -lghoti.io-image-0 -lghoti.io-compress-0 -lghoti.io-color-0 -lghoti.io-security-0 -lghoti.io-shape-geometry-0 -lghoti.io-math-0 -lghoti.io-cutil-0  -L/work/prefix/lib/ghoti.io -lghoti.io-shape-scene-0 -lghoti.io-image-0 -lghoti.io-compress-0 -lghoti.io-color-0 -lghoti.io-security-0 -lghoti.io-shape-geometry-0 -lghoti.io-math-0 -lghoti.io-cutil-0  -Wl,--as-needed `PKG_CONFIG_PATH=/work/prefix/share/pkgconfig:/work/prefix/lib/pkgconfig:/work/prefix/share/pkgconfig pkg-config --libs --cflags gtest`  -Wl,-soname,libghoti.io-shape-cpu-0.so.0",
+    "font_flags": "cc g++ -pedantic-errors -Wall -Wextra -Werror -Wfloat-conversion -fstrict-aliasing -Wstrict-aliasing=1 -Wno-error=unused-function -Wfatal-errors -std=c17 -O2 -g  -fvisibility=hidden -DGFNT_BUILD  -fPIC -pedantic-errors -Wall -Wextra -Werror -Wfloat-conversion -fstrict-aliasing -Wstrict-aliasing=1 -Wno-error=unused-function -Wfatal-errors -std=c17 -O2 -g  -pedantic-errors -Wall -Wextra -Werror -Wno-error=unused-function -Wfatal-errors -std=c++20 -O1 -g  -L /usr/lib -lstdc++ -lm  -Wl,-rpath,/work/prefix/lib/ghoti.io -I include/ -I ./build/linux/release/generated/ -I/work/prefix/include/ghoti.io/cutil-0  -I/work/prefix/include/ghoti.io/compress-0 -I/work/prefix/include/ghoti.io/cutil-0 -I/work/prefix/include/ghoti.io/security-0  -I/work/prefix/include/ghoti.io/unicode-0 -I/work/prefix/include/ghoti.io/cutil-0  -I/work/prefix/include/ghoti.io/image-0 -I/work/prefix/include/ghoti.io/compress-0 -I/work/prefix/include/ghoti.io/cutil-0 -I/work/prefix/include/ghoti.io/security-0 -I/work/prefix/include/ghoti.io/color-0  -I/work/prefix/include/ghoti.io/shape-geometry-0 -I/work/prefix/include/ghoti.io/cutil-0 -I/work/prefix/include/ghoti.io/math-0  -I/work/prefix/include/ghoti.io/shape-cpu-0 -I/work/prefix/include/ghoti.io/cutil-0 -I/work/prefix/include/ghoti.io/color-0 -I/work/prefix/include/ghoti.io/security-0 -I/work/prefix/include/ghoti.io/math-0 -I/work/prefix/include/ghoti.io/image-0 -I/work/prefix/include/ghoti.io/compress-0 -I/work/prefix/include/ghoti.io/shape-geometry-0 -I/work/prefix/include/ghoti.io/shape-scene-0  -I/work/prefix/include/ghoti.io/shape-scene-0 -I/work/prefix/include/ghoti.io/cutil-0 -I/work/prefix/include/ghoti.io/color-0 -I/work/prefix/include/ghoti.io/security-0 -I/work/prefix/include/ghoti.io/math-0 -I/work/prefix/include/ghoti.io/image-0 -I/work/prefix/include/ghoti.io/compress-0 -I/work/prefix/include/ghoti.io/shape-geometry-0  /work/ws/libs/font/tests/data -Wl,--whole-archive ./build/linux/release/apps/libghoti.io-font-0.a -Wl,--no-whole-archive -L/work/prefix/lib/ghoti.io -lghoti.io-cutil-0  -L/work/prefix/lib/ghoti.io -lghoti.io-compress-0 -lghoti.io-security-0 -lghoti.io-cutil-0  -L/work/prefix/lib/ghoti.io -lghoti.io-unicode-0 -lghoti.io-cutil-0  -L/work/prefix/lib/ghoti.io -lghoti.io-image-0 -lghoti.io-compress-0 -lghoti.io-color-0 -lghoti.io-security-0 -lghoti.io-cutil-0  -L/work/prefix/lib/ghoti.io -lghoti.io-shape-cpu-0 -lghoti.io-shape-scene-0 -lghoti.io-image-0 -lghoti.io-compress-0 -lghoti.io-color-0 -lghoti.io-security-0 -lghoti.io-shape-geometry-0 -lghoti.io-math-0 -lghoti.io-cutil-0  -L/work/prefix/lib/ghoti.io -lghoti.io-shape-scene-0 -lghoti.io-image-0 -lghoti.io-compress-0 -lghoti.io-color-0 -lghoti.io-security-0 -lghoti.io-shape-geometry-0 -lghoti.io-math-0 -lghoti.io-cutil-0  -L/work/prefix/lib/ghoti.io -lghoti.io-shape-geometry-0 -lghoti.io-math-0 -lghoti.io-cutil-0  -L/work/prefix/lib/ghoti.io -lghoti.io-cutil-0  -L/work/prefix/lib/ghoti.io -lghoti.io-compress-0 -lghoti.io-security-0 -lghoti.io-cutil-0  -L/work/prefix/lib/ghoti.io -lghoti.io-unicode-0 -lghoti.io-cutil-0  -L/work/prefix/lib/ghoti.io -lghoti.io-image-0 -lghoti.io-compress-0 -lghoti.io-color-0 -lghoti.io-security-0 -lghoti.io-cutil-0  -L/work/prefix/lib/ghoti.io -lghoti.io-shape-cpu-0 -lghoti.io-shape-scene-0 -lghoti.io-image-0 -lghoti.io-compress-0 -lghoti.io-color-0 -lghoti.io-security-0 -lghoti.io-shape-geometry-0 -lghoti.io-math-0 -lghoti.io-cutil-0  -L/work/prefix/lib/ghoti.io -lghoti.io-shape-scene-0 -lghoti.io-image-0 -lghoti.io-compress-0 -lghoti.io-color-0 -lghoti.io-security-0 -lghoti.io-shape-geometry-0 -lghoti.io-math-0 -lghoti.io-cutil-0  -L/work/prefix/lib/ghoti.io -lghoti.io-shape-geometry-0 -lghoti.io-math-0 -lghoti.io-cutil-0  `PKG_CONFIG_PATH=/work/prefix/share/pkgconfig:/work/prefix/lib/pkgconfig:/work/prefix/share/pkgconfig pkg-config --libs --cflags gtest`  -Wl,--as-needed -Wl,-soname,libghoti.io-font-0.so.0",
+    "font_file": "DejaVuSans.ttf 2.37 sha256 7da195a74c55bef988d0d48f9508bd5d849425c1770dba5d7bfc6ce9ed848954"
+   }
+  },
+  "blend2d": {
+   "engine": "blend2d",
+   "image": "localhost/ghoti-shape-bench-blend2d:0.21.3-2",
+   "image_id": "sha256:308b23a1cc80a122e5308c716803e8a1e0f13a75142f6e02ca1c77ba83caa7d5",
+   "cpu_model": "AMD RYZEN AI MAX+ 395 w/ Radeon 8060S",
+   "arch": "x86_64",
+   "cpus_online": "32",
+   "governor": "powersave",
+   "boost": "1",
+   "pinned_cpu": "30",
+   "nice": "the container runs at the default priority, its only competition what the busiest processes show",
+   "before": "time: 2026-10-22T22:21:11Z\nloadavg: 9.61 9.04 6.76 13/1222 32111\nother containers running: 9\nbusiest processes' %CPU: 99.8 99.8 99.8 99.8 99.8 98.8\n",
+   "after": "time: 2026-10-22T22:21:17Z\nloadavg: 9.80 9.09 6.79 12/1217 32501\nother containers running: 9\nbusiest processes' %CPU: 100.0 100.0 99.8 99.8 99.8 98.9\n",
+   "driver_log": [
+    "driver: clang++-19 -std=c++20 -O2 -DBL_STATIC -I/opt/blend2d/include (scene.c: clang-19 -std=c17 -O2)",
+    "blend2d 58ca9460b4138af6e793184682e9324e0a8053b2",
+    "asmjit 6a6cca88d6dccef4c5c1d258b9e12d8699dff842",
+    "base docker.io/library/debian:13-slim@sha256:7792b1f7702a86946cd518db72b6a407302c3e9bc1635634368b878189e8221c",
+    "snapshot 20261012T000000Z",
+    "Debian clang version 19.1.7 (3+b1)",
+    "flags \"command\": \"/usr/bin/clang++-19  -I/src/blend2d -I/src/blend2d/3rdparty/asmjit -O3 -DNDEBUG -std=gnu++20 -fvisibility=hidden -fno-math-errno -fno-threadsafe-statics -fno-exceptions -fno-rtti -fno-semantic-interposition -fno-trapping-math -fno-finite-math-only -mllvm --disable-loop-idiom-all -DBL_BUILD_OPT_AVX512 -Wall -Wextra -Wconversion -Wdouble-promotion -Wlogical-not-parentheses -DASMJIT_NO_FOREIGN -DASMJIT_NO_STDCXX -DASMJIT_ABI_NAMESPACE=abi_bl -O2 -fmerge-all-constants -ftree-vectorize -DBL_STATIC -DASMJIT_STATIC -o CMakeFiles/blend2d.dir/blend2d/core/context.cpp.o -c /src/blend2d/blend2d/core/context.cpp\""
+   ],
+   "blend2d": "58ca9460b4138af6e793184682e9324e0a8053b2",
+   "asmjit": "6a6cca88d6dccef4c5c1d258b9e12d8699dff842",
+   "base": "docker.io/library/debian:13-slim@sha256:7792b1f7702a86946cd518db72b6a407302c3e9bc1635634368b878189e8221c",
+   "snapshot": "20261012T000000Z"
+  },
+  "skia": {
+   "engine": "skia",
+   "image": "localhost/ghoti-shape-bench-skia:m156-2",
+   "image_id": "sha256:a418293d1dbd92dd81debcbf9439ff92f488679997423a1f9e01363bff52162b",
+   "cpu_model": "AMD RYZEN AI MAX+ 395 w/ Radeon 8060S",
+   "arch": "x86_64",
+   "cpus_online": "32",
+   "governor": "powersave",
+   "boost": "1",
+   "pinned_cpu": "30",
+   "nice": "the container runs at the default priority, its only competition what the busiest processes show",
+   "before": "time: 2026-10-22T22:21:18Z\nloadavg: 10.06 9.15 6.82 13/1223 32633\nother containers running: 9\nbusiest processes' %CPU: 100.0 100.0 100.0 99.9 99.9 99.9\n",
+   "after": "time: 2026-10-22T22:21:34Z\nloadavg: 10.57 9.31 6.91 27/1233 1321\nother containers running: 9\nbusiest processes' %CPU: 1594 100.0 99.5 99.5 74.9 68.0\n",
+   "driver_log": [
+    "driver: clang++-19 -std=c++20 -O2 -DNDEBUG -DNDEBUG -DSK_CODEC_DECODES_BMP -DSK_CODEC_DECODES_WBMP -DSK_R32_SHIFT=16 -DSK_ENABLE_PRECOMPILE -DSK_DISABLE_TRACING -DSK_GAMMA_APPLY_TO_A8 -DSK_ENABLE_AVX512_OPTS -DSK_TYPEFACE_FACTORY_FREETYPE -DSK_FONTMGR_FREETYPE_EMPTY_AVAILABLE  -I/opt/skia (scene.c: clang-19 -std=c17 -O2)",
+    "skia 886e42fda11610a56dd1b22e8697e27f9d1e34f2",
+    "base docker.io/library/debian:13-slim@sha256:7792b1f7702a86946cd518db72b6a407302c3e9bc1635634368b878189e8221c",
+    "snapshot 20261012T000000Z",
+    "Debian clang version 19.1.7 (3+b1)",
+    "freetype 26.2.20",
+    "cc = \"clang-19\"",
+    "cxx = \"clang++-19\"",
+    "is_debug = false",
+    "is_official_build = true",
+    "skia_enable_fontmgr_custom_directory = false",
+    "skia_enable_fontmgr_custom_embedded = false",
+    "skia_enable_fontmgr_custom_empty = true",
+    "skia_enable_fontmgr_empty = false",
+    "skia_enable_ganesh = false",
+    "skia_enable_graphite = false",
+    "skia_enable_pdf = false",
+    "skia_enable_skottie = false",
+    "skia_enable_skparagraph = false",
+    "skia_enable_skshaper = false",
+    "skia_enable_svg = false",
+    "skia_enable_tools = false",
+    "skia_use_dawn = false",
+    "skia_use_dng_sdk = false",
+    "skia_use_expat = false",
+    "skia_use_fontconfig = false",
+    "skia_use_freetype = true",
+    "skia_use_gl = false",
+    "skia_use_harfbuzz = false",
+    "skia_use_icu = false",
+    "skia_use_libjpeg_turbo_decode = false",
+    "skia_use_libjpeg_turbo_encode = false",
+    "skia_use_libpng_decode = false",
+    "skia_use_libpng_encode = false",
+    "skia_use_libwebp_decode = false",
+    "skia_use_libwebp_encode = false",
+    "skia_use_partition_alloc = false",
+    "skia_use_perfetto = false",
+    "skia_use_piex = false",
+    "skia_use_system_freetype2 = true",
+    "skia_use_vulkan = false",
+    "skia_use_wuffs = false",
+    "skia_use_x11 = false",
+    "skia_use_xps = false",
+    "skia_use_zlib = false",
+    "target_cpu = \"x64\""
+   ],
+   "skia": "886e42fda11610a56dd1b22e8697e27f9d1e34f2",
+   "base": "docker.io/library/debian:13-slim@sha256:7792b1f7702a86946cd518db72b6a407302c3e9bc1635634368b878189e8221c",
+   "snapshot": "20261012T000000Z",
+   "freetype": "26.2.20"
+  },
+  "font": {
+   "runs_in": "shape-cpu (the same process and image)",
+   "build": {
+    "compiler": "gcc (GCC) 16.2.0",
+    "harness_flags": "cc -std=c17 -O2 -g -Wall -Wextra -Werror -ffp-contract=off",
+    "shape-cpu_flags": "cc g++ -pedantic-errors -Wall -Wextra -Werror -Wfloat-conversion -fstrict-aliasing -Wstrict-aliasing=1 -Wno-error=unused-function -Wfatal-errors -std=c17 -O2 -ffp-contract=off  -g  -fvisibility=hidden -DGSHCPU_BUILD  -fPIC -pedantic-errors -Wall -Wextra -Werror -Wfloat-conversion -fstrict-aliasing -Wstrict-aliasing=1 -Wno-error=unused-function -Wfatal-errors -std=c17 -O2 -ffp-contract=off  -g  -pedantic-errors -Wall -Wextra -Werror -Wno-error=unused-function -Wfatal-errors -std=c++20 -O1 -g -ffp-contract=off   -L /usr/lib -lstdc++ -lm  -Wl,-rpath,/work/prefix/lib/ghoti.io -I include/ -I ./build/linux/release/generated/ -I/work/prefix/include/ghoti.io/cutil-0 -I/work/prefix/include/ghoti.io/color-0 -I/work/prefix/include/ghoti.io/security-0 -I/work/prefix/include/ghoti.io/math-0 -I/work/prefix/include/ghoti.io/image-0 -I/work/prefix/include/ghoti.io/compress-0 -I/work/prefix/include/ghoti.io/shape-geometry-0 -I/work/prefix/include/ghoti.io/shape-scene-0  -Wl,--whole-archive ./build/linux/release/apps/libghoti.io-shape-cpu-0.a -Wl,--no-whole-archive -L/work/prefix/lib/ghoti.io -lghoti.io-shape-scene-0 -lghoti.io-image-0 -lghoti.io-compress-0 -lghoti.io-color-0 -lghoti.io-security-0 -lghoti.io-shape-geometry-0 -lghoti.io-math-0 -lghoti.io-cutil-0  -L/work/prefix/lib/ghoti.io -lghoti.io-shape-scene-0 -lghoti.io-image-0 -lghoti.io-compress-0 -lghoti.io-color-0 -lghoti.io-security-0 -lghoti.io-shape-geometry-0 -lghoti.io-math-0 -lghoti.io-cutil-0  -Wl,--as-needed `PKG_CONFIG_PATH=/work/prefix/share/pkgconfig:/work/prefix/lib/pkgconfig:/work/prefix/share/pkgconfig pkg-config --libs --cflags gtest`  -Wl,-soname,libghoti.io-shape-cpu-0.so.0",
+    "font_flags": "cc g++ -pedantic-errors -Wall -Wextra -Werror -Wfloat-conversion -fstrict-aliasing -Wstrict-aliasing=1 -Wno-error=unused-function -Wfatal-errors -std=c17 -O2 -g  -fvisibility=hidden -DGFNT_BUILD  -fPIC -pedantic-errors -Wall -Wextra -Werror -Wfloat-conversion -fstrict-aliasing -Wstrict-aliasing=1 -Wno-error=unused-function -Wfatal-errors -std=c17 -O2 -g  -pedantic-errors -Wall -Wextra -Werror -Wno-error=unused-function -Wfatal-errors -std=c++20 -O1 -g  -L /usr/lib -lstdc++ -lm  -Wl,-rpath,/work/prefix/lib/ghoti.io -I include/ -I ./build/linux/release/generated/ -I/work/prefix/include/ghoti.io/cutil-0  -I/work/prefix/include/ghoti.io/compress-0 -I/work/prefix/include/ghoti.io/cutil-0 -I/work/prefix/include/ghoti.io/security-0  -I/work/prefix/include/ghoti.io/unicode-0 -I/work/prefix/include/ghoti.io/cutil-0  -I/work/prefix/include/ghoti.io/image-0 -I/work/prefix/include/ghoti.io/compress-0 -I/work/prefix/include/ghoti.io/cutil-0 -I/work/prefix/include/ghoti.io/security-0 -I/work/prefix/include/ghoti.io/color-0  -I/work/prefix/include/ghoti.io/shape-geometry-0 -I/work/prefix/include/ghoti.io/cutil-0 -I/work/prefix/include/ghoti.io/math-0  -I/work/prefix/include/ghoti.io/shape-cpu-0 -I/work/prefix/include/ghoti.io/cutil-0 -I/work/prefix/include/ghoti.io/color-0 -I/work/prefix/include/ghoti.io/security-0 -I/work/prefix/include/ghoti.io/math-0 -I/work/prefix/include/ghoti.io/image-0 -I/work/prefix/include/ghoti.io/compress-0 -I/work/prefix/include/ghoti.io/shape-geometry-0 -I/work/prefix/include/ghoti.io/shape-scene-0  -I/work/prefix/include/ghoti.io/shape-scene-0 -I/work/prefix/include/ghoti.io/cutil-0 -I/work/prefix/include/ghoti.io/color-0 -I/work/prefix/include/ghoti.io/security-0 -I/work/prefix/include/ghoti.io/math-0 -I/work/prefix/include/ghoti.io/image-0 -I/work/prefix/include/ghoti.io/compress-0 -I/work/prefix/include/ghoti.io/shape-geometry-0  /work/ws/libs/font/tests/data -Wl,--whole-archive ./build/linux/release/apps/libghoti.io-font-0.a -Wl,--no-whole-archive -L/work/prefix/lib/ghoti.io -lghoti.io-cutil-0  -L/work/prefix/lib/ghoti.io -lghoti.io-compress-0 -lghoti.io-security-0 -lghoti.io-cutil-0  -L/work/prefix/lib/ghoti.io -lghoti.io-unicode-0 -lghoti.io-cutil-0  -L/work/prefix/lib/ghoti.io -lghoti.io-image-0 -lghoti.io-compress-0 -lghoti.io-color-0 -lghoti.io-security-0 -lghoti.io-cutil-0  -L/work/prefix/lib/ghoti.io -lghoti.io-shape-cpu-0 -lghoti.io-shape-scene-0 -lghoti.io-image-0 -lghoti.io-compress-0 -lghoti.io-color-0 -lghoti.io-security-0 -lghoti.io-shape-geometry-0 -lghoti.io-math-0 -lghoti.io-cutil-0  -L/work/prefix/lib/ghoti.io -lghoti.io-shape-scene-0 -lghoti.io-image-0 -lghoti.io-compress-0 -lghoti.io-color-0 -lghoti.io-security-0 -lghoti.io-shape-geometry-0 -lghoti.io-math-0 -lghoti.io-cutil-0  -L/work/prefix/lib/ghoti.io -lghoti.io-shape-geometry-0 -lghoti.io-math-0 -lghoti.io-cutil-0  -L/work/prefix/lib/ghoti.io -lghoti.io-cutil-0  -L/work/prefix/lib/ghoti.io -lghoti.io-compress-0 -lghoti.io-security-0 -lghoti.io-cutil-0  -L/work/prefix/lib/ghoti.io -lghoti.io-unicode-0 -lghoti.io-cutil-0  -L/work/prefix/lib/ghoti.io -lghoti.io-image-0 -lghoti.io-compress-0 -lghoti.io-color-0 -lghoti.io-security-0 -lghoti.io-cutil-0  -L/work/prefix/lib/ghoti.io -lghoti.io-shape-cpu-0 -lghoti.io-shape-scene-0 -lghoti.io-image-0 -lghoti.io-compress-0 -lghoti.io-color-0 -lghoti.io-security-0 -lghoti.io-shape-geometry-0 -lghoti.io-math-0 -lghoti.io-cutil-0  -L/work/prefix/lib/ghoti.io -lghoti.io-shape-scene-0 -lghoti.io-image-0 -lghoti.io-compress-0 -lghoti.io-color-0 -lghoti.io-security-0 -lghoti.io-shape-geometry-0 -lghoti.io-math-0 -lghoti.io-cutil-0  -L/work/prefix/lib/ghoti.io -lghoti.io-shape-geometry-0 -lghoti.io-math-0 -lghoti.io-cutil-0  `PKG_CONFIG_PATH=/work/prefix/share/pkgconfig:/work/prefix/lib/pkgconfig:/work/prefix/share/pkgconfig pkg-config --libs --cflags gtest`  -Wl,--as-needed -Wl,-soname,libghoti.io-font-0.so.0",
+    "font_file": "DejaVuSans.ttf 2.37 sha256 7da195a74c55bef988d0d48f9508bd5d849425c1770dba5d7bfc6ce9ed848954"
+   }
+  }
+ },
+ "scenes": {
+  "fill-rect": {
+   "metric": "fill",
+   "extent": [
+    1920,
+    1080
+   ],
+   "work_unit": "pixels",
+   "work": 20049901.6,
+   "control": {
+    "pixels": 2073600,
+    "mean_abs": 17.542252,
+    "max_abs": 106,
+    "bad_threshold": 32,
+    "bad_pixels": 101647,
+    "bad_fraction": 0.04901958,
+    "differing_pixels": 1672338,
+    "exceeds_bound": true
+   },
+   "perturbation": null,
+   "shape_cpu_empty_list": {
+    "median": 3.24007124e-06,
+    "p25": 3.1349482e-06,
+    "p75": 3.40503175e-06,
+    "min": 2.95997597e-06,
+    "max": 4.97000292e-06
+   },
+   "results": {
+    "shape-cpu": {
+     "warmup_frames": 5,
+     "frames": 31,
+     "build": {
+      "median": 6.74999319e-06,
+      "p25": 6.41006045e-06,
+      "p75": 6.96000643e-06,
+      "min": 5.92018478e-06,
+      "max": 1.05099753e-05
+     },
+     "submit": {
+      "median": 0.137197905,
+      "p25": 0.136858176,
+      "p75": 0.137598068,
+      "min": 0.136362009,
+      "max": 0.138669298
+     },
+     "frame": {
+      "median": 0.137204605,
+      "p25": 0.136864516,
+      "p75": 0.137606393,
+      "min": 0.136368589,
+      "max": 0.138676978
+     },
+     "note": null,
+     "output": "shape-cpu.fill-rect.pam",
+     "throughput": 146.1314042629983,
+     "throughput_unit": "Mpixel/s",
+     "spread": 0.005407085279681406,
+     "cross_check": null,
+     "valid": true,
+     "vs_shape_cpu": 1.0
+    },
+    "blend2d": {
+     "warmup_frames": 211,
+     "frames": 31,
+     "build": null,
+     "submit": {
+      "median": 0.00109159504,
+      "p25": 0.00108854438,
+      "p75": 0.00109305908,
+      "min": 0.001083415,
+      "max": 0.00111623411
+     },
+     "frame": {
+      "median": 0.00109162508,
+      "p25": 0.00108857441,
+      "p75": 0.00109308911,
+      "min": 0.00108343503,
+      "max": 0.0011162539
+     },
+     "note": null,
+     "output": "blend2d.fill-rect.pam",
+     "throughput": 18367.021761720607,
+     "throughput_unit": "Mpixel/s",
+     "spread": 0.00413576060381461,
+     "cross_check": {
+      "pixels": 2073600,
+      "mean_abs": 0.029499,
+      "max_abs": 2,
+      "bad_threshold": 32,
+      "bad_pixels": 0,
+      "bad_fraction": 0.0,
+      "differing_pixels": 216505,
+      "within_bound": true
+     },
+     "valid": true,
+     "vs_shape_cpu": 125.68839568984619
+    },
+    "skia": {
+     "warmup_frames": 19,
+     "frames": 31,
+     "build": null,
+     "submit": {
+      "median": 0.0133148129,
+      "p25": 0.013194948,
+      "p75": 0.013442587,
+      "min": 0.0130771841,
+      "max": 0.0136441609
+     },
+     "frame": {
+      "median": 0.0133151631,
+      "p25": 0.0131952229,
+      "p75": 0.013442752,
+      "min": 0.013077464,
+      "max": 0.013644201
+     },
+     "note": null,
+     "output": "skia.fill-rect.pam",
+     "throughput": 1505.7946680352718,
+     "throughput_unit": "Mpixel/s",
+     "spread": 0.01859001637013377,
+     "cross_check": {
+      "pixels": 2073600,
+      "mean_abs": 0.244754,
+      "max_abs": 13,
+      "bad_threshold": 32,
+      "bad_pixels": 0,
+      "bad_fraction": 0.0,
+      "differing_pixels": 1820658,
+      "within_bound": true
+     },
+     "valid": true,
+     "vs_shape_cpu": 10.304387859882844
+    }
+   }
+  },
+  "fill-circle": {
+   "metric": "fill",
+   "extent": [
+    1920,
+    1080
+   ],
+   "work_unit": "pixels",
+   "work": 5733756.18,
+   "control": {
+    "pixels": 2073600,
+    "mean_abs": 8.805887,
+    "max_abs": 71,
+    "bad_threshold": 32,
+    "bad_pixels": 549385,
+    "bad_fraction": 0.26494261,
+    "differing_pixels": 650373,
+    "exceeds_bound": true
+   },
+   "perturbation": null,
+   "shape_cpu_empty_list": {
+    "median": 3.31015326e-06,
+    "p25": 3.17499507e-06,
+    "p75": 3.42004932e-06,
+    "min": 2.99001113e-06,
+    "max": 4.61004674e-06
+   },
+   "results": {
+    "shape-cpu": {
+     "warmup_frames": 5,
+     "frames": 31,
+     "build": {
+      "median": 6.68992288e-06,
+      "p25": 6.56500924e-06,
+      "p75": 6.97490759e-06,
+      "min": 6.06011599e-06,
+      "max": 1.04689971e-05
+     },
+     "submit": {
+      "median": 0.055543449,
+      "p25": 0.0553383746,
+      "p75": 0.0557431023,
+      "min": 0.0551988701,
+      "max": 0.0562621548
+     },
+     "frame": {
+      "median": 0.0555501389,
+      "p25": 0.0553472391,
+      "p75": 0.0557499174,
+      "min": 0.0552049701,
+      "max": 0.0562682149
+     },
+     "note": null,
+     "output": "shape-cpu.fill-circle.pam",
+     "throughput": 103.21767494266336,
+     "throughput_unit": "Mpixel/s",
+     "spread": 0.007248916167876596,
+     "cross_check": null,
+     "valid": true,
+     "vs_shape_cpu": 1.0
+    },
+    "blend2d": {
+     "warmup_frames": 387,
+     "frames": 31,
+     "build": null,
+     "submit": {
+      "median": 0.000561297173,
+      "p25": 0.000559801934,
+      "p75": 0.000562792527,
+      "min": 0.000557347899,
+      "max": 0.000573737081
+     },
+     "frame": {
+      "median": 0.000561316963,
+      "p25": 0.000559821958,
+      "p75": 0.000562812551,
+      "min": 0.000557367923,
+      "max": 0.000573756872
+     },
+     "note": null,
+     "output": "blend2d.fill-circle.pam",
+     "throughput": 10214.827909984255,
+     "throughput_unit": "Mpixel/s",
+     "spread": 0.00532781511539663,
+     "cross_check": {
+      "pixels": 2073600,
+      "mean_abs": 0.114549,
+      "max_abs": 28,
+      "bad_threshold": 32,
+      "bad_pixels": 0,
+      "bad_fraction": 0.0,
+      "differing_pixels": 669045,
+      "within_bound": true
+     },
+     "valid": true,
+     "vs_shape_cpu": 98.9639411627758
+    },
+    "skia": {
+     "warmup_frames": 52,
+     "frames": 31,
+     "build": null,
+     "submit": {
+      "median": 0.00474278606,
+      "p25": 0.0046969665,
+      "p75": 0.00479855551,
+      "min": 0.00465710694,
+      "max": 0.00491925515
+     },
+     "frame": {
+      "median": 0.00474288617,
+      "p25": 0.00469712156,
+      "p75": 0.00479876553,
+      "min": 0.00465726689,
+      "max": 0.0049194051
+     },
+     "note": null,
+     "output": "skia.fill-circle.pam",
+     "throughput": 1208.9170969920199,
+     "throughput_unit": "Mpixel/s",
+     "spread": 0.02143082636959002,
+     "cross_check": {
+      "pixels": 2073600,
+      "mean_abs": 0.258944,
+      "max_abs": 41,
+      "bad_threshold": 32,
+      "bad_pixels": 91,
+      "bad_fraction": 4.389e-05,
+      "differing_pixels": 1108399,
+      "within_bound": true
+     },
+     "valid": true,
+     "vs_shape_cpu": 11.712307002299402
+    }
+   }
+  },
+  "paths": {
+   "metric": "paths",
+   "extent": [
+    1920,
+    1080
+   ],
+   "work_unit": "paths",
+   "work": 10000,
+   "control": {
+    "pixels": 2073600,
+    "mean_abs": 1.979959,
+    "max_abs": 250,
+    "bad_threshold": 32,
+    "bad_pixels": 87518,
+    "bad_fraction": 0.04220583,
+    "differing_pixels": 192101,
+    "exceeds_bound": true
+   },
+   "perturbation": null,
+   "shape_cpu_empty_list": {
+    "median": 3.64007428e-06,
+    "p25": 3.54496296e-06,
+    "p75": 3.99001874e-06,
+    "min": 3.38000245e-06,
+    "max": 7.64010474e-06
+   },
+   "results": {
+    "shape-cpu": {
+     "warmup_frames": 5,
+     "frames": 31,
+     "build": {
+      "median": 0.00170243089,
+      "p25": 0.001620822,
+      "p75": 0.00178076595,
+      "min": 0.00150638307,
+      "max": 0.00189850107
+     },
+     "submit": {
+      "median": 0.112819289,
+      "p25": 0.110470275,
+      "p75": 0.115689124,
+      "min": 0.110135782,
+      "max": 0.120938187
+     },
+     "frame": {
+      "median": 0.11447351,
+      "p25": 0.112151302,
+      "p75": 0.117330681,
+      "min": 0.111761814,
+      "max": 0.122683409
+     },
+     "note": null,
+     "output": "shape-cpu.paths.pam",
+     "throughput": 87356.45478154728,
+     "throughput_unit": "paths/s",
+     "spread": 0.045245218740999654,
+     "cross_check": null,
+     "valid": true,
+     "vs_shape_cpu": 1.0
+    },
+    "blend2d": {
+     "warmup_frames": 16,
+     "frames": 31,
+     "build": null,
+     "submit": {
+      "median": 0.0158472601,
+      "p25": 0.0155134161,
+      "p75": 0.0160170285,
+      "min": 0.015202173,
+      "max": 0.0176596001
+     },
+     "frame": {
+      "median": 0.0158472802,
+      "p25": 0.0155134412,
+      "p75": 0.0160170485,
+      "min": 0.0152021931,
+      "max": 0.01765967
+     },
+     "note": null,
+     "output": "blend2d.paths.pam",
+     "throughput": 631023.1076749687,
+     "throughput_unit": "paths/s",
+     "spread": 0.03177878434937993,
+     "cross_check": {
+      "pixels": 2073600,
+      "mean_abs": 0.296731,
+      "max_abs": 29,
+      "bad_threshold": 32,
+      "bad_pixels": 0,
+      "bad_fraction": 0.0,
+      "differing_pixels": 979984,
+      "within_bound": true
+     },
+     "valid": true,
+     "vs_shape_cpu": 7.223543002666161
+    },
+    "skia": {
+     "warmup_frames": 6,
+     "frames": 31,
+     "build": null,
+     "submit": {
+      "median": 0.0484008051,
+      "p25": 0.045621419,
+      "p75": 0.051539744,
+      "min": 0.039632349,
+      "max": 0.0617836672
+     },
+     "frame": {
+      "median": 0.048400955,
+      "p25": 0.0456215841,
+      "p75": 0.051539939,
+      "min": 0.039632539,
+      "max": 0.0617838071
+     },
+     "note": null,
+     "output": "skia.paths.pam",
+     "throughput": 206607.49359181031,
+     "throughput_unit": "paths/s",
+     "spread": 0.1222776472075809,
+     "cross_check": {
+      "pixels": 2073600,
+      "mean_abs": 0.520419,
+      "max_abs": 71,
+      "bad_threshold": 32,
+      "bad_pixels": 812,
+      "bad_fraction": 0.00039159,
+      "differing_pixels": 1130152,
+      "within_bound": true
+     },
+     "valid": true,
+     "vs_shape_cpu": 2.3651084983757036
+    }
+   }
+  },
+  "text": {
+   "metric": "text",
+   "extent": [
+    1920,
+    1080
+   ],
+   "work_unit": "glyphs",
+   "work": 10660,
+   "control": {
+    "pixels": 2073600,
+    "mean_abs": 1.901581,
+    "max_abs": 231,
+    "bad_threshold": 32,
+    "bad_pixels": 35014,
+    "bad_fraction": 0.01688561,
+    "differing_pixels": 41893,
+    "exceeds_bound": true
+   },
+   "perturbation": null,
+   "shape_cpu_empty_list": {
+    "median": 3.33995558e-06,
+    "p25": 3.19490209e-06,
+    "p75": 3.42004932e-06,
+    "min": 2.99979001e-06,
+    "max": 5.04986383e-06
+   },
+   "results": {
+    "shape-cpu": {
+     "warmup_frames": 5,
+     "frames": 31,
+     "build": {
+      "median": 1.74900051e-05,
+      "p25": 1.6945065e-05,
+      "p75": 1.86051475e-05,
+      "min": 1.63100194e-05,
+      "max": 2.49100849e-05
+     },
+     "submit": {
+      "median": 0.0560468661,
+      "p25": 0.055668253,
+      "p75": 0.056332825,
+      "min": 0.055518989,
+      "max": 0.057085691
+     },
+     "frame": {
+      "median": 0.056064046,
+      "p25": 0.055685238,
+      "p75": 0.056351239,
+      "min": 0.055535929,
+      "max": 0.0571038402
+     },
+     "note": "glyph outlines from font, decoded and interned once; one outline glyph run a line",
+     "output": "shape-cpu.text.pam",
+     "throughput": 190139.68417477398,
+     "throughput_unit": "glyphs/s",
+     "spread": 0.011879288911827723,
+     "cross_check": null,
+     "valid": true,
+     "vs_shape_cpu": 1.0
+    },
+    "font": {
+     "warmup_frames": 7,
+     "frames": 31,
+     "build": null,
+     "submit": {
+      "median": 0.0355459999,
+      "p25": 0.0353882059,
+      "p75": 0.035761539,
+      "min": 0.0350066731,
+      "max": 0.036511725
+     },
+     "frame": {
+      "median": 0.0355460299,
+      "p25": 0.0353882359,
+      "p75": 0.035761629,
+      "min": 0.035006823,
+      "max": 0.036511915
+     },
+     "note": "gfnt_face_render_glyph per glyph per frame, unhinted, no cache; the composite is the harness's blit",
+     "output": "font.text.pam",
+     "throughput": 299892.84401068935,
+     "throughput_unit": "glyphs/s",
+     "spread": 0.010504495186957601,
+     "cross_check": {
+      "pixels": 2073600,
+      "mean_abs": 0.139707,
+      "max_abs": 17,
+      "bad_threshold": 32,
+      "bad_pixels": 0,
+      "bad_fraction": 0.0,
+      "differing_pixels": 180840,
+      "within_bound": true
+     },
+     "valid": true,
+     "vs_shape_cpu": 1.577223846312018
+    },
+    "blend2d": {
+     "warmup_frames": 41,
+     "frames": 31,
+     "build": null,
+     "submit": {
+      "median": 0.00602137018,
+      "p25": 0.00601183984,
+      "p75": 0.00603626505,
+      "min": 0.00598978996,
+      "max": 0.00618302915
+     },
+     "frame": {
+      "median": 0.00602140022,
+      "p25": 0.00601186487,
+      "p75": 0.00603628997,
+      "min": 0.00598992989,
+      "max": 0.00618304894
+     },
+     "note": null,
+     "output": "blend2d.text.pam",
+     "throughput": 1770352.3450563797,
+     "throughput_unit": "glyphs/s",
+     "spread": 0.004056382088483775,
+     "cross_check": {
+      "pixels": 2073600,
+      "mean_abs": 0.703998,
+      "max_abs": 21,
+      "bad_threshold": 32,
+      "bad_pixels": 0,
+      "bad_fraction": 0.0,
+      "differing_pixels": 495124,
+      "within_bound": true
+     },
+     "valid": true,
+     "vs_shape_cpu": 9.310798809516768
+    },
+    "skia": {
+     "warmup_frames": 117,
+     "frames": 31,
+     "build": null,
+     "submit": {
+      "median": 0.00206056004,
+      "p25": 0.00205756957,
+      "p75": 0.00206401956,
+      "min": 0.00205331901,
+      "max": 0.00210102997
+     },
+     "frame": {
+      "median": 0.0020606101,
+      "p25": 0.00205758959,
+      "p75": 0.00206404459,
+      "min": 0.00205334905,
+      "max": 0.00210104999
+     },
+     "note": "SkTextBlob built once; glyph masks cached by Skia's strike cache; text contrast 0 and gamma 1 (linear coverage)",
+     "output": "skia.text.pam",
+     "throughput": 5173225.15307481,
+     "throughput_unit": "glyphs/s",
+     "spread": 0.0031325673886582564,
+     "cross_check": {
+      "pixels": 2073600,
+      "mean_abs": 0.388836,
+      "max_abs": 17,
+      "bad_threshold": 32,
+      "bad_pixels": 0,
+      "bad_fraction": 0.0,
+      "differing_pixels": 408842,
+      "within_bound": true
+     },
+     "valid": true,
+     "vs_shape_cpu": 27.207498400595046
+    }
+   }
+  },
+  "ui": {
+   "metric": "list",
+   "extent": [
+    1280,
+    800
+   ],
+   "work_unit": "items",
+   "work": 1248,
+   "control": {
+    "pixels": 1024000,
+    "mean_abs": 1.447068,
+    "max_abs": 252,
+    "bad_threshold": 32,
+    "bad_pixels": 14003,
+    "bad_fraction": 0.0136748,
+    "differing_pixels": 17701,
+    "exceeds_bound": true
+   },
+   "perturbation": null,
+   "shape_cpu_empty_list": {
+    "median": 3.55998054e-06,
+    "p25": 3.3749966e-06,
+    "p75": 3.76999378e-06,
+    "min": 3.1599775e-06,
+    "max": 4.80981544e-06
+   },
+   "results": {
+    "shape-cpu": {
+     "warmup_frames": 10,
+     "frames": 31,
+     "build": {
+      "median": 0.000230967999,
+      "p25": 0.00022717414,
+      "p75": 0.000242239214,
+      "min": 0.000213188119,
+      "max": 0.000277468935
+     },
+     "submit": {
+      "median": 0.0245315949,
+      "p25": 0.0242750369,
+      "p75": 0.02473599,
+      "min": 0.024107228,
+      "max": 0.025827799
+     },
+     "frame": {
+      "median": 0.024757375,
+      "p25": 0.0245111954,
+      "p75": 0.0249702689,
+      "min": 0.0243315869,
+      "max": 0.0260986181
+     },
+     "note": null,
+     "output": "shape-cpu.ui.pam",
+     "throughput": 50409.22149460514,
+     "throughput_unit": "items/s",
+     "spread": 0.018542898833175853,
+     "cross_check": null,
+     "valid": true,
+     "vs_shape_cpu": 1.0
+    },
+    "blend2d": {
+     "warmup_frames": 380,
+     "frames": 31,
+     "build": null,
+     "submit": {
+      "median": 0.000619837083,
+      "p25": 0.000618307036,
+      "p75": 0.000622116495,
+      "min": 0.000616407022,
+      "max": 0.000627916073
+     },
+     "frame": {
+      "median": 0.000619857106,
+      "p25": 0.000618332066,
+      "p75": 0.000622141524,
+      "min": 0.000616427045,
+      "max": 0.000627935864
+     },
+     "note": "immediate mode: no recorded list, the build step does not exist",
+     "output": "blend2d.ui.pam",
+     "throughput": 2013367.2550008646,
+     "throughput_unit": "items/s",
+     "spread": 0.00614570352283728,
+     "cross_check": {
+      "pixels": 1024000,
+      "mean_abs": 0.096435,
+      "max_abs": 23,
+      "bad_threshold": 32,
+      "bad_pixels": 0,
+      "bad_fraction": 0.0,
+      "differing_pixels": 103210,
+      "within_bound": true
+     },
+     "valid": true,
+     "vs_shape_cpu": 39.940455244212366
+    },
+    "skia": {
+     "warmup_frames": 89,
+     "frames": 31,
+     "build": {
+      "median": 2.24800315e-05,
+      "p25": 2.22199596e-05,
+      "p75": 2.31349841e-05,
+      "min": 2.20299698e-05,
+      "max": 3.06097791e-05
+     },
+     "submit": {
+      "median": 0.00275633601,
+      "p25": 0.00275187602,
+      "p75": 0.0027619116,
+      "min": 0.00273620617,
+      "max": 0.00278424588
+     },
+     "frame": {
+      "median": 0.00277903606,
+      "p25": 0.00277417107,
+      "p75": 0.00278577104,
+      "min": 0.00275832601,
+      "max": 0.00280780485
+     },
+     "note": "build: SkPictureRecorder; submit: drawPicture",
+     "output": "skia.ui.pam",
+     "throughput": 449076.5765738211,
+     "throughput_unit": "items/s",
+     "spread": 0.004174098410223646,
+     "cross_check": {
+      "pixels": 1024000,
+      "mean_abs": 0.070725,
+      "max_abs": 27,
+      "bad_threshold": 32,
+      "bad_pixels": 0,
+      "bad_fraction": 0.0,
+      "differing_pixels": 110758,
+      "within_bound": true
+     },
+     "valid": true,
+     "vs_shape_cpu": 8.908619559258256
+    }
+   }
+  },
+  "gradients": {
+   "metric": "fill",
+   "extent": [
+    1920,
+    1080
+   ],
+   "work_unit": "pixels",
+   "work": 2447647.22,
+   "control": {
+    "pixels": 2073600,
+    "mean_abs": 9.678817,
+    "max_abs": 255,
+    "bad_threshold": 32,
+    "bad_pixels": 204408,
+    "bad_fraction": 0.09857639,
+    "differing_pixels": 208032,
+    "exceeds_bound": true
+   },
+   "perturbation": null,
+   "shape_cpu_empty_list": {
+    "median": 3.20002437e-06,
+    "p25": 3.08500603e-06,
+    "p75": 3.33995558e-06,
+    "min": 3.01003456e-06,
+    "max": 4.64986078e-06
+   },
+   "results": {
+    "shape-cpu": {
+     "warmup_frames": 5,
+     "frames": 31,
+     "build": {
+      "median": 8.17002729e-06,
+      "p25": 7.91007187e-06,
+      "p75": 8.46991315e-06,
+      "min": 7.36908987e-06,
+      "max": 9.10996459e-06
+     },
+     "submit": {
+      "median": 0.094105873,
+      "p25": 0.093183323,
+      "p75": 0.0948950639,
+      "min": 0.0929975079,
+      "max": 0.0962598722
+     },
+     "frame": {
+      "median": 0.0941143229,
+      "p25": 0.0931915175,
+      "p75": 0.0949032035,
+      "min": 0.0930060579,
+      "max": 0.0962689822
+     },
+     "note": "gradients interned once with the paths; evaluated per pixel in double at the pixel center, straight, in the target's space, undithered",
+     "output": "shape-cpu.gradients.pam",
+     "throughput": 26.00717026462292,
+     "throughput_unit": "Mpixel/s",
+     "spread": 0.01818730611087469,
+     "cross_check": null,
+     "valid": true,
+     "vs_shape_cpu": 1.0
+    },
+    "blend2d": {
+     "warmup_frames": 226,
+     "frames": 31,
+     "build": null,
+     "submit": {
+      "median": 0.00101359515,
+      "p25": 0.00101302005,
+      "p75": 0.00101477886,
+      "min": 0.00101010501,
+      "max": 0.00101935491
+     },
+     "frame": {
+      "median": 0.00101361494,
+      "p25": 0.00101304008,
+      "p75": 0.00101479888,
+      "min": 0.00101012504,
+      "max": 0.00101938494
+     },
+     "note": "BLGradient objects built once; gradient quality hint BL_GRADIENT_QUALITY_NEAREST (undithered)",
+     "output": "blend2d.gradients.pam",
+     "throughput": 2414.770267691595,
+     "throughput_unit": "Mpixel/s",
+     "spread": 0.0017351756871302434,
+     "cross_check": {
+      "pixels": 2073600,
+      "mean_abs": 0.108677,
+      "max_abs": 200,
+      "bad_threshold": 32,
+      "bad_pixels": 3,
+      "bad_fraction": 1.45e-06,
+      "differing_pixels": 664095,
+      "within_bound": true
+     },
+     "valid": true,
+     "vs_shape_cpu": 92.8501733607044
+    },
+    "skia": {
+     "warmup_frames": 27,
+     "frames": 31,
+     "build": null,
+     "submit": {
+      "median": 0.0093649521,
+      "p25": 0.00935145747,
+      "p75": 0.00937860704,
+      "min": 0.00932855299,
+      "max": 0.00948327221
+     },
+     "frame": {
+      "median": 0.00936524221,
+      "p25": 0.00935164234,
+      "p75": 0.00937875698,
+      "min": 0.00932868291,
+      "max": 0.00948330201
+     },
+     "note": "SkShaders gradient shaders built once; paint dither off; 8-bit sRGB stops, destination interpolation on a surface with no color space, unpremultiplied",
+     "output": "skia.gradients.pam",
+     "throughput": 261.3543958731208,
+     "throughput_unit": "Mpixel/s",
+     "spread": 0.0028952417238121957,
+     "cross_check": {
+      "pixels": 2073600,
+      "mean_abs": 0.024742,
+      "max_abs": 200,
+      "bad_threshold": 32,
+      "bad_pixels": 11,
+      "bad_fraction": 5.3e-06,
+      "differing_pixels": 21270,
+      "within_bound": true
+     },
+     "valid": true,
+     "vs_shape_cpu": 10.049320753232287
+    }
+   }
+  },
+  "strokes": {
+   "metric": "paths",
+   "extent": [
+    1920,
+    1080
+   ],
+   "work_unit": "paths",
+   "work": 2500,
+   "control": {
+    "pixels": 2073600,
+    "mean_abs": 3.349101,
+    "max_abs": 251,
+    "bad_threshold": 32,
+    "bad_pixels": 152256,
+    "bad_fraction": 0.07342593,
+    "differing_pixels": 383207,
+    "exceeds_bound": true,
+    "by_reference": {
+     "blend2d": {
+      "pixels": 2073600,
+      "mean_abs": 3.697556,
+      "bad_pixels": 148710,
+      "bad_fraction": 0.07171586,
+      "bad_threshold": 32,
+      "rule": "corroborated",
+      "second_source": "the other engine's frame",
+      "raw_mean_abs": 3.71943,
+      "raw_disagreements": 151366,
+      "raw_disagreement_fraction": 0.07299672067901235,
+      "corroborated": 2656,
+      "exceeds_bound": true
+     },
+     "skia": {
+      "pixels": 2073600,
+      "mean_abs": 4.025558,
+      "bad_pixels": 148710,
+      "bad_fraction": 0.07171586,
+      "bad_threshold": 32,
+      "rule": "corroborated",
+      "second_source": "the other engine's frame",
+      "raw_mean_abs": 4.066561,
+      "raw_disagreements": 153471,
+      "raw_disagreement_fraction": 0.07401186342592593,
+      "corroborated": 4761,
+      "exceeds_bound": true
+     }
+    }
+   },
+   "perturbation": {
+    "blend2d": {
+     "perturbed": 2959,
+     "perturbed_counted": 2958,
+     "perturbed_second_frame_disagrees": 2958,
+     "perturbed_oracle_disagrees": 2955,
+     "counted": 2962,
+     "counted_bad_fraction": 0.00142843,
+     "counted_mean_abs": 0.604554,
+     "exceeds_bound": true
+    },
+    "skia": {
+     "perturbed": 2961,
+     "perturbed_counted": 2958,
+     "perturbed_second_frame_disagrees": 2958,
+     "perturbed_oracle_disagrees": 2954,
+     "counted": 2962,
+     "counted_bad_fraction": 0.00142843,
+     "counted_mean_abs": 1.021586,
+     "exceeds_bound": true
+    }
+   },
+   "shape_cpu_empty_list": {
+    "median": 2.9602088e-06,
+    "p25": 2.89455056e-06,
+    "p75": 3.05508729e-06,
+    "min": 2.81003304e-06,
+    "max": 4.00003046e-06
+   },
+   "results": {
+    "shape-cpu": {
+     "warmup_frames": 5,
+     "frames": 31,
+     "build": {
+      "median": 0.000741055934,
+      "p25": 0.000717752031,
+      "p75": 0.000782176037,
+      "min": 0.000582346926,
+      "max": 0.00110920402
+     },
+     "submit": {
+      "median": 5.98903626,
+      "p25": 5.80211699,
+      "p75": 6.08527028,
+      "min": 5.77847541,
+      "max": 6.15484417
+     },
+     "frame": {
+      "median": 5.98975694,
+      "p25": 5.80280473,
+      "p75": 6.08600988,
+      "min": 5.77912499,
+      "max": 6.15555898
+     },
+     "note": "styles and paths interned once; the expansion of each stroke is cached by the sink across frames (warm after the first), its coverage composed per frame",
+     "output": "shape-cpu.strokes.pam",
+     "throughput": 417.37920670951297,
+     "throughput_unit": "paths/s",
+     "spread": 0.0472815763372194,
+     "cross_check": null,
+     "valid": true,
+     "vs_shape_cpu": 1.0
+    },
+    "blend2d": {
+     "warmup_frames": 9,
+     "frames": 31,
+     "build": null,
+     "submit": {
+      "median": 0.02967872,
+      "p25": 0.0289148785,
+      "p75": 0.0304717905,
+      "min": 0.0284958358,
+      "max": 0.0367677931
+     },
+     "frame": {
+      "median": 0.02967886,
+      "p25": 0.0289150486,
+      "p75": 0.0304718255,
+      "min": 0.0284960559,
+      "max": 0.0367679731
+     },
+     "note": "stroke options on the context (width, join, caps, miter limit), Blend2D's own stroker, paths built once; no dashes (see README)",
+     "output": "blend2d.strokes.pam",
+     "throughput": 84235.04137288292,
+     "throughput_unit": "paths/s",
+     "spread": 0.0524540666319394,
+     "cross_check": {
+      "pixels": 2073600,
+      "mean_abs": 0.500522,
+      "bad_pixels": 4,
+      "bad_fraction": 1.93e-06,
+      "bad_threshold": 32,
+      "rule": "corroborated",
+      "second_source": "the other engine's frame",
+      "raw_mean_abs": 0.500601,
+      "raw_disagreements": 12,
+      "raw_disagreement_fraction": 5.787037037037037e-06,
+      "corroborated": 8,
+      "within_bound": true
+     },
+     "valid": true,
+     "vs_shape_cpu": 201.81896946176505
+    },
+    "skia": {
+     "warmup_frames": 5,
+     "frames": 31,
+     "build": null,
+     "submit": {
+      "median": 0.176404856,
+      "p25": 0.166453876,
+      "p75": 0.184863188,
+      "min": 0.144839426,
+      "max": 0.206228495
+     },
+     "frame": {
+      "median": 0.176405026,
+      "p25": 0.166453901,
+      "p75": 0.184863348,
+      "min": 0.144839456,
+      "max": 0.206228585
+     },
+     "note": "SkPaint stroke style (width, join, cap, miter limit) and SkDashPathEffect, Skia's own stroker and dasher, paths built once",
+     "output": "skia.strokes.pam",
+     "throughput": 14171.931813326,
+     "throughput_unit": "paths/s",
+     "spread": 0.10435897104201569,
+     "cross_check": {
+      "pixels": 2073600,
+      "mean_abs": 0.918301,
+      "bad_pixels": 4,
+      "bad_fraction": 1.93e-06,
+      "bad_threshold": 32,
+      "rule": "corroborated",
+      "second_source": "the other engine's frame",
+      "raw_mean_abs": 0.940151,
+      "raw_disagreements": 2419,
+      "raw_disagreement_fraction": 0.0011665702160493826,
+      "corroborated": 2415,
+      "within_bound": true
+     },
+     "valid": true,
+     "vs_shape_cpu": 33.95457077283048
+    }
+   }
+  },
+  "strokes-dashed": {
+   "metric": "paths",
+   "extent": [
+    1920,
+    1080
+   ],
+   "work_unit": "paths",
+   "work": 800,
+   "control": {
+    "pixels": 2073600,
+    "mean_abs": 1.351088,
+    "max_abs": 222,
+    "bad_threshold": 32,
+    "bad_pixels": 56371,
+    "bad_fraction": 0.02718509,
+    "differing_pixels": 82044,
+    "exceeds_bound": true,
+    "by_reference": {
+     "skia": {
+      "pixels": 2073600,
+      "mean_abs": 1.953146,
+      "bad_pixels": 54760,
+      "bad_fraction": 0.02640818,
+      "bad_threshold": 32,
+      "rule": "corroborated",
+      "second_source": "the oracle",
+      "raw_mean_abs": 2.002132,
+      "raw_disagreements": 59822,
+      "raw_disagreement_fraction": 0.02884934413580247,
+      "corroborated": 5062,
+      "exceeds_bound": true
+     }
+    }
+   },
+   "perturbation": {
+    "skia": {
+     "perturbed": 2989,
+     "perturbed_counted": 2987,
+     "perturbed_second_frame_disagrees": 0,
+     "perturbed_oracle_disagrees": 2987,
+     "counted": 2987,
+     "counted_bad_fraction": 0.00144049,
+     "counted_mean_abs": 0.823361,
+     "exceeds_bound": true
+    }
+   },
+   "shape_cpu_empty_list": {
+    "median": 4.36999835e-06,
+    "p25": 4.19502612e-06,
+    "p75": 4.68012877e-06,
+    "min": 3.87011096e-06,
+    "max": 8.41007568e-06
+   },
+   "results": {
+    "shape-cpu": {
+     "warmup_frames": 5,
+     "frames": 31,
+     "build": {
+      "median": 0.000205449061,
+      "p25": 0.000200903509,
+      "p75": 0.000208779122,
+      "min": 0.000160718802,
+      "max": 0.000225927914
+     },
+     "submit": {
+      "median": 2.19672487,
+      "p25": 2.1862195,
+      "p75": 2.2286638,
+      "min": 2.1797359,
+      "max": 2.30399472
+     },
+     "frame": {
+      "median": 2.19692361,
+      "p25": 2.18642218,
+      "p75": 2.22887449,
+      "min": 2.1799369,
+      "max": 2.30421745
+     },
+     "note": "styles and paths interned once; the expansion of each stroke is cached by the sink across frames (warm after the first), its coverage composed per frame",
+     "output": "shape-cpu.strokes-dashed.pam",
+     "throughput": 364.14556990445385,
+     "throughput_unit": "paths/s",
+     "spread": 0.0193235257733881,
+     "cross_check": null,
+     "valid": true,
+     "vs_shape_cpu": 1.0
+    },
+    "skia": {
+     "warmup_frames": 5,
+     "frames": 31,
+     "build": null,
+     "submit": {
+      "median": 0.06699503,
+      "p25": 0.0660328255,
+      "p75": 0.0792497335,
+      "min": 0.0641205451,
+      "max": 0.10855933
+     },
+     "frame": {
+      "median": 0.0669953199,
+      "p25": 0.0660329404,
+      "p75": 0.0792498834,
+      "min": 0.0641205849,
+      "max": 0.10855955
+     },
+     "note": "SkPaint stroke style (width, join, cap, miter limit) and SkDashPathEffect, Skia's own stroker and dasher, paths built once",
+     "output": "skia.strokes-dashed.pam",
+     "throughput": 11941.132622310233,
+     "throughput_unit": "paths/s",
+     "spread": 0.19728158653064354,
+     "cross_check": {
+      "pixels": 2073600,
+      "mean_abs": 0.685678,
+      "bad_pixels": 0,
+      "bad_fraction": 0.0,
+      "bad_threshold": 32,
+      "rule": "corroborated",
+      "second_source": "the oracle",
+      "raw_mean_abs": 0.726741,
+      "raw_disagreements": 4148,
+      "raw_disagreement_fraction": 0.0020003858024691358,
+      "corroborated": 4148,
+      "within_bound": true
+     },
+     "valid": true,
+     "vs_shape_cpu": 32.7921952351182
+    }
+   }
+  }
+ },
+ "verdict": {
+  "blind_checks": [],
+  "invalid": []
+ }
+}
