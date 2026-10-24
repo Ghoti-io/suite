@@ -851,17 +851,14 @@ static int shape_setup(Shape * e, const SB_Scene * s, const char * dir, int cont
   sb_background_bytes(s, 0, e->bg);
   GIMG_Pixel_Format format = GIMG_PIXEL_RGBA8;
   format.alpha_form = GIMG_ALPHA_PREMULTIPLIED;
-  /* The sink's limits are its defaults: the strokes scenes draw tight bends under a wide stroke (a quadratic chain 8.7 pixels
-   * wide whose bends are tighter than half the width), where thousands of the outline's pieces lie in one pixel, and the
-   * default of `max_exact_fragments` (16384) and of `max_exact_crossings` (2^20) draws them with room to spare. */
+  /* The sink's limits are its defaults but for one.  The strokes scenes draw tight bends under a wide stroke (a quadratic chain
+   * 8.7 pixels wide whose bends are tighter than half the width), where thousands of the outline's pieces lie in one pixel, and
+   * the defaults of `max_exact_fragments` and `max_exact_crossings` draw them with room to spare.  The expansion cache is
+   * raised to 256 MiB for every scene: the strokes scenes hold about 140 MB of expansions, which the default 16 MiB cannot,
+   * and a cache that evicts what the next frame needs is not warm, which is what the protocol says of the timed frames. */
   GSHCPU_Limits limits;
   gshcpu_limits_default(&limits);
-  if (!strncmp(s->name, "picture-", 8)) {
-    /* The pictures draw a 46 pixel stroke around 210 pixel glyphs, which passes the default cell cap (2^22); these are the
-     * two limits raised, and the only ones, for the same render that makes the picture. */
-    limits.max_deposits = (size_t)1 << 25;
-    limits.max_cache_bytes = (uint64_t)256 << 20;
-  }
+  limits.max_cache_bytes = (uint64_t)256 << 20;
   if (!e->pixels || !e->res || !e->paint || !e->grad || !e->style || gshscene_store_create(NULL, NULL, &e->store) != GSHSCENE_OK ||
       gshscene_list_create(NULL, NULL, e->store, &e->list) != GSHSCENE_OK ||
       gshcpu_sink_create(NULL, NULL, &limits, &e->sink) != GSHCPU_OK ||

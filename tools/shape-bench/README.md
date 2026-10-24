@@ -57,7 +57,7 @@ the C++ drivers too).
   `SkPaint` and `SkDashPathEffect`. The scene states only what the three say by one definition (SVG's width, join, cap,
   miter limit, and dashes on open subpaths restarting at the path's start); the generator names what is left out.
   The `strokes` frames of `shape-cpu` run with the sink's expansion cache warm after the first frame (`GSHCPU_Limits`
-  default), which is what a retained scene sees; there is no speed threshold, only the cross-check below.
+  `max_cache_bytes` of 256 MiB; the 16 MiB default holds about an eighth of the scenes' expansions and would evict them each frame), which is what a retained scene sees; there is no speed threshold, only the cross-check below.
 - What differs by design is stated, not hidden: Skia caches rendered glyph
   masks and nothing else here does; Blend2D JIT-compiles its pipelines and Skia
   dispatches SIMD at run time, while `shape-cpu` is the scalar `double`
