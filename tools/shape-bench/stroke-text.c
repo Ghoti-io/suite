@@ -204,7 +204,7 @@ int main(int argc, char ** argv) {
   int i = 2;
   for (; i + 1 < argc && !strncmp(argv[i], "--", 2); i += 2) {
     if (!strcmp(argv[i], "--cells")) {
-      limits.max_cells = (size_t)strtoull(argv[i + 1], NULL, 0);
+      limits.max_deposits = (size_t)strtoull(argv[i + 1], NULL, 0);
     } else if (!strcmp(argv[i], "--points")) {
       limits.max_points = (size_t)strtoull(argv[i + 1], NULL, 0);
     } else if (!strcmp(argv[i], "--fragments")) {

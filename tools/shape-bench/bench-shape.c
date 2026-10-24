@@ -859,7 +859,7 @@ static int shape_setup(Shape * e, const SB_Scene * s, const char * dir, int cont
   if (!strncmp(s->name, "picture-", 8)) {
     /* The pictures draw a 46 pixel stroke around 210 pixel glyphs, which passes the default cell cap (2^22); these are the
      * two limits raised, and the only ones, for the same render that makes the picture. */
-    limits.max_cells = (size_t)1 << 25;
+    limits.max_deposits = (size_t)1 << 25;
     limits.max_cache_bytes = (uint64_t)256 << 20;
   }
   if (!e->pixels || !e->res || !e->paint || !e->grad || !e->style || gshscene_store_create(NULL, NULL, &e->store) != GSHSCENE_OK ||
