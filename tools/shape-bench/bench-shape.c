@@ -859,6 +859,9 @@ static int shape_setup(Shape * e, const SB_Scene * s, const char * dir, int cont
   GSHCPU_Limits limits;
   gshcpu_limits_default(&limits);
   limits.max_cache_bytes = (uint64_t)256 << 20;
+  if (getenv("SHAPE_BENCH_FAST_STROKES")) { /* the fast stroke coverage, to time it beside the exact one */
+    limits.stroke_coverage = GSHCPU_STROKE_COVERAGE_FAST;
+  }
   if (!e->pixels || !e->res || !e->paint || !e->grad || !e->style || gshscene_store_create(NULL, NULL, &e->store) != GSHSCENE_OK ||
       gshscene_list_create(NULL, NULL, e->store, &e->list) != GSHSCENE_OK ||
       gshcpu_sink_create(NULL, NULL, &limits, &e->sink) != GSHCPU_OK ||
