@@ -67,6 +67,8 @@
 #endif
 #endif
 
+#include <ghoti.io/cutil/pool.h>
+
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -837,6 +839,39 @@ static const GSHSCENE_Resource * intern_gradient(GSHSCENE_Store * store, const S
   return r;
 }
 
+
+/** The benchmark's executor for the sink: the tasks on a thread pool of its own, the first on the calling thread. */
+typedef struct Bench_Task {
+  GSHCPU_Task_Fn task;
+  void * ctx;
+  size_t index;
+} Bench_Task;
+
+static int bench_pool_task(void * p) {
+  Bench_Task * t = p;
+  t->task(t->ctx, t->index);
+  return 0;
+}
+
+/** The pool of the sink's executor: one for the process, destroyed before it ends (cutil joins the threads it started at exit). */
+static GCU_Pool * bench_pool;
+
+static int bench_executor(void * user, size_t count, GSHCPU_Task_Fn task, void * ctx) {
+  GCU_Pool * pool = user;
+  Bench_Task jobs[GSHCPU_EXECUTOR_MAX_THREADS];
+  for (size_t i = 1; i < count && i < GSHCPU_EXECUTOR_MAX_THREADS; i++) {
+    jobs[i].task = task;
+    jobs[i].ctx = ctx;
+    jobs[i].index = i;
+    if (!gcu_pool_enqueue(pool, bench_pool_task, &jobs[i])) {
+      task(ctx, i);
+    }
+  }
+  task(ctx, 0);
+  (void)gcu_pool_wait(pool);
+  return 0;
+}
+
 static int shape_setup(Shape * e, const SB_Scene * s, const char * dir, int control) {
   memset(e, 0, sizeof *e);
   e->scene = s;
@@ -862,9 +897,24 @@ static int shape_setup(Shape * e, const SB_Scene * s, const char * dir, int cont
   if (getenv("SHAPE_BENCH_FAST_STROKES")) { /* the fast stroke coverage, to time it beside the exact one */
     limits.stroke_coverage = GSHCPU_STROKE_COVERAGE_FAST;
   }
+  GSHCPU_Executor executor = {0, NULL, NULL};
+  if (getenv("SHAPE_BENCH_THREADS")) { /* tasks for the fast stroke coverage's stripes (the protocol's one thread is the default) */
+    executor.threads = (size_t)strtoull(getenv("SHAPE_BENCH_THREADS"), NULL, 10);
+    if (executor.threads > 1) {
+      GCU_Pool_Config pc;
+      memset(&pc, 0, sizeof pc);
+      pc.thread_count = executor.threads - 1;
+      pc.name_prefix = "bench";
+      if (!bench_pool) {
+        bench_pool = gcu_pool_create(&pc); /* the benchmark's own threads, not the library's */
+      }
+      executor.user = bench_pool;
+      executor.run = executor.user ? bench_executor : NULL;
+    }
+  }
   if (!e->pixels || !e->res || !e->paint || !e->grad || !e->style || gshscene_store_create(NULL, NULL, &e->store) != GSHSCENE_OK ||
       gshscene_list_create(NULL, NULL, e->store, &e->list) != GSHSCENE_OK ||
-      gshcpu_sink_create(NULL, NULL, &limits, &e->sink) != GSHCPU_OK ||
+      gshcpu_sink_create_with_executor(NULL, NULL, &limits, &executor, &e->sink) != GSHCPU_OK ||
       gshscene_report_create(NULL, NULL, &e->report) != GSHSCENE_OK ||
       gimg_raster_create((uint32_t)s->width, (uint32_t)s->height, &format, GIMG_RASTER_BORROWED, e->pixels, e->stride,
           &e->raster) != GIMG_OK) {
@@ -1284,6 +1334,8 @@ static int run(const char * dir, const char * out) {
     }
     sb_scene_free(&s);
   }
+  gcu_pool_destroy(bench_pool);
+  bench_pool = NULL;
   return failures ? 1 : 0;
 }
 
