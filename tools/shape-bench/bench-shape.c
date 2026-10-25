@@ -871,6 +871,11 @@ static int bench_start(void * user, size_t count, GSHCPU_Task_Fn task, void * ct
   return 0;
 }
 
+static void bench_exec_close(void) {
+  gcu_pool_destroy(bench_exec.pool);
+  bench_exec.pool = NULL;
+}
+
 static void bench_wait(void * user) {
   (void)gcu_pool_wait(((Bench_Executor *)user)->pool);
 }
@@ -910,6 +915,7 @@ static int shape_setup(Shape * e, const SB_Scene * s, const char * dir, int cont
       pc.name_prefix = "bench";
       if (!bench_exec.pool) {
         bench_exec.pool = gcu_pool_create(&pc); /* the benchmark's own threads, not the library's */
+        atexit(bench_exec_close); /* whichever mode ends the process */
       }
       executor.user = &bench_exec;
       executor.start = bench_exec.pool ? bench_start : NULL;
@@ -1338,8 +1344,6 @@ static int run(const char * dir, const char * out) {
     }
     sb_scene_free(&s);
   }
-  gcu_pool_destroy(bench_exec.pool);
-  bench_exec.pool = NULL;
   return failures ? 1 : 0;
 }
 
