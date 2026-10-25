@@ -44,6 +44,8 @@
 #   GHOTI_CONTAINER_ENGINE the command that runs the images (default: SHAPE_BENCH_CLI)
 #   SHAPE_BENCH_BUILD_IMAGE the image shape-cpu runs in (ghoti-build:gcc16)
 #   SHAPE_BENCH_REPS       pictures: how many times every engine is run (default 3)
+#   SHAPE_BENCH_FAST_STROKES, SHAPE_BENCH_FAST_FILLS  pictures: when set, the scene arm of shape-cpu draws with the fast stroke and fill
+#                          coverages (the record says so in the arm's command)
 #   SHAPE_BENCH_PICTURES   pictures: the scene names (default: picture-typography picture-geometry)
 #   SHAPE_BENCH_NATIVE_CMD pictures: a command, run in the build image from WORK like shape-cpu's, that draws the pictures
 #                          from their own lists and prints one JSON line per measurement; its engine is "shape-cpu-native"
@@ -257,7 +259,7 @@ pictures() {
   base=$(sed -n 's/^FROM \([^ ]*\).*/\1/p' ws/suite/Containerfile.build | head -n 1)
   mkdir -p "$R/pictures/frames" "$R/pictures/native"
   FRAMES=results/pictures/frames NAMES=$names
-  SHAPE_RUN="bench-build/bench-shape pictures results/scenes results/pictures/frames $names"
+  SHAPE_RUN="${SHAPE_BENCH_FAST_STROKES:+SHAPE_BENCH_FAST_STROKES=1 }${SHAPE_BENCH_FAST_FILLS:+SHAPE_BENCH_FAST_FILLS=1 }bench-build/bench-shape pictures results/scenes results/pictures/frames $names"
   rep=1
   while [ "$rep" -le "$reps" ]; do
     RAWSUF=.$rep
