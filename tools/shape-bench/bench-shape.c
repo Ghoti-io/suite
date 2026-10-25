@@ -905,6 +905,9 @@ static int shape_setup(Shape * e, const SB_Scene * s, const char * dir, int cont
   if (getenv("SHAPE_BENCH_FAST_STROKES")) { /* the fast stroke coverage, to time it beside the exact one */
     limits.stroke_coverage = GSHCPU_STROKE_COVERAGE_FAST;
   }
+  if (getenv("SHAPE_BENCH_FAST_FILLS")) { /* the fast fill coverage, to time it beside the exact one */
+    limits.fill_coverage = GSHCPU_FILL_COVERAGE_FAST;
+  }
   GSHCPU_Executor executor = {0, NULL, NULL, NULL};
   if (getenv("SHAPE_BENCH_THREADS")) { /* tasks for the fast stroke coverage's stripes (the protocol's one thread is the default) */
     executor.threads = (size_t)strtoull(getenv("SHAPE_BENCH_THREADS"), NULL, 10);
