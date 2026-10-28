@@ -21,7 +21,7 @@
 /**
  * @file gallery.c
  *
- * A gallery of eight PNGs drawn entirely by the suite's own libraries, for a
+ * A gallery of nine PNGs drawn entirely by the suite's own libraries, for a
  * person to look at (README.md says what each shows).  Every pixel comes from
  * shape-cpu rendering shape-scene lists; text is font's paragraph layout and
  * shaping, its glyphs reaching the scene through font's glyph path provider;
@@ -31,7 +31,7 @@
  *
  * FONTDIR is font's tests/data/fonts, DEJAVU the pinned DejaVuSans.ttf that
  * suite/tools/shape-success/fetch.sh fetches.  Writes shapes.png,
- * compositing.png, blend-modes.png, color.png, gradients.png, strokes.png, text.png and color-glyphs.png
+ * compositing.png, blend-modes.png, color.png, gradients.png, images.png, strokes.png, text.png and color-glyphs.png
  * into OUTDIR and a log on stdout: each render's result and its report entries
  * tallied by class and reason, the diagnostics of a few fixture fonts, and what
  * the color-glyph page refused.  Exits nonzero when any step failed.
@@ -811,7 +811,7 @@ static void fill_gradient(GSHSCENE_List * L, const GSHSCENE_Resource * res, cons
   memset(&p, 0, sizeof p);
   p.kind = GSHSCENE_PAINT_GRADIENT;
   p.rgba[3] = 1.0;
-  p.gradient = gr;
+  p.resource = gr;
   fill_map(L, res, map, GSHGEOM_FILL_NONZERO, p);
   gshscene_resource_release(gr);
 }
@@ -1922,7 +1922,7 @@ static void image_strokes(void) {
       memset(&gp, 0, sizeof gp);
       gp.kind = GSHSCENE_PAINT_GRADIENT;
       gp.rgba[3] = 1.0;
-      gp.gradient = gr;
+      gp.resource = gr;
       GSHSCENE_Stroke_Style st = style_new(22, GSHSCENE_STROKE_JOIN_ROUND, GSHSCENE_STROKE_CAP_ROUND);
       stroke_map(L, scurve(900, 810, 250, 100), NULL, &st, gp);
       gshscene_resource_release(gr);
@@ -2002,7 +2002,7 @@ static void image_strokes(void) {
       memset(&gp, 0, sizeof gp);
       gp.kind = GSHSCENE_PAINT_GRADIENT;
       gp.rgba[3] = 1.0;
-      gp.gradient = gr;
+      gp.resource = gr;
       GSHSCENE_Stroke_Style gstroke = style_new(6, GSHSCENE_STROKE_JOIN_ROUND, GSHSCENE_STROKE_CAP_ROUND);
       TextStyle gt = style(84, 0, 0, 0);
       gt.hint_mode = GSHSCENE_HINT_NONE;
@@ -2041,6 +2041,236 @@ static void image_strokes(void) {
   gimg_raster_destroy(R);
 }
 
+/* --- 3b: images (masks-images-patterns story I3) ------------------------------------------------------------- */
+
+/** An image of @p w by @p h generated in code: @p fn gives texel (x, y)'s samples (@p channels of them, as fractions). */
+typedef void (*ImageFn)(int x, int y, double * out);
+
+static const GSHSCENE_Resource * image_make(int w, int h, int channels, int bits, GSHSCENE_Color_Space space, ImageFn fn) {
+  GIMG_Pixel_Format format;
+  memset(&format, 0, sizeof format);
+  format.channel_model = channels == 1 ? GIMG_CHANNEL_GRAY : channels == 3 ? GIMG_CHANNEL_RGB : GIMG_CHANNEL_RGBA;
+  format.channel_type = GIMG_CHANNEL_UNORM;
+  format.layout = GIMG_LAYOUT_INTERLEAVED;
+  format.channel_count = (uint8_t)channels;
+  for (int i = 0; i < channels; i++) {
+    format.bits_per_channel[i] = (uint8_t)bits;
+  }
+  format.alignment = 1;
+  format.alpha_form = channels == 4 ? GIMG_ALPHA_STRAIGHT : GIMG_ALPHA_NONE;
+  GIMG_Raster * raster = NULL;
+  if (gimg_raster_create((uint32_t)w, (uint32_t)h, &format, GIMG_RASTER_OWNED, NULL, 0, &raster) != GIMG_OK) {
+    fail("image raster");
+    return NULL;
+  }
+  unsigned char * base = (unsigned char *)gimg_raster_pixels(raster);
+  const size_t stride = gimg_raster_stride_bytes(raster);
+  const size_t size = bits <= 8 ? 1 : 2;
+  const double top = (double)((1u << bits) - 1u);
+  for (int y = 0; y < h; y++) {
+    for (int x = 0; x < w; x++) {
+      double v[4] = {0, 0, 0, 0};
+      fn(x, y, v);
+      for (int k = 0; k < channels; k++) {
+        const uint32_t q = (uint32_t)(v[k] * top + 0.5);
+        unsigned char * at = base + (size_t)y * stride + ((size_t)x * (size_t)channels + (size_t)k) * size;
+        if (size == 1) {
+          *at = (unsigned char)q;
+        } else {
+          const uint16_t u = (uint16_t)q;
+          memcpy(at, &u, sizeof u);
+        }
+      }
+    }
+  }
+  GSHSCENE_Image_Params params;
+  memset(&params, 0, sizeof params);
+  params.space = space;
+  const GSHSCENE_Resource * r = NULL;
+  if (gshscene_store_intern_image(g_store, raster, &params, &r) != GSHSCENE_OK) {
+    fail("intern image");
+  }
+  gimg_raster_destroy(raster);
+  return r;
+}
+
+/** Texel (x, y) of the 16 by 12 grid carries its coordinates: red is x, green is y, and the blue alternates, so a pixel read back names its texel. */
+static void grid_texel(int x, int y, double * v) {
+  v[0] = x / 15.0;
+  v[1] = y / 11.0;
+  v[2] = (x + y) % 2 ? 0.9 : 0.15;
+  v[3] = 1.0;
+}
+
+/** A row of the hue circle, 24 texels, at 8 bits. */
+static void hue_texel(int x, int y, double * v) {
+  (void)y;
+  const double h = x / 24.0 * 6.0;
+  const int i = (int)h;
+  const double f = h - i;
+  const double r[6] = {1, 1 - f, 0, 0, f, 1};
+  const double g[6] = {f, 1, 1, 1 - f, 0, 0};
+  const double b[6] = {0, 0, f, 1, 1, 1 - f};
+  v[0] = r[i % 6];
+  v[1] = g[i % 6];
+  v[2] = b[i % 6];
+}
+
+/** A 16-bit gray ramp, 64 texels: the 256 levels of an 8-bit one would show steps here. */
+static void ramp_texel(int x, int y, double * v) {
+  (void)y;
+  v[0] = x / 63.0;
+}
+
+/** Six swatches in Display P3, as RGB (the same numbers read as sRGB are plainly different colors on an sRGB target). */
+static void swatch_texel(int x, int y, double * v) {
+  (void)y;
+  static const double colors[6][3] = {{0.9, 0.2, 0.2}, {0.2, 0.9, 0.2}, {0.2, 0.2, 0.9}, {0.9, 0.9, 0.2}, {0.2, 0.9, 0.9}, {0.9, 0.2, 0.9}};
+  v[0] = colors[x % 6][0];
+  v[1] = colors[x % 6][1];
+  v[2] = colors[x % 6][2];
+}
+
+/** The map of a unit of image space to a box @p sx by @p sy at (@p tx, @p ty). */
+static GSHGEOM_Map placed(double sx, double sy, double tx, double ty) {
+  const double m[4] = {sx, 0.0, 0.0, sy};
+  const double t[2] = {tx, ty};
+  GSHGEOM_Map out;
+  if (gshgeom_map_from_matrix(2, m, t, &out) != GSHGEOM_OK) {
+    fail("map");
+  }
+  return out;
+}
+
+/** A fill of the rectangle with an image paint of @p image under @p map. */
+static void image_tile(GSHSCENE_List * L, const GSHSCENE_Resource * image, double x0, double y0, double x1, double y1,
+    GSHGEOM_Map map, uint32_t ex, uint32_t ey, uint32_t magnify, uint32_t minify, GSHSCENE_Color_Space filter_space) {
+  GSHSCENE_Image_Paint ip;
+  gshscene_image_paint_init(&ip);
+  ip.image = image;
+  ip.map = map;
+  ip.extend_x = ex;
+  ip.extend_y = ey;
+  ip.magnify = magnify;
+  ip.minify = minify;
+  ip.filter_space = filter_space;
+  const GSHSCENE_Resource * paint = NULL;
+  if (gshscene_store_intern_image_paint(g_store, &ip, &paint) != GSHSCENE_OK) {
+    fail("intern image paint");
+    return;
+  }
+  GSHSCENE_Paint p;
+  memset(&p, 0, sizeof p);
+  p.kind = GSHSCENE_PAINT_IMAGE;
+  p.resource = paint;
+  p.rgba[3] = 1.0;
+  fill(L, rect(x0, y0, x1, y1), p);
+  gshscene_resource_release(paint);
+}
+
+static void image_images(void) {
+  const int W = 1200, H = 980;
+  GIMG_Raster * R = raster_new(W, H);
+  GSHSCENE_List * L = list_new();
+  background(L, W, H, 0.95);
+  const GSHSCENE_Color_Space none = {0, 0, 0.0};
+  const GSHSCENE_Color_Space srgb = space(GCOL_PRIMARIES_SRGB, GCOL_TRANSFER_SRGB);
+  const GSHSCENE_Color_Space linear = space(GCOL_PRIMARIES_SRGB, GCOL_TRANSFER_LINEAR);
+  const GSHSCENE_Color_Space p3 = space(GCOL_PRIMARIES_DISPLAY_P3, GCOL_TRANSFER_SRGB);
+  const GSHSCENE_Resource * grid = image_make(16, 12, 4, 8, srgb, grid_texel);
+  const GSHSCENE_Resource * hue = image_make(24, 1, 3, 8, srgb, hue_texel);
+  const GSHSCENE_Resource * ramp = image_make(64, 1, 1, 16, srgb, ramp_texel);
+  const GSHSCENE_Resource * swatch_p3 = image_make(6, 1, 3, 8, p3, swatch_texel);
+  const GSHSCENE_Resource * swatch_srgb = image_make(6, 1, 3, 8, srgb, swatch_texel);
+  static const char * filter_name[4] = {"nearest", "linear", "cubic", "area"};
+  static const uint32_t filters[4] = {GSHSCENE_IMAGE_FILTER_NEAREST, GSHSCENE_IMAGE_FILTER_LINEAR, GSHSCENE_IMAGE_FILTER_CUBIC,
+      GSHSCENE_IMAGE_FILTER_AREA};
+  static const double scales[3] = {7.0, 1.0, 0.3};
+
+  /* Each filter at x7, x1 and x0.3: the grid repeated over a tile, from a half pixel past the origin, so that a unit scale
+   * falls between texels.  Each filter is both the magnify and the minify filter, so the map alone does not choose. */
+  const double tw = 250, th = 100, dx = 285, dy = 150, x0 = 30, y0 = 90;
+  for (int row = 0; row < 3; row++) {
+    for (int col = 0; col < 4; col++) {
+      const double x = x0 + col * dx, y = y0 + row * dy;
+      image_tile(L, grid, x, y, x + tw, y + th, placed(scales[row], scales[row], x + 0.5, y + 0.5), GSHSCENE_IMAGE_EXTEND_REPEAT,
+          GSHSCENE_IMAGE_EXTEND_REPEAT, filters[col], filters[col], none);
+    }
+  }
+
+  /* The four edge modes, the same on both axes: a small image placed in the middle of its tile, drawn past its edges. */
+  const double ey0 = 590;
+  static const char * edge_name[4] = {"pad", "repeat", "reflect", "none"};
+  for (int k = 0; k < 4; k++) {
+    const double x = x0 + k * dx, y = ey0;
+    fill_rect(L, x, y, x + tw, y + 110, solid(0.88, 0.88, 0.8, 1));
+    image_tile(L, grid, x, y, x + tw, y + 110, placed(5.0, 5.0, x + 85, y + 25), (uint32_t)k, (uint32_t)k,
+        GSHSCENE_IMAGE_FILTER_NEAREST, GSHSCENE_IMAGE_FILTER_AREA, none);
+  }
+
+  /* Sources in other spaces and depths: a hue row at x10 with linear, a 16-bit ramp, a Display P3 swatch row beside the same
+   * numbers in sRGB, and the hue row filtered in linear light. */
+  const double sy0 = 830;
+  image_tile(L, hue, x0, sy0, x0 + tw, sy0 + 60, placed(10.4, 60.0, x0, sy0), 0, 0, GSHSCENE_IMAGE_FILTER_LINEAR,
+      GSHSCENE_IMAGE_FILTER_AREA, none);
+  image_tile(L, hue, x0 + dx, sy0, x0 + dx + tw, sy0 + 60, placed(10.4, 60.0, x0 + dx, sy0), 0, 0, GSHSCENE_IMAGE_FILTER_LINEAR,
+      GSHSCENE_IMAGE_FILTER_AREA, linear);
+  image_tile(L, ramp, x0 + 2 * dx, sy0, x0 + 2 * dx + tw, sy0 + 60, placed(250.0 / 64.0, 60.0, x0 + 2 * dx, sy0), 0, 0,
+      GSHSCENE_IMAGE_FILTER_LINEAR, GSHSCENE_IMAGE_FILTER_AREA, none);
+  image_tile(L, swatch_p3, x0 + 3 * dx, sy0, x0 + 3 * dx + tw, sy0 + 28, placed(250.0 / 6.0, 28.0, x0 + 3 * dx, sy0), 0, 0,
+      GSHSCENE_IMAGE_FILTER_NEAREST, GSHSCENE_IMAGE_FILTER_AREA, none);
+  image_tile(L, swatch_srgb, x0 + 3 * dx, sy0 + 32, x0 + 3 * dx + tw, sy0 + 60, placed(250.0 / 6.0, 28.0, x0 + 3 * dx, sy0 + 32), 0, 0,
+      GSHSCENE_IMAGE_FILTER_NEAREST, GSHSCENE_IMAGE_FILTER_AREA, none);
+  render("images (tiles)", L, R);
+
+  /* Labels, and the middle pixel of each tile read back. */
+  L = list_new();
+  label(L, "Images (masks-images-patterns story I3): an image resource sampled by an image paint, shape-cpu's definition", 19, 30, 12, 0.1);
+  label(L, "Sources are generated in code.  Grid: 16 by 12 texels, red is x, green is y, blue alternates.  Each tile repeats it.",
+      14, 30, 40, 0.35);
+  label(L, "Rows: scale 7, scale 1 (half a pixel past the origin) and scale 0.3.  Columns: the filter used (as magnify and as minify).",
+      14, 30, 60, 0.35);
+  for (int row = 0; row < 3; row++) {
+    for (int col = 0; col < 4; col++) {
+      const double x = x0 + col * dx, y = y0 + row * dy;
+      char buf[96];
+      snprintf(buf, sizeof buf, "%s, scale %g", filter_name[col], scales[row]);
+      label_c(L, buf, 13, x + tw / 2, y + th + 3, 0.15);
+      tile_readback(L, R, x, y, tw, th);
+    }
+  }
+  label(L, "Edge modes (the same on x and y): the image is the 80 by 60 box, drawn past it", 16, 30, ey0 - 30, 0.15);
+  for (int k = 0; k < 4; k++) {
+    const double x = x0 + k * dx;
+    label_c(L, edge_name[k], 14, x + tw / 2, ey0 + 112, 0.15);
+    tile_readback(L, R, x, ey0, tw, 110);
+  }
+  label(L, "Spaces and depths", 16, 30, sy0 - 30, 0.15);
+  label_c(L, "hue row, in its own space", 13, x0 + tw / 2, sy0 + 62, 0.15);
+  label_c(L, "the same, filtered in linear light", 13, x0 + dx + tw / 2, sy0 + 62, 0.15);
+  label_c(L, "a 16-bit ramp", 13, x0 + 2 * dx + tw / 2, sy0 + 62, 0.15);
+  label_c(L, "Display P3 swatches over the same in sRGB", 13, x0 + 3 * dx + tw / 2, sy0 + 62, 0.15);
+  tile_readback(L, R, x0, sy0, tw, 60);
+  tile_readback(L, R, x0 + dx, sy0, tw, 60);
+  tile_readback(L, R, x0 + 2 * dx, sy0, tw, 60);
+  {
+    /* The first swatch of each row, read back: the same numbers, in Display P3 above and in sRGB below. */
+    const unsigned char * a = pixel(R, (int)(x0 + 3 * dx + 20), (int)(sy0 + 14));
+    const unsigned char * b = pixel(R, (int)(x0 + 3 * dx + 20), (int)(sy0 + 46));
+    char buf[96];
+    snprintf(buf, sizeof buf, "first swatch: P3 %d,%d,%d  sRGB %d,%d,%d", a[0], a[1], a[2], b[0], b[1], b[2]);
+    label_c(L, buf, 12, x0 + 3 * dx + tw / 2, sy0 + 82, 0.35);
+  }
+  render("images (labels)", L, R);
+  save_png(R, "images.png");
+  gimg_raster_destroy(R);
+  gshscene_resource_release(grid);
+  gshscene_resource_release(hue);
+  gshscene_resource_release(ramp);
+  gshscene_resource_release(swatch_p3);
+  gshscene_resource_release(swatch_srgb);
+}
+
 int main(int argc, char ** argv) {
   if (argc != 4) {
     fprintf(stderr, "usage: gallery FONTDIR DEJAVU OUTDIR\n");
@@ -2066,6 +2296,7 @@ int main(int argc, char ** argv) {
   image_blend_modes();
   image_color();
   image_gradients();
+  image_images();
   image_strokes();
   image_text(argv[1]);
   image_color_glyphs(argv[1]);

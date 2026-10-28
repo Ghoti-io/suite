@@ -977,7 +977,7 @@ static int shape_setup(Shape * e, const SB_Scene * s, const char * dir, int cont
         }
         p->kind = GSHSCENE_PAINT_GRADIENT;
         p->rgba[0] = p->rgba[1] = p->rgba[2] = 0.0;
-        p->gradient = e->grad[i];
+        p->resource = e->grad[i];
       }
     }
     if (it->kind == SB_STROKE) {

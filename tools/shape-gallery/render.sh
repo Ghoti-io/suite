@@ -9,7 +9,7 @@
 # WS holds libs/<lib> and suite/ (the staged committed trees), PREFIX is an
 # empty install prefix, OUT the run's directory.  Installs LIB... into PREFIX
 # in the order given (suite/libraries.txt order), builds gallery.c against
-# them, renders the eight PNGs into OUT with gallery.log beside them, and
+# them, renders the nine PNGs into OUT with gallery.log beside them, and
 # decode-checks every PNG with compare.py.  Build logs go to OUT/logs/.
 #
 #   render.sh --host-info ENGINE OUT
