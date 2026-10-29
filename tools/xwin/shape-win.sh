@@ -26,6 +26,16 @@ dense_hash=${20:?usage: as above}
 dense_count=${21:?usage: as above}
 font_stroke_hash=${22:?usage: as above}
 font_stroke_count=${23:?usage: as above}
+geom_pred_hash=${24:?usage: as above, GEOM_PRED_HASH GEOM_PRED_COUNT FAST_HASH FAST_COUNT IMAGE_HASH IMAGE_COUNT IMAGE_PAINT_HASH IMAGE_PAINT_COUNT}
+geom_pred_count=${25:?usage: as above}
+fast_hash=${26:?usage: as above}
+fast_count=${27:?usage: as above}
+image_hash=${28:?usage: as above}
+image_count=${29:?usage: as above}
+image_paint_hash=${30:?usage: as above}
+image_paint_count=${31:?usage: as above}
+geom_vertex_hash=${32:?usage: as above, GEOM_VERTEX_HASH GEOM_VERTEX_COUNT}
+geom_vertex_count=${33:?usage: as above}
 P=/tools/xarch/shape-hash-probe.c
 cd /w || exit 2
 
@@ -89,15 +99,15 @@ G=/w/geom
 GF="-std=c17 -O2 -pedantic-errors -Wall -Wextra -Werror -ffp-contract=off -DGSHGEOM_BUILD -DGMATH_STATIC -I$G/include -I$G/gen/generated -I$M/include -I$M/gen/generated -I$G/stubs"
 x86_64-w64-mingw32-gcc $GF "$G/tools/corpus-hash.c" $(find "$G/src" -name '*.c' | sort) "$M"/src/elementary/*.c "$G/stubs/cutil-allocator-stub.c" -o geom-probe.exe || { echo "shape-win: the shape-geometry probe did not build" >&2; exit 2; }
 x86_64-w64-mingw32-gcc $GF -DSHAPE_GEOM_PLANT_BIT "$G/tools/corpus-hash.c" $(find "$G/src" -name '*.c' | sort) "$M"/src/elementary/*.c "$G/stubs/cutil-allocator-stub.c" -o geom-plant.exe || { echo "shape-win: the planted shape-geometry probe did not build" >&2; exit 2; }
-ggot=$(./geom-probe.exe 2>/dev/null | tr -d '\r' | awk '/^shape-geometry.hash/{h=$2} /^shape-geometry.count/{c=$2} END{if (h != "") print h, c}')
-gplant=$(./geom-plant.exe 2>/dev/null | tr -d '\r' | awk '/^shape-geometry.hash/{h=$2} /^shape-geometry.count/{c=$2} END{if (h != "") print h, c}')
-echo "windows (wine) shape-geometry hash: ${ggot:-none}   planted: ${gplant:-none}   committed: $geom_hash $geom_count"
-if [ -n "$ggot" ] && [ "$ggot" = "$geom_hash $geom_count" ]; then
+ggot=$(./geom-probe.exe 2>/dev/null | tr -d '\r' | awk '/^shape-geometry.hash/{h=$2} /^shape-geometry.count/{c=$2} /^shape-geometry.predicate-hash/{ph=$2} /^shape-geometry.predicate-count/{pc=$2} /^shape-geometry.vertex-hash/{vh=$2} /^shape-geometry.vertex-count/{vc=$2} END{if (h != "" && ph != "" && vh != "") print h, c, ph, pc, vh, vc}')
+gplant=$(./geom-plant.exe 2>/dev/null | tr -d '\r' | awk '/^shape-geometry.hash/{h=$2} /^shape-geometry.count/{c=$2} /^shape-geometry.predicate-hash/{ph=$2} /^shape-geometry.predicate-count/{pc=$2} /^shape-geometry.vertex-hash/{vh=$2} /^shape-geometry.vertex-count/{vc=$2} END{if (h != "" && ph != "" && vh != "") print h, c, ph, pc, vh, vc}')
+echo "windows (wine) shape-geometry hash: ${ggot:-none}   planted: ${gplant:-none}   committed: $geom_hash $geom_count $geom_pred_hash $geom_pred_count $geom_vertex_hash $geom_vertex_count"
+if [ -n "$ggot" ] && [ "$ggot" = "$geom_hash $geom_count $geom_pred_hash $geom_pred_count $geom_vertex_hash $geom_vertex_count" ]; then
   echo "   ok    win64 prints the committed shape-geometry hash"
 else
   echo "   FAIL  win64 does not print the committed shape-geometry hash"; rc=1
 fi
-if [ -n "$gplant" ] && [ "$gplant" != "$geom_hash $geom_count" ]; then
+if [ -n "$gplant" ] && [ "$gplant" != "$geom_hash $geom_count $geom_pred_hash $geom_pred_count $geom_vertex_hash $geom_vertex_count" ]; then
   echo "   ok    planted: one differing bit in a shape-geometry result on win64 is not the committed hash"
 else
   echo "   FAIL  planted: the win64 shape-geometry probe with a flipped bit still matches (or did not run)"; rc=1
@@ -112,8 +122,8 @@ x86_64-w64-mingw32-gcc $NF "$N/tools/corpus-hash.c" $(find "$N/src" -name '*.c' 
 x86_64-w64-mingw32-gcc $NF -DSHAPE_SCENE_PLANT_BIT "$N/tools/corpus-hash.c" $(find "$N/src" -name '*.c' | sort) $(find "$G/src" -name '*.c' | sort) "$M"/src/elementary/*.c "$C/src/allocator.c" "$C/src/atomic.c" "$K/src/gamut.c" "$I/src/raster.c" "$I/core/allocator.c" -o scene-plant.exe || { echo "shape-win: the planted shape-scene probe did not build" >&2; exit 2; }
 # Strokes story S1: the stroke section's pair is compared with the first.
 # Color-paint story P4 and the placeholder section: the plane's and the placeholders' pairs are read too.
-spick='$1=="shape-scene.hash"{h=$2} $1=="shape-scene.count"{c=$2} $1=="shape-scene.stroke-hash"{sh=$2} $1=="shape-scene.stroke-count"{sc=$2} $1=="shape-scene.plane-hash"{ph=$2} $1=="shape-scene.plane-count"{pc=$2} $1=="shape-scene.placeholder-hash"{kh=$2} $1=="shape-scene.placeholder-count"{kc=$2} END{if (h != "" && sh != "" && ph != "" && kh != "") print h, c, sh, sc, ph, pc, kh, kc}'
-swant="$scene_hash $scene_count $stroke_hash $stroke_count $plane_hash $plane_count $placeholder_hash $placeholder_count"
+spick='$1=="shape-scene.hash"{h=$2} $1=="shape-scene.count"{c=$2} $1=="shape-scene.stroke-hash"{sh=$2} $1=="shape-scene.stroke-count"{sc=$2} $1=="shape-scene.plane-hash"{ph=$2} $1=="shape-scene.plane-count"{pc=$2} $1=="shape-scene.placeholder-hash"{kh=$2} $1=="shape-scene.placeholder-count"{kc=$2} $1=="shape-scene.image-hash"{ih=$2} $1=="shape-scene.image-count"{ic=$2} $1=="shape-scene.image-paint-hash"{mh=$2} $1=="shape-scene.image-paint-count"{mc=$2} END{if (h != "" && sh != "" && ph != "" && kh != "" && ih != "" && mh != "") print h, c, sh, sc, ph, pc, kh, kc, ih, ic, mh, mc}'
+swant="$scene_hash $scene_count $stroke_hash $stroke_count $plane_hash $plane_count $placeholder_hash $placeholder_count $image_hash $image_count $image_paint_hash $image_paint_count"
 sgot=$(./scene-probe.exe 2>/dev/null | tr -d '\r' | awk "$spick")
 splant=$(./scene-plant.exe 2>/dev/null | tr -d '\r' | awk "$spick")
 echo "windows (wine) shape-scene hash: ${sgot:-none}   planted: ${splant:-none}   committed: $swant"
@@ -136,8 +146,8 @@ x86_64-w64-mingw32-gcc $UF "$U/tools/corpus-hash.c" $(find "$U/src" -name '*.c' 
 # shellcheck disable=SC2086
 x86_64-w64-mingw32-gcc $UF -DSHAPE_CPU_PLANT_BIT "$U/tools/corpus-hash.c" $(find "$U/src" -name '*.c' | sort) $(find "$N/src" -name '*.c' | sort) $(find "$G/src" -name '*.c' | sort) "$M"/src/elementary/*.c "$C/src/allocator.c" "$C/src/atomic.c" "$K/src/gamut.c" "$I/src/raster.c" "$I/core/allocator.c" -o cpu-plant.exe || { echo "shape-win: the planted shape-cpu probe did not build" >&2; exit 2; }
 ./cpu-probe.exe 2>/dev/null | tr -d '\r' > cpu-probe.txt
-cwant="$cpu_hash $cpu_count $render_hash $render_count $dense_hash $dense_count"
-cpick='/^shape-cpu.hash/{h=$2} /^shape-cpu.count/{c=$2} /^shape-cpu.render-hash/{rh=$2} /^shape-cpu.render-count/{rc=$2} /^shape-cpu.dense-hash/{dh=$2} /^shape-cpu.dense-count/{dc=$2} END{if (h != "" && rh != "" && dh != "") print h, c, rh, rc, dh, dc}'
+cwant="$cpu_hash $cpu_count $render_hash $render_count $dense_hash $dense_count $fast_hash $fast_count"
+cpick='/^shape-cpu.hash/{h=$2} /^shape-cpu.count/{c=$2} /^shape-cpu.render-hash/{rh=$2} /^shape-cpu.render-count/{rc=$2} /^shape-cpu.dense-hash/{dh=$2} /^shape-cpu.dense-count/{dc=$2} /^shape-cpu.render-fast-hash/{fh=$2} /^shape-cpu.render-fast-count/{fc=$2} END{if (h != "" && rh != "" && dh != "" && fh != "") print h, c, rh, rc, dh, dc, fh, fc}'
 cgot=$(awk "$cpick" cpu-probe.txt)
 cplant=$(./cpu-plant.exe 2>/dev/null | tr -d '\r' | awk "$cpick")
 echo "windows (wine) shape-cpu hashes: ${cgot:-none}   planted: ${cplant:-none}   committed: $cwant"

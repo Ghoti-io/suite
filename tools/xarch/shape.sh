@@ -723,12 +723,20 @@ else
 fi
 gh_hash=$(awk '$1=="hash"{print $2}' "$GEOM/tests/corpus/geometry.hash")
 gh_count=$(awk '$1=="count"{print $2}' "$GEOM/tests/corpus/geometry.hash")
-[ -n "$gh_hash" ] && [ -n "$gh_count" ] || { echo "   FAIL  no committed hash in $GEOM/tests/corpus/geometry.hash"; status=1; }
+# Masks, images and patterns story I2: the predicate section's pair, one of its own beside the first.
+gp_hash=$(awk '$1=="predicate-hash"{print $2}' "$GEOM/tests/corpus/geometry.hash")
+gp_count=$(awk '$1=="predicate-count"{print $2}' "$GEOM/tests/corpus/geometry.hash")
+# Vertices (path vertices and the directions at them): the vertex section's pair, a third.
+gv_hash=$(awk '$1=="vertex-hash"{print $2}' "$GEOM/tests/corpus/geometry.hash")
+gv_count=$(awk '$1=="vertex-count"{print $2}' "$GEOM/tests/corpus/geometry.hash")
+[ -n "$gh_hash" ] && [ -n "$gh_count" ] && [ -n "$gp_hash" ] && [ -n "$gp_count" ] && [ -n "$gv_hash" ] && [ -n "$gv_count" ] \
+  || { echo "   FAIL  a pair is missing from $GEOM/tests/corpus/geometry.hash"; status=1; }
+gh_want="$gh_hash $gh_count $gp_hash $gp_count $gv_hash $gv_count"
 # Story 6: the rotation constructors call math's sine and cosine, so the probe is built with
 # math's sources too (section 4's generated header directory is $mg).
 GFLAGS="-std=c17 -O2 -pedantic-errors -Wall -Wextra -Werror -ffp-contract=off -DGSHGEOM_BUILD -DGMATH_BUILD -I$GEOM/include -I$gg/generated -I$MATH/include -I$mg/generated -I$HERE/shape-stubs"
 
-# geom_run TRIPLE CC QEMU TAG FLAGS... -> prints "HASH COUNT"
+# geom_run TRIPLE CC QEMU TAG FLAGS... -> prints "HASH COUNT PREDICATE_HASH PREDICATE_COUNT VERTEX_HASH VERTEX_COUNT"
 geom_run() {
   local triple=$1 cc=$2 qemu=$3 tag=$4 out
   shift 4
@@ -736,7 +744,9 @@ geom_run() {
   "$cc" $GFLAGS "$@" "$GEOM/tools/corpus-hash.c" $(find "$GEOM/src" -name '*.c' | sort) "$MATH"/src/elementary/*.c \
     "$HERE/shape-stubs/cutil-allocator-stub.c" -o "$B/geom-$tag-$triple" 2> "$B/geom-$tag-$triple.err" || return 1
   xarch_run "$triple" "$qemu" "$B/geom-$tag-$triple" > "$B/geom-$tag-$triple.txt" 2>> "$B/geom-$tag-$triple.err" || return 1
-  awk '/^shape-geometry.hash/{h=$2} /^shape-geometry.count/{c=$2} END{if (h != "") print h, c}' "$B/geom-$tag-$triple.txt"
+  awk '/^shape-geometry.hash/{h=$2} /^shape-geometry.count/{c=$2} /^shape-geometry.predicate-hash/{ph=$2} /^shape-geometry.predicate-count/{pc=$2}
+    /^shape-geometry.vertex-hash/{vh=$2} /^shape-geometry.vertex-count/{vc=$2}
+    END{if (h != "" && ph != "" && vh != "") print h, c, ph, pc, vh, vc}' "$B/geom-$tag-$triple.txt"
 }
 
 declare -A GOK GPLANT
@@ -761,10 +771,10 @@ geom_gate() {
     triple=$(echo "$triple" | tr -d ' ')
     [ -z "$triple" ] && continue
     if [ "$triple" = "$planted" ]; then got=${GPLANT[$triple]:-}; else got=${GOK[$triple]:-}; fi
-    if [ -n "$got" ] && [ "$got" = "$gh_hash $gh_count" ]; then
+    if [ -n "$got" ] && [ "$got" = "$gh_want" ]; then
       printf "   ok    %-22s %s\n" "$triple" "$got"
     else
-      printf "   FAIL  %-22s %s  (want %s %s)\n" "$triple" "${got:-none}" "$gh_hash" "$gh_count"
+      printf "   FAIL  %-22s %s  (want %s)\n" "$triple" "${got:-none}" "$gh_want"
       rc=1
     fi
   done <<EOT2
@@ -778,14 +788,14 @@ geom_gate "" || status=1
 
 echo " b. the controls: the probe sees what the flags prevent"
 gbare=$(geom_run i686-linux-gnu i686-linux-gnu-gcc qemu-i386 bare) || gbare=""
-if [ -n "$gbare" ] && [ "$gbare" != "$gh_hash $gh_count" ]; then
+if [ -n "$gbare" ] && [ "$gbare" != "$gh_want" ]; then
   echo "   ok    i686 without -msse2 -mfpmath=sse prints $gbare, not the committed hash"
 else
   echo "   FAIL  i686 without the SSE flags printed '${gbare:-nothing}': the hash cannot see x87"
   status=1
 fi
 gfused=$(geom_run aarch64-linux-gnu aarch64-linux-gnu-gcc qemu-aarch64 fused -ffp-contract=fast) || gfused=""
-if [ -n "$gfused" ] && [ "$gfused" != "$gh_hash $gh_count" ]; then
+if [ -n "$gfused" ] && [ "$gfused" != "$gh_want" ]; then
   echo "   ok    aarch64 with -ffp-contract=fast prints $gfused, not the committed hash"
 else
   echo "   FAIL  aarch64 with contraction on printed '${gfused:-nothing}': the hash cannot see a fused multiply-add"
@@ -832,7 +842,11 @@ cd_hash=$(awk '$1=="hash"{print $2}' "$CPU/tests/corpus/dense.hash")
 cd_count=$(awk '$1=="count"{print $2}' "$CPU/tests/corpus/dense.hash")
 [ -n "$cd_hash" ] && [ -n "$cd_count" ] || { echo "   FAIL  no committed dense cells in $CPU/tests/corpus/dense.hash"; status=1; }
 # What a probe must print: the coverage part's hash and count, then the renders', then the dense cells' (story 13b, S4c).
-ch_want="$ch_hash $ch_count $cr_hash $cr_count $cd_hash $cd_count"
+# Masks, images and patterns story I3: the fast tiers' renders, a pair of their own (tests/corpus/render-fast.hash).
+cf_hash=$(awk '$1=="hash"{print $2}' "$CPU/tests/corpus/render-fast.hash")
+cf_count=$(awk '$1=="count"{print $2}' "$CPU/tests/corpus/render-fast.hash")
+[ -n "$cf_hash" ] && [ -n "$cf_count" ] || { echo "   FAIL  no committed fast renders in $CPU/tests/corpus/render-fast.hash"; status=1; }
+ch_want="$ch_hash $ch_count $cr_hash $cr_count $cd_hash $cd_count $cf_hash $cf_count"
 # The probe is built with shape-scene's sources (the sink contract and the lists), shape-geometry's (the
 # flattener, the device path, the maps, the hash) and, because those call math, math's; with cutil's real
 # allocator.c and atomic.c (the scene's mutex and counts are cutil's), color's gamut.c and image's raster.c,
@@ -843,7 +857,7 @@ mkdir -p "$B/gen/scene-testing/ghoti.io/shape-scene/testing"
 cp "$ROOT/libs/shape-scene/tests/glyph_test_provider.h" "$B/gen/scene-testing/ghoti.io/shape-scene/testing/"
 CPUFLAGS="-std=c17 -O2 -pedantic-errors -Wall -Wextra -Werror -ffp-contract=off -pthread -DGSHCPU_BUILD -DGSHSCENE_BUILD -DGSHGEOM_BUILD -DGMATH_BUILD -DGCOL_BUILD -DGIMG_BUILD -I$CPU/include -I$gc/generated $CPU_DEP_INCLUDES -I$B/gen/scene-testing -I$GEOM/include -I$gg/generated -I$MATH/include -I$mg/generated"
 
-# cpu_run TRIPLE CC QEMU TAG FLAGS... -> prints "HASH COUNT RENDER-HASH RENDER-COUNT DENSE-HASH DENSE-COUNT"
+# cpu_run TRIPLE CC QEMU TAG FLAGS... -> prints "HASH COUNT RENDER-HASH RENDER-COUNT DENSE-HASH DENSE-COUNT FAST-HASH FAST-COUNT"
 cpu_run() {
   local triple=$1 cc=$2 qemu=$3 tag=$4 out
   shift 4
@@ -855,7 +869,8 @@ cpu_run() {
   xarch_run "$triple" "$qemu" "$B/cpu-$tag-$triple" > "$B/cpu-$tag-$triple.txt" 2>> "$B/cpu-$tag-$triple.err" || return 1
   awk '/^shape-cpu.hash/{h=$2} /^shape-cpu.count/{c=$2} /^shape-cpu.render-hash/{rh=$2} /^shape-cpu.render-count/{rc=$2}
     /^shape-cpu.dense-hash/{dh=$2} /^shape-cpu.dense-count/{dc=$2}
-    END{if (h != "" && rh != "" && dh != "") print h, c, rh, rc, dh, dc}' "$B/cpu-$tag-$triple.txt"
+    /^shape-cpu.render-fast-hash/{fh=$2} /^shape-cpu.render-fast-count/{fc=$2}
+    END{if (h != "" && rh != "" && dh != "" && fh != "") print h, c, rh, rc, dh, dc, fh, fc}' "$B/cpu-$tag-$triple.txt"
 }
 
 declare -A COK CPLANT
@@ -997,13 +1012,20 @@ sk_hash=$(awk '$1=="placeholder-hash"{print $2}' "$SCENE/tests/corpus/scene.hash
 sk_count=$(awk '$1=="placeholder-count"{print $2}' "$SCENE/tests/corpus/scene.hash")
 [ -n "$sh_hash" ] && [ -n "$sh_count" ] && [ -n "$st_hash" ] && [ -n "$st_count" ] && [ -n "$sp_hash" ] && [ -n "$sp_count" ] \
   && [ -n "$sk_hash" ] && [ -n "$sk_count" ] || { echo "   FAIL  a pair is missing from $SCENE/tests/corpus/scene.hash"; status=1; }
-sh_want="$sh_hash $sh_count $st_hash $st_count $sp_hash $sp_count $sk_hash $sk_count"
+# Masks, images and patterns stories I1 and I2: the image section's and the image-paint section's pairs.
+si_hash=$(awk '$1=="image-hash"{print $2}' "$SCENE/tests/corpus/scene.hash")
+si_count=$(awk '$1=="image-count"{print $2}' "$SCENE/tests/corpus/scene.hash")
+sm_hash=$(awk '$1=="image-paint-hash"{print $2}' "$SCENE/tests/corpus/scene.hash")
+sm_count=$(awk '$1=="image-paint-count"{print $2}' "$SCENE/tests/corpus/scene.hash")
+[ -n "$si_hash" ] && [ -n "$si_count" ] && [ -n "$sm_hash" ] && [ -n "$sm_count" ] \
+  || { echo "   FAIL  an image pair is missing from $SCENE/tests/corpus/scene.hash"; status=1; }
+sh_want="$sh_hash $sh_count $st_hash $st_count $sp_hash $sp_count $sk_hash $sk_count $si_hash $si_count $sm_hash $sm_count"
 # The probe is built with shape-scene's sources, shape-geometry's (the paths, the maps, the hash) and, because
 # those call math, math's, and cutil's real allocator.c and atomic.c (the scene's mutex is cutil's header-only GCU_MUTEX_T and its
 # reference counts are cutil's GCU_Atomic_Size, on every target; no stand-in is used here).
 SCFLAGS="-std=c17 -O2 -pedantic-errors -Wall -Wextra -Werror -ffp-contract=off -pthread -DGSHSCENE_BUILD -DGSHGEOM_BUILD -DGMATH_BUILD -DGCOL_BUILD -DGIMG_BUILD -I$SCENE/include -I$gsc/generated -I$GEOM/include -I$gg/generated -I$MATH/include -I$mg/generated -I$ROOT/libs/cutil/include -I$B/gen/cutil/include -I$ROOT/libs/color/include -I$B/gen/color/generated -I$ROOT/libs/image/include -I$B/gen/image/generated"
 
-# scene_run TRIPLE CC QEMU TAG FLAGS... -> prints "HASH COUNT STROKE_HASH STROKE_COUNT PLANE_HASH PLANE_COUNT PLACEHOLDER_HASH PLACEHOLDER_COUNT"
+# scene_run TRIPLE CC QEMU TAG FLAGS... -> prints "HASH COUNT STROKE_HASH STROKE_COUNT PLANE_HASH PLANE_COUNT PLACEHOLDER_HASH PLACEHOLDER_COUNT IMAGE_HASH IMAGE_COUNT IMAGE_PAINT_HASH IMAGE_PAINT_COUNT"
 scene_run() {
   local triple=$1 cc=$2 qemu=$3 tag=$4 out
   shift 4
@@ -1015,7 +1037,9 @@ scene_run() {
   awk '$1=="shape-scene.hash"{h=$2} $1=="shape-scene.count"{c=$2} $1=="shape-scene.stroke-hash"{sh=$2} $1=="shape-scene.stroke-count"{sc=$2}
        $1=="shape-scene.plane-hash"{ph=$2} $1=="shape-scene.plane-count"{pc=$2}
        $1=="shape-scene.placeholder-hash"{kh=$2} $1=="shape-scene.placeholder-count"{kc=$2}
-       END{if (h != "" && sh != "" && ph != "" && kh != "") print h, c, sh, sc, ph, pc, kh, kc}' "$B/scene-$tag-$triple.txt"
+       $1=="shape-scene.image-hash"{ih=$2} $1=="shape-scene.image-count"{ic=$2}
+       $1=="shape-scene.image-paint-hash"{mh=$2} $1=="shape-scene.image-paint-count"{mc=$2}
+       END{if (h != "" && sh != "" && ph != "" && kh != "" && ih != "" && mh != "") print h, c, sh, sc, ph, pc, kh, kc, ih, ic, mh, mc}' "$B/scene-$tag-$triple.txt"
 }
 
 declare -A SOK SPLANT

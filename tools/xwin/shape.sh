@@ -88,6 +88,14 @@ geom_hash=$(awk '$1=="hash"{print $2}' "$GEOM/tests/corpus/geometry.hash")
 geom_count=$(awk '$1=="count"{print $2}' "$GEOM/tests/corpus/geometry.hash")
 [ -n "$geom_hash" ] && [ -n "$geom_count" ] || { echo "shape.sh: no committed shape-geometry hash" >&2; exit 2; }
 echo "committed shape-geometry hash: $geom_hash over $geom_count results"
+# Masks, images and patterns story I2: the predicate section's pair, one of its own beside the first.
+geom_pred_hash=$(awk '$1=="predicate-hash"{print $2}' "$GEOM/tests/corpus/geometry.hash")
+geom_pred_count=$(awk '$1=="predicate-count"{print $2}' "$GEOM/tests/corpus/geometry.hash")
+[ -n "$geom_pred_hash" ] && [ -n "$geom_pred_count" ] || { echo "shape.sh: no committed shape-geometry predicate pair" >&2; exit 2; }
+# The vertex section's pair (path vertices and the directions at them).
+geom_vertex_hash=$(awk '$1=="vertex-hash"{print $2}' "$GEOM/tests/corpus/geometry.hash")
+geom_vertex_count=$(awk '$1=="vertex-count"{print $2}' "$GEOM/tests/corpus/geometry.hash")
+[ -n "$geom_vertex_hash" ] && [ -n "$geom_vertex_count" ] || { echo "shape.sh: no committed shape-geometry vertex pair" >&2; exit 2; }
 # The shape-cpu sources, the fixture set its probe renders and the committed hashes (story 9, and story 13b's
 # renders); it is built with shape-scene's, shape-geometry's and math's, and cutil's, color's and image's parts.
 CPU="$ROOT/libs/shape-cpu"
@@ -99,6 +107,7 @@ cp "$CPU/tools/corpus-hash.c" "$W/cpu/tools/"
 cp "$CPU/tests/render_fixtures.h" "$CPU/tests/corpus/render.hash" "$W/cpu/tests/"
 # Strokes story S4c: the dense cells of the exact union step (the probe includes the vectors) and their committed pair.
 cp "$CPU/tests/dense_vectors.h" "$CPU/tests/corpus/dense.hash" "$W/cpu/tests/"
+cp "$CPU/tests/corpus/render-fast.hash" "$W/cpu/tests/"
 # The fixtures' runs from a font use shape-scene's test glyph provider, at the path shape-scene installs it (story 14a).
 rm -rf "$W/scene-testing"
 mkdir -p "$W/scene-testing/ghoti.io/shape-scene/testing"
@@ -116,6 +125,11 @@ dense_hash=$(awk '$1=="hash"{print $2}' "$CPU/tests/corpus/dense.hash")
 dense_count=$(awk '$1=="count"{print $2}' "$CPU/tests/corpus/dense.hash")
 [ -n "$dense_hash" ] && [ -n "$dense_count" ] || { echo "shape.sh: no committed shape-cpu dense cells" >&2; exit 2; }
 echo "committed shape-cpu dense cells: $dense_hash over $dense_count"
+# Masks, images and patterns story I3: the fast tiers' renders, a pair of their own.
+fast_hash=$(awk '$1=="hash"{print $2}' "$CPU/tests/corpus/render-fast.hash")
+fast_count=$(awk '$1=="count"{print $2}' "$CPU/tests/corpus/render-fast.hash")
+[ -n "$fast_hash" ] && [ -n "$fast_count" ] || { echo "shape.sh: no committed shape-cpu fast renders" >&2; exit 2; }
+echo "committed shape-cpu fast renders: $fast_hash over $fast_count"
 # The shape-scene sources and the committed hash (story 10); it is built with shape-geometry's and math's too.
 SCENE="$ROOT/libs/shape-scene"
 # cutil's real headers, its generated libver_gen.h, allocator.c and atomic.c: the scene's mutex and counts are cutil's.
@@ -158,6 +172,13 @@ plane_hash=$(awk '$1=="plane-hash"{print $2}' "$SCENE/tests/corpus/scene.hash")
 plane_count=$(awk '$1=="plane-count"{print $2}' "$SCENE/tests/corpus/scene.hash")
 placeholder_hash=$(awk '$1=="placeholder-hash"{print $2}' "$SCENE/tests/corpus/scene.hash")
 placeholder_count=$(awk '$1=="placeholder-count"{print $2}' "$SCENE/tests/corpus/scene.hash")
+# Masks, images and patterns stories I1 and I2: the image section's and the image-paint section's pairs.
+image_hash=$(awk '$1=="image-hash"{print $2}' "$SCENE/tests/corpus/scene.hash")
+image_count=$(awk '$1=="image-count"{print $2}' "$SCENE/tests/corpus/scene.hash")
+image_paint_hash=$(awk '$1=="image-paint-hash"{print $2}' "$SCENE/tests/corpus/scene.hash")
+image_paint_count=$(awk '$1=="image-paint-count"{print $2}' "$SCENE/tests/corpus/scene.hash")
+[ -n "$image_hash" ] && [ -n "$image_count" ] && [ -n "$image_paint_hash" ] && [ -n "$image_paint_count" ] \
+  || { echo "shape.sh: an image pair is missing from the committed shape-scene hash" >&2; exit 2; }
 [ -n "$scene_hash" ] && [ -n "$scene_count" ] && [ -n "$stroke_hash" ] && [ -n "$stroke_count" ] && [ -n "$plane_hash" ] && [ -n "$plane_count" ] \
   && [ -n "$placeholder_hash" ] && [ -n "$placeholder_count" ] || { echo "shape.sh: a pair is missing from the committed shape-scene hash" >&2; exit 2; }
 echo "committed shape-scene hash: $scene_hash over $scene_count results; strokes $stroke_hash over $stroke_count; planes $plane_hash over $plane_count; placeholders $placeholder_hash over $placeholder_count"
@@ -196,4 +217,4 @@ font_stroke_hash=$(awk '$1=="stroke-hash"{print $2}' "$FONT/tests/data/golden/sc
 font_stroke_count=$(awk '$1=="stroke-count"{print $2}' "$FONT/tests/data/golden/scene.hash")
 [ -n "$font_stroke_hash" ] && [ -n "$font_stroke_count" ] || { echo "shape.sh: no committed font stroked-text pair" >&2; exit 2; }
 echo "committed font provider hash: $font_hash over $font_count renders; stroked text $font_stroke_hash over $font_stroke_count"
-"$HERE/m1-win.sh" "$W" "bash /tools/xwin/shape-win.sh $want $math_hash $math_count $geom_hash $geom_count $cpu_hash $cpu_count $scene_hash $scene_count $render_hash $render_count $font_hash $font_count $stroke_hash $stroke_count $plane_hash $plane_count $placeholder_hash $placeholder_count $dense_hash $dense_count $font_stroke_hash $font_stroke_count"
+"$HERE/m1-win.sh" "$W" "bash /tools/xwin/shape-win.sh $want $math_hash $math_count $geom_hash $geom_count $cpu_hash $cpu_count $scene_hash $scene_count $render_hash $render_count $font_hash $font_count $stroke_hash $stroke_count $plane_hash $plane_count $placeholder_hash $placeholder_count $dense_hash $dense_count $font_stroke_hash $font_stroke_count $geom_pred_hash $geom_pred_count $fast_hash $fast_count $image_hash $image_count $image_paint_hash $image_paint_count $geom_vertex_hash $geom_vertex_count"
