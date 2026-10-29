@@ -36,6 +36,8 @@ image_paint_hash=${30:?usage: as above}
 image_paint_count=${31:?usage: as above}
 geom_vertex_hash=${32:?usage: as above, GEOM_VERTEX_HASH GEOM_VERTEX_COUNT}
 geom_vertex_count=${33:?usage: as above}
+mask_hash=${34:?usage: as above, MASK_HASH MASK_COUNT}
+mask_count=${35:?usage: as above}
 P=/tools/xarch/shape-hash-probe.c
 cd /w || exit 2
 
@@ -122,8 +124,8 @@ x86_64-w64-mingw32-gcc $NF "$N/tools/corpus-hash.c" $(find "$N/src" -name '*.c' 
 x86_64-w64-mingw32-gcc $NF -DSHAPE_SCENE_PLANT_BIT "$N/tools/corpus-hash.c" $(find "$N/src" -name '*.c' | sort) $(find "$G/src" -name '*.c' | sort) "$M"/src/elementary/*.c "$C/src/allocator.c" "$C/src/atomic.c" "$K/src/gamut.c" "$I/src/raster.c" "$I/core/allocator.c" -o scene-plant.exe || { echo "shape-win: the planted shape-scene probe did not build" >&2; exit 2; }
 # Strokes story S1: the stroke section's pair is compared with the first.
 # Color-paint story P4 and the placeholder section: the plane's and the placeholders' pairs are read too.
-spick='$1=="shape-scene.hash"{h=$2} $1=="shape-scene.count"{c=$2} $1=="shape-scene.stroke-hash"{sh=$2} $1=="shape-scene.stroke-count"{sc=$2} $1=="shape-scene.plane-hash"{ph=$2} $1=="shape-scene.plane-count"{pc=$2} $1=="shape-scene.placeholder-hash"{kh=$2} $1=="shape-scene.placeholder-count"{kc=$2} $1=="shape-scene.image-hash"{ih=$2} $1=="shape-scene.image-count"{ic=$2} $1=="shape-scene.image-paint-hash"{mh=$2} $1=="shape-scene.image-paint-count"{mc=$2} END{if (h != "" && sh != "" && ph != "" && kh != "" && ih != "" && mh != "") print h, c, sh, sc, ph, pc, kh, kc, ih, ic, mh, mc}'
-swant="$scene_hash $scene_count $stroke_hash $stroke_count $plane_hash $plane_count $placeholder_hash $placeholder_count $image_hash $image_count $image_paint_hash $image_paint_count"
+spick='$1=="shape-scene.hash"{h=$2} $1=="shape-scene.count"{c=$2} $1=="shape-scene.stroke-hash"{sh=$2} $1=="shape-scene.stroke-count"{sc=$2} $1=="shape-scene.plane-hash"{ph=$2} $1=="shape-scene.plane-count"{pc=$2} $1=="shape-scene.placeholder-hash"{kh=$2} $1=="shape-scene.placeholder-count"{kc=$2} $1=="shape-scene.image-hash"{ih=$2} $1=="shape-scene.image-count"{ic=$2} $1=="shape-scene.image-paint-hash"{mh=$2} $1=="shape-scene.image-paint-count"{mc=$2} $1=="shape-scene.mask-hash"{xh=$2} $1=="shape-scene.mask-count"{xc=$2} END{if (h != "" && sh != "" && ph != "" && kh != "" && ih != "" && mh != "" && xh != "") print h, c, sh, sc, ph, pc, kh, kc, ih, ic, mh, mc, xh, xc}'
+swant="$scene_hash $scene_count $stroke_hash $stroke_count $plane_hash $plane_count $placeholder_hash $placeholder_count $image_hash $image_count $image_paint_hash $image_paint_count $mask_hash $mask_count"
 sgot=$(./scene-probe.exe 2>/dev/null | tr -d '\r' | awk "$spick")
 splant=$(./scene-plant.exe 2>/dev/null | tr -d '\r' | awk "$spick")
 echo "windows (wine) shape-scene hash: ${sgot:-none}   planted: ${splant:-none}   committed: $swant"

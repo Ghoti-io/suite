@@ -172,13 +172,15 @@ plane_hash=$(awk '$1=="plane-hash"{print $2}' "$SCENE/tests/corpus/scene.hash")
 plane_count=$(awk '$1=="plane-count"{print $2}' "$SCENE/tests/corpus/scene.hash")
 placeholder_hash=$(awk '$1=="placeholder-hash"{print $2}' "$SCENE/tests/corpus/scene.hash")
 placeholder_count=$(awk '$1=="placeholder-count"{print $2}' "$SCENE/tests/corpus/scene.hash")
-# Masks, images and patterns stories I1 and I2: the image section's and the image-paint section's pairs.
+# Masks, images and patterns stories I1, I2 and M1: the image section's, the image-paint section's and the mask section's pairs.
 image_hash=$(awk '$1=="image-hash"{print $2}' "$SCENE/tests/corpus/scene.hash")
 image_count=$(awk '$1=="image-count"{print $2}' "$SCENE/tests/corpus/scene.hash")
 image_paint_hash=$(awk '$1=="image-paint-hash"{print $2}' "$SCENE/tests/corpus/scene.hash")
 image_paint_count=$(awk '$1=="image-paint-count"{print $2}' "$SCENE/tests/corpus/scene.hash")
-[ -n "$image_hash" ] && [ -n "$image_count" ] && [ -n "$image_paint_hash" ] && [ -n "$image_paint_count" ] \
-  || { echo "shape.sh: an image pair is missing from the committed shape-scene hash" >&2; exit 2; }
+mask_hash=$(awk '$1=="mask-hash"{print $2}' "$SCENE/tests/corpus/scene.hash")
+mask_count=$(awk '$1=="mask-count"{print $2}' "$SCENE/tests/corpus/scene.hash")
+[ -n "$image_hash" ] && [ -n "$image_count" ] && [ -n "$image_paint_hash" ] && [ -n "$image_paint_count" ] && [ -n "$mask_hash" ] && [ -n "$mask_count" ] \
+  || { echo "shape.sh: an image or mask pair is missing from the committed shape-scene hash" >&2; exit 2; }
 [ -n "$scene_hash" ] && [ -n "$scene_count" ] && [ -n "$stroke_hash" ] && [ -n "$stroke_count" ] && [ -n "$plane_hash" ] && [ -n "$plane_count" ] \
   && [ -n "$placeholder_hash" ] && [ -n "$placeholder_count" ] || { echo "shape.sh: a pair is missing from the committed shape-scene hash" >&2; exit 2; }
 echo "committed shape-scene hash: $scene_hash over $scene_count results; strokes $stroke_hash over $stroke_count; planes $plane_hash over $plane_count; placeholders $placeholder_hash over $placeholder_count"
@@ -217,4 +219,4 @@ font_stroke_hash=$(awk '$1=="stroke-hash"{print $2}' "$FONT/tests/data/golden/sc
 font_stroke_count=$(awk '$1=="stroke-count"{print $2}' "$FONT/tests/data/golden/scene.hash")
 [ -n "$font_stroke_hash" ] && [ -n "$font_stroke_count" ] || { echo "shape.sh: no committed font stroked-text pair" >&2; exit 2; }
 echo "committed font provider hash: $font_hash over $font_count renders; stroked text $font_stroke_hash over $font_stroke_count"
-"$HERE/m1-win.sh" "$W" "bash /tools/xwin/shape-win.sh $want $math_hash $math_count $geom_hash $geom_count $cpu_hash $cpu_count $scene_hash $scene_count $render_hash $render_count $font_hash $font_count $stroke_hash $stroke_count $plane_hash $plane_count $placeholder_hash $placeholder_count $dense_hash $dense_count $font_stroke_hash $font_stroke_count $geom_pred_hash $geom_pred_count $fast_hash $fast_count $image_hash $image_count $image_paint_hash $image_paint_count $geom_vertex_hash $geom_vertex_count"
+"$HERE/m1-win.sh" "$W" "bash /tools/xwin/shape-win.sh $want $math_hash $math_count $geom_hash $geom_count $cpu_hash $cpu_count $scene_hash $scene_count $render_hash $render_count $font_hash $font_count $stroke_hash $stroke_count $plane_hash $plane_count $placeholder_hash $placeholder_count $dense_hash $dense_count $font_stroke_hash $font_stroke_count $geom_pred_hash $geom_pred_count $fast_hash $fast_count $image_hash $image_count $image_paint_hash $image_paint_count $geom_vertex_hash $geom_vertex_count $mask_hash $mask_count"

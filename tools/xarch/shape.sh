@@ -107,8 +107,9 @@
 #      pair (stroke styles read back canonical, SK10's bounds under composed
 #      maps, strokes' notices and features, renders by sinks that draw, expand
 #      or refuse them, a retained scene's diff of stroke nodes), a plane section
-#      (color-paint story P4) and a placeholder section, each a pair of its own: all
-#      four pairs of scene.hash are read and must be printed.  The maps
+#      (color-paint story P4) and a placeholder section, each a pair of its own (and,
+#      since masks-images-patterns stories I1, I2 and M1, an image, an image-paint and a mask
+#      section): every pair of scene.hash is read and must be printed.  The maps
 #      are the composition of two general maps with entries over 1000, so their
 #      entries are sums of two products of inexact doubles:
 #      the two controls of section 4 (i686 without SSE, aarch64 with contraction
@@ -1012,20 +1013,22 @@ sk_hash=$(awk '$1=="placeholder-hash"{print $2}' "$SCENE/tests/corpus/scene.hash
 sk_count=$(awk '$1=="placeholder-count"{print $2}' "$SCENE/tests/corpus/scene.hash")
 [ -n "$sh_hash" ] && [ -n "$sh_count" ] && [ -n "$st_hash" ] && [ -n "$st_count" ] && [ -n "$sp_hash" ] && [ -n "$sp_count" ] \
   && [ -n "$sk_hash" ] && [ -n "$sk_count" ] || { echo "   FAIL  a pair is missing from $SCENE/tests/corpus/scene.hash"; status=1; }
-# Masks, images and patterns stories I1 and I2: the image section's and the image-paint section's pairs.
+# Masks, images and patterns stories I1, I2 and M1: the image section's, the image-paint section's and the mask section's pairs.
 si_hash=$(awk '$1=="image-hash"{print $2}' "$SCENE/tests/corpus/scene.hash")
 si_count=$(awk '$1=="image-count"{print $2}' "$SCENE/tests/corpus/scene.hash")
 sm_hash=$(awk '$1=="image-paint-hash"{print $2}' "$SCENE/tests/corpus/scene.hash")
 sm_count=$(awk '$1=="image-paint-count"{print $2}' "$SCENE/tests/corpus/scene.hash")
-[ -n "$si_hash" ] && [ -n "$si_count" ] && [ -n "$sm_hash" ] && [ -n "$sm_count" ] \
-  || { echo "   FAIL  an image pair is missing from $SCENE/tests/corpus/scene.hash"; status=1; }
-sh_want="$sh_hash $sh_count $st_hash $st_count $sp_hash $sp_count $sk_hash $sk_count $si_hash $si_count $sm_hash $sm_count"
+sx_hash=$(awk '$1=="mask-hash"{print $2}' "$SCENE/tests/corpus/scene.hash")
+sx_count=$(awk '$1=="mask-count"{print $2}' "$SCENE/tests/corpus/scene.hash")
+[ -n "$si_hash" ] && [ -n "$si_count" ] && [ -n "$sm_hash" ] && [ -n "$sm_count" ] && [ -n "$sx_hash" ] && [ -n "$sx_count" ] \
+  || { echo "   FAIL  an image or mask pair is missing from $SCENE/tests/corpus/scene.hash"; status=1; }
+sh_want="$sh_hash $sh_count $st_hash $st_count $sp_hash $sp_count $sk_hash $sk_count $si_hash $si_count $sm_hash $sm_count $sx_hash $sx_count"
 # The probe is built with shape-scene's sources, shape-geometry's (the paths, the maps, the hash) and, because
 # those call math, math's, and cutil's real allocator.c and atomic.c (the scene's mutex is cutil's header-only GCU_MUTEX_T and its
 # reference counts are cutil's GCU_Atomic_Size, on every target; no stand-in is used here).
 SCFLAGS="-std=c17 -O2 -pedantic-errors -Wall -Wextra -Werror -ffp-contract=off -pthread -DGSHSCENE_BUILD -DGSHGEOM_BUILD -DGMATH_BUILD -DGCOL_BUILD -DGIMG_BUILD -I$SCENE/include -I$gsc/generated -I$GEOM/include -I$gg/generated -I$MATH/include -I$mg/generated -I$ROOT/libs/cutil/include -I$B/gen/cutil/include -I$ROOT/libs/color/include -I$B/gen/color/generated -I$ROOT/libs/image/include -I$B/gen/image/generated"
 
-# scene_run TRIPLE CC QEMU TAG FLAGS... -> prints "HASH COUNT STROKE_HASH STROKE_COUNT PLANE_HASH PLANE_COUNT PLACEHOLDER_HASH PLACEHOLDER_COUNT IMAGE_HASH IMAGE_COUNT IMAGE_PAINT_HASH IMAGE_PAINT_COUNT"
+# scene_run TRIPLE CC QEMU TAG FLAGS... -> prints "HASH COUNT STROKE_HASH STROKE_COUNT PLANE_HASH PLANE_COUNT PLACEHOLDER_HASH PLACEHOLDER_COUNT IMAGE_HASH IMAGE_COUNT IMAGE_PAINT_HASH IMAGE_PAINT_COUNT MASK_HASH MASK_COUNT"
 scene_run() {
   local triple=$1 cc=$2 qemu=$3 tag=$4 out
   shift 4
@@ -1039,7 +1042,8 @@ scene_run() {
        $1=="shape-scene.placeholder-hash"{kh=$2} $1=="shape-scene.placeholder-count"{kc=$2}
        $1=="shape-scene.image-hash"{ih=$2} $1=="shape-scene.image-count"{ic=$2}
        $1=="shape-scene.image-paint-hash"{mh=$2} $1=="shape-scene.image-paint-count"{mc=$2}
-       END{if (h != "" && sh != "" && ph != "" && kh != "" && ih != "" && mh != "") print h, c, sh, sc, ph, pc, kh, kc, ih, ic, mh, mc}' "$B/scene-$tag-$triple.txt"
+       $1=="shape-scene.mask-hash"{xh=$2} $1=="shape-scene.mask-count"{xc=$2}
+       END{if (h != "" && sh != "" && ph != "" && kh != "" && ih != "" && mh != "" && xh != "") print h, c, sh, sc, ph, pc, kh, kc, ih, ic, mh, mc, xh, xc}' "$B/scene-$tag-$triple.txt"
 }
 
 declare -A SOK SPLANT
