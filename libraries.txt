@@ -18,8 +18,8 @@ chron      https://github.com/Ghoti-io/chron.git      master cutil
 compress   https://github.com/Ghoti-io/compress.git   master cutil,security
 math       https://github.com/Ghoti-io/math.git       master cutil
 regex      https://github.com/Ghoti-io/regex.git      master cutil,unicode,?text
-text       https://github.com/Ghoti-io/text.git       master cutil,security,chron,unicode,regex,math
 color      https://github.com/Ghoti-io/color.git      master cutil,security
+text       https://github.com/Ghoti-io/text.git       master cutil,security,chron,unicode,regex,math,?color
 image      https://github.com/Ghoti-io/image.git      master cutil,compress,color
 shape-geometry https://github.com/Ghoti-io/shape-geometry.git master cutil,math
 shape-scene https://github.com/Ghoti-io/shape-scene.git master cutil,color,math,image,shape-geometry
