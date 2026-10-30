@@ -106,6 +106,7 @@ geom_conic_count=$(awk '$1=="conic-count"{print $2}' "$GEOM/tests/corpus/geometr
 # Named primitives story A2: shape-geometry's shapes pair and shape-scene's primitive pair.
 geom_shapes_hash=$(awk '$1=="shapes-hash"{print $2}' "$GEOM/tests/corpus/geometry.hash")
 geom_shapes_count=$(awk '$1=="shapes-count"{print $2}' "$GEOM/tests/corpus/geometry.hash")
+SCENE="$ROOT/libs/shape-scene"
 prim_hash=$(awk '$1=="primitive-hash"{print $2}' "$SCENE/tests/corpus/scene.hash")
 prim_count=$(awk '$1=="primitive-count"{print $2}' "$SCENE/tests/corpus/scene.hash")
 [ -n "$geom_shapes_hash" ] && [ -n "$geom_shapes_count" ] && [ -n "$prim_hash" ] && [ -n "$prim_count" ] \
