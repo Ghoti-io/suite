@@ -103,6 +103,13 @@ geom_arc_vertex_hash=$(awk '$1=="arc-vertex-hash"{print $2}' "$GEOM/tests/corpus
 geom_arc_vertex_count=$(awk '$1=="arc-vertex-count"{print $2}' "$GEOM/tests/corpus/geometry.hash")
 geom_conic_hash=$(awk '$1=="conic-hash"{print $2}' "$GEOM/tests/corpus/geometry.hash")
 geom_conic_count=$(awk '$1=="conic-count"{print $2}' "$GEOM/tests/corpus/geometry.hash")
+# Named primitives story A2: shape-geometry's shapes pair and shape-scene's primitive pair.
+geom_shapes_hash=$(awk '$1=="shapes-hash"{print $2}' "$GEOM/tests/corpus/geometry.hash")
+geom_shapes_count=$(awk '$1=="shapes-count"{print $2}' "$GEOM/tests/corpus/geometry.hash")
+prim_hash=$(awk '$1=="primitive-hash"{print $2}' "$SCENE/tests/corpus/scene.hash")
+prim_count=$(awk '$1=="primitive-count"{print $2}' "$SCENE/tests/corpus/scene.hash")
+[ -n "$geom_shapes_hash" ] && [ -n "$geom_shapes_count" ] && [ -n "$prim_hash" ] && [ -n "$prim_count" ] \
+  || { echo "shape.sh: no committed shapes or primitive pair" >&2; exit 2; }
 [ -n "$geom_arc_hash" ] && [ -n "$geom_arc_count" ] && [ -n "$geom_arc_vertex_hash" ] && [ -n "$geom_arc_vertex_count" ] \
   && [ -n "$geom_conic_hash" ] && [ -n "$geom_conic_count" ] || { echo "shape.sh: no committed shape-geometry arc, arc-vertex or conic pair" >&2; exit 2; }
 # The shape-cpu sources, the fixture set its probe renders and the committed hashes (story 9, and story 13b's
@@ -228,4 +235,4 @@ font_stroke_hash=$(awk '$1=="stroke-hash"{print $2}' "$FONT/tests/data/golden/sc
 font_stroke_count=$(awk '$1=="stroke-count"{print $2}' "$FONT/tests/data/golden/scene.hash")
 [ -n "$font_stroke_hash" ] && [ -n "$font_stroke_count" ] || { echo "shape.sh: no committed font stroked-text pair" >&2; exit 2; }
 echo "committed font provider hash: $font_hash over $font_count renders; stroked text $font_stroke_hash over $font_stroke_count"
-"$HERE/m1-win.sh" "$W" "bash /tools/xwin/shape-win.sh $want $math_hash $math_count $geom_hash $geom_count $cpu_hash $cpu_count $scene_hash $scene_count $render_hash $render_count $font_hash $font_count $stroke_hash $stroke_count $plane_hash $plane_count $placeholder_hash $placeholder_count $dense_hash $dense_count $font_stroke_hash $font_stroke_count $geom_pred_hash $geom_pred_count $fast_hash $fast_count $image_hash $image_count $image_paint_hash $image_paint_count $geom_vertex_hash $geom_vertex_count $mask_hash $mask_count $geom_arc_hash $geom_arc_count $geom_arc_vertex_hash $geom_arc_vertex_count $geom_conic_hash $geom_conic_count"
+"$HERE/m1-win.sh" "$W" "bash /tools/xwin/shape-win.sh $want $math_hash $math_count $geom_hash $geom_count $cpu_hash $cpu_count $scene_hash $scene_count $render_hash $render_count $font_hash $font_count $stroke_hash $stroke_count $plane_hash $plane_count $placeholder_hash $placeholder_count $dense_hash $dense_count $font_stroke_hash $font_stroke_count $geom_pred_hash $geom_pred_count $fast_hash $fast_count $image_hash $image_count $image_paint_hash $image_paint_count $geom_vertex_hash $geom_vertex_count $mask_hash $mask_count $geom_arc_hash $geom_arc_count $geom_arc_vertex_hash $geom_arc_vertex_count $geom_conic_hash $geom_conic_count $geom_shapes_hash $geom_shapes_count $prim_hash $prim_count"

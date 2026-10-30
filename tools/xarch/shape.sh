@@ -738,15 +738,18 @@ gw_hash=$(awk '$1=="arc-vertex-hash"{print $2}' "$GEOM/tests/corpus/geometry.has
 gw_count=$(awk '$1=="arc-vertex-count"{print $2}' "$GEOM/tests/corpus/geometry.hash")
 gk_hash=$(awk '$1=="conic-hash"{print $2}' "$GEOM/tests/corpus/geometry.hash")
 gk_count=$(awk '$1=="conic-count"{print $2}' "$GEOM/tests/corpus/geometry.hash")
+# Named primitives story A2: the shapes section's pair (rect, rounded rect and ellipse with every flip pair, and the refusals).
+gs_hash=$(awk '$1=="shapes-hash"{print $2}' "$GEOM/tests/corpus/geometry.hash")
+gs_count=$(awk '$1=="shapes-count"{print $2}' "$GEOM/tests/corpus/geometry.hash")
 [ -n "$gh_hash" ] && [ -n "$gh_count" ] && [ -n "$gp_hash" ] && [ -n "$gp_count" ] && [ -n "$gv_hash" ] && [ -n "$gv_count" ] \
-  && [ -n "$ga_hash" ] && [ -n "$ga_count" ] && [ -n "$gw_hash" ] && [ -n "$gw_count" ] && [ -n "$gk_hash" ] && [ -n "$gk_count" ] \
+  && [ -n "$ga_hash" ] && [ -n "$ga_count" ] && [ -n "$gw_hash" ] && [ -n "$gw_count" ] && [ -n "$gk_hash" ] && [ -n "$gk_count" ] && [ -n "$gs_hash" ] && [ -n "$gs_count" ] \
   || { echo "   FAIL  a pair is missing from $GEOM/tests/corpus/geometry.hash"; status=1; }
-gh_want="$gh_hash $gh_count $gp_hash $gp_count $gv_hash $gv_count $ga_hash $ga_count $gw_hash $gw_count $gk_hash $gk_count"
+gh_want="$gh_hash $gh_count $gp_hash $gp_count $gv_hash $gv_count $ga_hash $ga_count $gw_hash $gw_count $gk_hash $gk_count $gs_hash $gs_count"
 # Story 6: the rotation constructors call math's sine and cosine, so the probe is built with
 # math's sources too (section 4's generated header directory is $mg).
 GFLAGS="-std=c17 -O2 -pedantic-errors -Wall -Wextra -Werror -ffp-contract=off -DGSHGEOM_BUILD -DGMATH_BUILD -I$GEOM/include -I$gg/generated -I$MATH/include -I$mg/generated -I$HERE/shape-stubs"
 
-# geom_run TRIPLE CC QEMU TAG FLAGS... -> prints "HASH COUNT PREDICATE_HASH PREDICATE_COUNT VERTEX_HASH VERTEX_COUNT ARC_HASH ARC_COUNT ARC_VERTEX_HASH ARC_VERTEX_COUNT CONIC_HASH CONIC_COUNT"
+# geom_run TRIPLE CC QEMU TAG FLAGS... -> prints "HASH COUNT PREDICATE_HASH PREDICATE_COUNT VERTEX_HASH VERTEX_COUNT ARC_HASH ARC_COUNT ARC_VERTEX_HASH ARC_VERTEX_COUNT CONIC_HASH CONIC_COUNT SHAPES_HASH SHAPES_COUNT"
 geom_run() {
   local triple=$1 cc=$2 qemu=$3 tag=$4 out
   shift 4
@@ -759,7 +762,8 @@ geom_run() {
     /^shape-geometry.arc-hash/{ah=$2} /^shape-geometry.arc-count/{ac=$2}
     /^shape-geometry.arc-vertex-hash/{wh=$2} /^shape-geometry.arc-vertex-count/{wc=$2}
     /^shape-geometry.conic-hash/{kh=$2} /^shape-geometry.conic-count/{kc=$2}
-    END{if (h != "" && ph != "" && vh != "" && ah != "" && wh != "" && kh != "") print h, c, ph, pc, vh, vc, ah, ac, wh, wc, kh, kc}' "$B/geom-$tag-$triple.txt"
+    /^shape-geometry.shapes-hash/{sh=$2} /^shape-geometry.shapes-count/{sc=$2}
+    END{if (h != "" && ph != "" && vh != "" && ah != "" && wh != "" && kh != "" && sh != "") print h, c, ph, pc, vh, vc, ah, ac, wh, wc, kh, kc, sh, sc}' "$B/geom-$tag-$triple.txt"
 }
 
 declare -A GOK GPLANT
@@ -1032,15 +1036,18 @@ sm_hash=$(awk '$1=="image-paint-hash"{print $2}' "$SCENE/tests/corpus/scene.hash
 sm_count=$(awk '$1=="image-paint-count"{print $2}' "$SCENE/tests/corpus/scene.hash")
 sx_hash=$(awk '$1=="mask-hash"{print $2}' "$SCENE/tests/corpus/scene.hash")
 sx_count=$(awk '$1=="mask-count"{print $2}' "$SCENE/tests/corpus/scene.hash")
-[ -n "$si_hash" ] && [ -n "$si_count" ] && [ -n "$sm_hash" ] && [ -n "$sm_count" ] && [ -n "$sx_hash" ] && [ -n "$sx_count" ] \
-  || { echo "   FAIL  an image or mask pair is missing from $SCENE/tests/corpus/scene.hash"; status=1; }
-sh_want="$sh_hash $sh_count $st_hash $st_count $sp_hash $sp_count $sk_hash $sk_count $si_hash $si_count $sm_hash $sm_count $sx_hash $sx_count"
+# Named primitives story A2: the primitives section's pair (primitives of every kind and flip pair through the store, paths of arcs).
+sr_hash=$(awk '$1=="primitive-hash"{print $2}' "$SCENE/tests/corpus/scene.hash")
+sr_count=$(awk '$1=="primitive-count"{print $2}' "$SCENE/tests/corpus/scene.hash")
+[ -n "$si_hash" ] && [ -n "$si_count" ] && [ -n "$sm_hash" ] && [ -n "$sm_count" ] && [ -n "$sx_hash" ] && [ -n "$sx_count" ] && [ -n "$sr_hash" ] && [ -n "$sr_count" ] \
+  || { echo "   FAIL  an image, mask or primitive pair is missing from $SCENE/tests/corpus/scene.hash"; status=1; }
+sh_want="$sh_hash $sh_count $st_hash $st_count $sp_hash $sp_count $sk_hash $sk_count $si_hash $si_count $sm_hash $sm_count $sx_hash $sx_count $sr_hash $sr_count"
 # The probe is built with shape-scene's sources, shape-geometry's (the paths, the maps, the hash) and, because
 # those call math, math's, and cutil's real allocator.c and atomic.c (the scene's mutex is cutil's header-only GCU_MUTEX_T and its
 # reference counts are cutil's GCU_Atomic_Size, on every target; no stand-in is used here).
 SCFLAGS="-std=c17 -O2 -pedantic-errors -Wall -Wextra -Werror -ffp-contract=off -pthread -DGSHSCENE_BUILD -DGSHGEOM_BUILD -DGMATH_BUILD -DGCOL_BUILD -DGIMG_BUILD -I$SCENE/include -I$gsc/generated -I$GEOM/include -I$gg/generated -I$MATH/include -I$mg/generated -I$ROOT/libs/cutil/include -I$B/gen/cutil/include -I$ROOT/libs/color/include -I$B/gen/color/generated -I$ROOT/libs/image/include -I$B/gen/image/generated"
 
-# scene_run TRIPLE CC QEMU TAG FLAGS... -> prints "HASH COUNT STROKE_HASH STROKE_COUNT PLANE_HASH PLANE_COUNT PLACEHOLDER_HASH PLACEHOLDER_COUNT IMAGE_HASH IMAGE_COUNT IMAGE_PAINT_HASH IMAGE_PAINT_COUNT MASK_HASH MASK_COUNT"
+# scene_run TRIPLE CC QEMU TAG FLAGS... -> prints "HASH COUNT STROKE_HASH STROKE_COUNT PLANE_HASH PLANE_COUNT PLACEHOLDER_HASH PLACEHOLDER_COUNT IMAGE_HASH IMAGE_COUNT IMAGE_PAINT_HASH IMAGE_PAINT_COUNT MASK_HASH MASK_COUNT PRIMITIVE_HASH PRIMITIVE_COUNT"
 scene_run() {
   local triple=$1 cc=$2 qemu=$3 tag=$4 out
   shift 4
@@ -1055,7 +1062,8 @@ scene_run() {
        $1=="shape-scene.image-hash"{ih=$2} $1=="shape-scene.image-count"{ic=$2}
        $1=="shape-scene.image-paint-hash"{mh=$2} $1=="shape-scene.image-paint-count"{mc=$2}
        $1=="shape-scene.mask-hash"{xh=$2} $1=="shape-scene.mask-count"{xc=$2}
-       END{if (h != "" && sh != "" && ph != "" && kh != "" && ih != "" && mh != "" && xh != "") print h, c, sh, sc, ph, pc, kh, kc, ih, ic, mh, mc, xh, xc}' "$B/scene-$tag-$triple.txt"
+       $1=="shape-scene.primitive-hash"{rh=$2} $1=="shape-scene.primitive-count"{rc=$2}
+       END{if (h != "" && sh != "" && ph != "" && kh != "" && ih != "" && mh != "" && xh != "" && rh != "") print h, c, sh, sc, ph, pc, kh, kc, ih, ic, mh, mc, xh, xc, rh, rc}' "$B/scene-$tag-$triple.txt"
 }
 
 declare -A SOK SPLANT
