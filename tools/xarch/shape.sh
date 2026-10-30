@@ -730,14 +730,23 @@ gp_count=$(awk '$1=="predicate-count"{print $2}' "$GEOM/tests/corpus/geometry.ha
 # Vertices (path vertices and the directions at them): the vertex section's pair, a third.
 gv_hash=$(awk '$1=="vertex-hash"{print $2}' "$GEOM/tests/corpus/geometry.hash")
 gv_count=$(awk '$1=="vertex-count"{print $2}' "$GEOM/tests/corpus/geometry.hash")
+# Exact arcs story A1: the arc section's pair (arcs from every constructor and their pieces), the arc-vertex section's pair
+# (the vertices of paths that hold arcs) and the conic section's pair (the conic route of rational curves and arcs).
+ga_hash=$(awk '$1=="arc-hash"{print $2}' "$GEOM/tests/corpus/geometry.hash")
+ga_count=$(awk '$1=="arc-count"{print $2}' "$GEOM/tests/corpus/geometry.hash")
+gw_hash=$(awk '$1=="arc-vertex-hash"{print $2}' "$GEOM/tests/corpus/geometry.hash")
+gw_count=$(awk '$1=="arc-vertex-count"{print $2}' "$GEOM/tests/corpus/geometry.hash")
+gk_hash=$(awk '$1=="conic-hash"{print $2}' "$GEOM/tests/corpus/geometry.hash")
+gk_count=$(awk '$1=="conic-count"{print $2}' "$GEOM/tests/corpus/geometry.hash")
 [ -n "$gh_hash" ] && [ -n "$gh_count" ] && [ -n "$gp_hash" ] && [ -n "$gp_count" ] && [ -n "$gv_hash" ] && [ -n "$gv_count" ] \
+  && [ -n "$ga_hash" ] && [ -n "$ga_count" ] && [ -n "$gw_hash" ] && [ -n "$gw_count" ] && [ -n "$gk_hash" ] && [ -n "$gk_count" ] \
   || { echo "   FAIL  a pair is missing from $GEOM/tests/corpus/geometry.hash"; status=1; }
-gh_want="$gh_hash $gh_count $gp_hash $gp_count $gv_hash $gv_count"
+gh_want="$gh_hash $gh_count $gp_hash $gp_count $gv_hash $gv_count $ga_hash $ga_count $gw_hash $gw_count $gk_hash $gk_count"
 # Story 6: the rotation constructors call math's sine and cosine, so the probe is built with
 # math's sources too (section 4's generated header directory is $mg).
 GFLAGS="-std=c17 -O2 -pedantic-errors -Wall -Wextra -Werror -ffp-contract=off -DGSHGEOM_BUILD -DGMATH_BUILD -I$GEOM/include -I$gg/generated -I$MATH/include -I$mg/generated -I$HERE/shape-stubs"
 
-# geom_run TRIPLE CC QEMU TAG FLAGS... -> prints "HASH COUNT PREDICATE_HASH PREDICATE_COUNT VERTEX_HASH VERTEX_COUNT"
+# geom_run TRIPLE CC QEMU TAG FLAGS... -> prints "HASH COUNT PREDICATE_HASH PREDICATE_COUNT VERTEX_HASH VERTEX_COUNT ARC_HASH ARC_COUNT ARC_VERTEX_HASH ARC_VERTEX_COUNT CONIC_HASH CONIC_COUNT"
 geom_run() {
   local triple=$1 cc=$2 qemu=$3 tag=$4 out
   shift 4
@@ -747,7 +756,10 @@ geom_run() {
   xarch_run "$triple" "$qemu" "$B/geom-$tag-$triple" > "$B/geom-$tag-$triple.txt" 2>> "$B/geom-$tag-$triple.err" || return 1
   awk '/^shape-geometry.hash/{h=$2} /^shape-geometry.count/{c=$2} /^shape-geometry.predicate-hash/{ph=$2} /^shape-geometry.predicate-count/{pc=$2}
     /^shape-geometry.vertex-hash/{vh=$2} /^shape-geometry.vertex-count/{vc=$2}
-    END{if (h != "" && ph != "" && vh != "") print h, c, ph, pc, vh, vc}' "$B/geom-$tag-$triple.txt"
+    /^shape-geometry.arc-hash/{ah=$2} /^shape-geometry.arc-count/{ac=$2}
+    /^shape-geometry.arc-vertex-hash/{wh=$2} /^shape-geometry.arc-vertex-count/{wc=$2}
+    /^shape-geometry.conic-hash/{kh=$2} /^shape-geometry.conic-count/{kc=$2}
+    END{if (h != "" && ph != "" && vh != "" && ah != "" && wh != "" && kh != "") print h, c, ph, pc, vh, vc, ah, ac, wh, wc, kh, kc}' "$B/geom-$tag-$triple.txt"
 }
 
 declare -A GOK GPLANT

@@ -38,6 +38,13 @@ geom_vertex_hash=${32:?usage: as above, GEOM_VERTEX_HASH GEOM_VERTEX_COUNT}
 geom_vertex_count=${33:?usage: as above}
 mask_hash=${34:?usage: as above, MASK_HASH MASK_COUNT}
 mask_count=${35:?usage: as above}
+geom_arc_hash=${36:?usage: as above, GEOM_ARC_HASH GEOM_ARC_COUNT GEOM_ARC_VERTEX_HASH GEOM_ARC_VERTEX_COUNT GEOM_CONIC_HASH GEOM_CONIC_COUNT}
+geom_arc_count=${37:?usage: as above}
+geom_arc_vertex_hash=${38:?usage: as above}
+geom_arc_vertex_count=${39:?usage: as above}
+geom_conic_hash=${40:?usage: as above}
+geom_conic_count=${41:?usage: as above}
+geom_want="$geom_hash $geom_count $geom_pred_hash $geom_pred_count $geom_vertex_hash $geom_vertex_count $geom_arc_hash $geom_arc_count $geom_arc_vertex_hash $geom_arc_vertex_count $geom_conic_hash $geom_conic_count"
 P=/tools/xarch/shape-hash-probe.c
 cd /w || exit 2
 
@@ -101,15 +108,15 @@ G=/w/geom
 GF="-std=c17 -O2 -pedantic-errors -Wall -Wextra -Werror -ffp-contract=off -DGSHGEOM_BUILD -DGMATH_STATIC -I$G/include -I$G/gen/generated -I$M/include -I$M/gen/generated -I$G/stubs"
 x86_64-w64-mingw32-gcc $GF "$G/tools/corpus-hash.c" $(find "$G/src" -name '*.c' | sort) "$M"/src/elementary/*.c "$G/stubs/cutil-allocator-stub.c" -o geom-probe.exe || { echo "shape-win: the shape-geometry probe did not build" >&2; exit 2; }
 x86_64-w64-mingw32-gcc $GF -DSHAPE_GEOM_PLANT_BIT "$G/tools/corpus-hash.c" $(find "$G/src" -name '*.c' | sort) "$M"/src/elementary/*.c "$G/stubs/cutil-allocator-stub.c" -o geom-plant.exe || { echo "shape-win: the planted shape-geometry probe did not build" >&2; exit 2; }
-ggot=$(./geom-probe.exe 2>/dev/null | tr -d '\r' | awk '/^shape-geometry.hash/{h=$2} /^shape-geometry.count/{c=$2} /^shape-geometry.predicate-hash/{ph=$2} /^shape-geometry.predicate-count/{pc=$2} /^shape-geometry.vertex-hash/{vh=$2} /^shape-geometry.vertex-count/{vc=$2} END{if (h != "" && ph != "" && vh != "") print h, c, ph, pc, vh, vc}')
-gplant=$(./geom-plant.exe 2>/dev/null | tr -d '\r' | awk '/^shape-geometry.hash/{h=$2} /^shape-geometry.count/{c=$2} /^shape-geometry.predicate-hash/{ph=$2} /^shape-geometry.predicate-count/{pc=$2} /^shape-geometry.vertex-hash/{vh=$2} /^shape-geometry.vertex-count/{vc=$2} END{if (h != "" && ph != "" && vh != "") print h, c, ph, pc, vh, vc}')
-echo "windows (wine) shape-geometry hash: ${ggot:-none}   planted: ${gplant:-none}   committed: $geom_hash $geom_count $geom_pred_hash $geom_pred_count $geom_vertex_hash $geom_vertex_count"
-if [ -n "$ggot" ] && [ "$ggot" = "$geom_hash $geom_count $geom_pred_hash $geom_pred_count $geom_vertex_hash $geom_vertex_count" ]; then
+ggot=$(./geom-probe.exe 2>/dev/null | tr -d '\r' | awk '/^shape-geometry.hash/{h=$2} /^shape-geometry.count/{c=$2} /^shape-geometry.predicate-hash/{ph=$2} /^shape-geometry.predicate-count/{pc=$2} /^shape-geometry.vertex-hash/{vh=$2} /^shape-geometry.vertex-count/{vc=$2} /^shape-geometry.arc-hash/{ah=$2} /^shape-geometry.arc-count/{ac=$2} /^shape-geometry.arc-vertex-hash/{wh=$2} /^shape-geometry.arc-vertex-count/{wc=$2} /^shape-geometry.conic-hash/{kh=$2} /^shape-geometry.conic-count/{kc=$2} END{if (h != "" && ph != "" && vh != "" && ah != "" && wh != "" && kh != "") print h, c, ph, pc, vh, vc, ah, ac, wh, wc, kh, kc}')
+gplant=$(./geom-plant.exe 2>/dev/null | tr -d '\r' | awk '/^shape-geometry.hash/{h=$2} /^shape-geometry.count/{c=$2} /^shape-geometry.predicate-hash/{ph=$2} /^shape-geometry.predicate-count/{pc=$2} /^shape-geometry.vertex-hash/{vh=$2} /^shape-geometry.vertex-count/{vc=$2} /^shape-geometry.arc-hash/{ah=$2} /^shape-geometry.arc-count/{ac=$2} /^shape-geometry.arc-vertex-hash/{wh=$2} /^shape-geometry.arc-vertex-count/{wc=$2} /^shape-geometry.conic-hash/{kh=$2} /^shape-geometry.conic-count/{kc=$2} END{if (h != "" && ph != "" && vh != "" && ah != "" && wh != "" && kh != "") print h, c, ph, pc, vh, vc, ah, ac, wh, wc, kh, kc}')
+echo "windows (wine) shape-geometry hash: ${ggot:-none}   planted: ${gplant:-none}   committed: $geom_want"
+if [ -n "$ggot" ] && [ "$ggot" = "$geom_want" ]; then
   echo "   ok    win64 prints the committed shape-geometry hash"
 else
   echo "   FAIL  win64 does not print the committed shape-geometry hash"; rc=1
 fi
-if [ -n "$gplant" ] && [ "$gplant" != "$geom_hash $geom_count $geom_pred_hash $geom_pred_count $geom_vertex_hash $geom_vertex_count" ]; then
+if [ -n "$gplant" ] && [ "$gplant" != "$geom_want" ]; then
   echo "   ok    planted: one differing bit in a shape-geometry result on win64 is not the committed hash"
 else
   echo "   FAIL  planted: the win64 shape-geometry probe with a flipped bit still matches (or did not run)"; rc=1
