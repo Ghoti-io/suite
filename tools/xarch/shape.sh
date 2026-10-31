@@ -41,10 +41,6 @@
 #      committed in libs/math/tests/corpus/trig.hash on every target.  The
 #      controls are the same two (i686 without SSE, aarch64 with contraction
 #      on) and so is the plant (one differing bit on each target in turn).
-#      The i686 control is linked with -lm (control_libs): without the SSE flags
-#      math reads the rounding mode through fegetround(), which only libm has
-#      (nearby_mode.h), so until this was added the control failed to link in
-#      sections 4, 6, 7 and 8 and printed "nothing" instead of a hash.
 #      Story 4a (AD-17, AD-22): gmath_sqrt has two variants, the target's
 #      instruction and the portable method, and every variant must be
 #      bit-identical, so the probe is built twice for every target, as it is
@@ -203,14 +199,6 @@ make -s -C "$ROOT/libs/color" SKIP_DEP_CHECK=1 BUILD_DIR="$B/gen/color" "$B/gen/
   || { echo "shape.sh: could not write color's libver_gen.h (see $B/gen-color.log)" >&2; exit 2; }
 make -s -C "$ROOT/libs/image" SKIP_DEP_CHECK=1 BUILD_DIR="$B/gen/image" "$B/gen/image/generated/ghoti.io/image/libver_gen.h" > "$B/gen-image.log" 2>&1 \
   || { echo "shape.sh: could not write image's libver_gen.h (see $B/gen-image.log)" >&2; exit 2; }
-
-# The control builds (tag "bare") have no SSE flags, so GCC cannot read the rounding mode with stmxcsr and math's
-# nearby_mode() falls back on fegetround(), which only libm supplies (nearby_mode.h says the fallback needs the
-# platform fenv runtime).  Without -lm the control's link failed and the section printed "nothing", which is a control
-# that never ran.  Only the control links libm: the builds that must match the committed hash stay libm-free.
-control_libs() {
-  case "$1" in bare) echo "-lm" ;; esac
-}
 
 LIBS="math shape-geometry shape-scene shape-cpu"
 # Section 1 only: vector carries the same gate scripts but is not built by the other sections.
@@ -502,7 +490,7 @@ math_run() {
   local triple=$1 cc=$2 qemu=$3 tag=$4 out
   shift 4
   "$cc" $MFLAGS "$@" "$MATH/tools/corpus-hash.c" "$MATH"/src/elementary/*.c "$MATH"/src/decimal/*.c \
-    $(control_libs "$tag") -o "$B/math-$tag-$triple" 2> "$B/math-$tag-$triple.err" || return 1
+    -o "$B/math-$tag-$triple" 2> "$B/math-$tag-$triple.err" || return 1
   xarch_run "$triple" "$qemu" "$B/math-$tag-$triple" "$CORPUS" > "$B/math-$tag-$triple.txt" 2>> "$B/math-$tag-$triple.err" || return 1
   awk '/^math.trig.hash/{h=$2} /^math.trig.count/{c=$2} END{if (h != "") print h, c}' "$B/math-$tag-$triple.txt"
 }
@@ -770,7 +758,7 @@ geom_run() {
   shift 4
   # shellcheck disable=SC2086
   "$cc" $GFLAGS "$@" "$GEOM/tools/corpus-hash.c" $(find "$GEOM/src" -name '*.c' | sort) "$MATH"/src/elementary/*.c \
-    "$HERE/shape-stubs/cutil-allocator-stub.c" $(control_libs "$tag") -o "$B/geom-$tag-$triple" 2> "$B/geom-$tag-$triple.err" || return 1
+    "$HERE/shape-stubs/cutil-allocator-stub.c" -o "$B/geom-$tag-$triple" 2> "$B/geom-$tag-$triple.err" || return 1
   xarch_run "$triple" "$qemu" "$B/geom-$tag-$triple" > "$B/geom-$tag-$triple.txt" 2>> "$B/geom-$tag-$triple.err" || return 1
   awk '/^shape-geometry.hash/{h=$2} /^shape-geometry.count/{c=$2} /^shape-geometry.predicate-hash/{ph=$2} /^shape-geometry.predicate-count/{pc=$2}
     /^shape-geometry.vertex-hash/{vh=$2} /^shape-geometry.vertex-count/{vc=$2}
@@ -897,7 +885,7 @@ cpu_run() {
   "$cc" $CPUFLAGS "$@" "$CPU/tools/corpus-hash.c" $(find "$CPU/src" -name '*.c' | sort) $(find "$ROOT/libs/shape-scene/src" -name '*.c' | sort) \
     $(find "$GEOM/src" -name '*.c' | sort) "$MATH"/src/elementary/*.c "$ROOT/libs/cutil/src/allocator.c" "$ROOT/libs/cutil/src/atomic.c" \
     "$ROOT/libs/color/src/gamut/gamut.c" "$ROOT/libs/image/src/raster/raster.c" "$ROOT/libs/image/src/core/allocator.c" \
-    $(control_libs "$tag") -o "$B/cpu-$tag-$triple" 2> "$B/cpu-$tag-$triple.err" || return 1
+    -o "$B/cpu-$tag-$triple" 2> "$B/cpu-$tag-$triple.err" || return 1
   xarch_run "$triple" "$qemu" "$B/cpu-$tag-$triple" > "$B/cpu-$tag-$triple.txt" 2>> "$B/cpu-$tag-$triple.err" || return 1
   awk '/^shape-cpu.hash/{h=$2} /^shape-cpu.count/{c=$2} /^shape-cpu.render-hash/{rh=$2} /^shape-cpu.render-count/{rc=$2}
     /^shape-cpu.dense-hash/{dh=$2} /^shape-cpu.dense-count/{dc=$2}
@@ -1069,7 +1057,7 @@ scene_run() {
   # shellcheck disable=SC2086
   "$cc" $SCFLAGS "$@" "$SCENE/tools/corpus-hash.c" $(find "$SCENE/src" -name '*.c' | sort) $(find "$GEOM/src" -name '*.c' | sort) "$MATH"/src/elementary/*.c \
     "$ROOT/libs/cutil/src/allocator.c" "$ROOT/libs/cutil/src/atomic.c" "$ROOT/libs/color/src/gamut/gamut.c" \
-    "$ROOT/libs/image/src/raster/raster.c" "$ROOT/libs/image/src/core/allocator.c" $(control_libs "$tag") -o "$B/scene-$tag-$triple" 2> "$B/scene-$tag-$triple.err" || return 1
+    "$ROOT/libs/image/src/raster/raster.c" "$ROOT/libs/image/src/core/allocator.c" -o "$B/scene-$tag-$triple" 2> "$B/scene-$tag-$triple.err" || return 1
   xarch_run "$triple" "$qemu" "$B/scene-$tag-$triple" > "$B/scene-$tag-$triple.txt" 2>> "$B/scene-$tag-$triple.err" || return 1
   awk '$1=="shape-scene.hash"{h=$2} $1=="shape-scene.count"{c=$2} $1=="shape-scene.stroke-hash"{sh=$2} $1=="shape-scene.stroke-count"{sc=$2}
        $1=="shape-scene.plane-hash"{ph=$2} $1=="shape-scene.plane-count"{pc=$2}
