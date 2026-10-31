@@ -41,6 +41,10 @@
 #      committed in libs/math/tests/corpus/trig.hash on every target.  The
 #      controls are the same two (i686 without SSE, aarch64 with contraction
 #      on) and so is the plant (one differing bit on each target in turn).
+#      The i686 control is linked with -lm (control_libs): without the SSE flags
+#      math reads the rounding mode through fegetround(), which only libm has
+#      (nearby_mode.h), so until this was added the control failed to link in
+#      sections 4, 6, 7 and 8 and printed "nothing" instead of a hash.
 #      Story 4a (AD-17, AD-22): gmath_sqrt has two variants, the target's
 #      instruction and the portable method, and every variant must be
 #      bit-identical, so the probe is built twice for every target, as it is
@@ -140,8 +144,11 @@
 #      expected.txt on every target.  The font is fetched by suite/tools/
 #      shape-success/fetch.sh (SUCCESS_FONT names another copy) and its digest is
 #      checked; a missing font fails the section.  Control: i686 without the SSE
-#      flags must print something else (the compositing and the general route are
-#      double arithmetic).  aarch64 with contraction on prints this scene's
+#      flags must print something else.  The default text (AB) does not: its output is
+#      the same under x87 (no input of that scene lands near a rounding boundary), so
+#      the control runs the scene with glyph pairs that do (SENS_TEXTS: the turned
+#      glyph's outline in the test sink's stream differs in its last digits), which
+#      every target must also print as x86_64 does (a2, with its own plant, c2).  aarch64 with contraction on prints this scene's
 #      output unchanged (story 16's first run: its few fused products move no
 #      8-bit pixel), so it is no control here; section 7's renders are.  The
 #      plant (one differing bit on each target in turn) is as in section 4.
@@ -196,6 +203,14 @@ make -s -C "$ROOT/libs/color" SKIP_DEP_CHECK=1 BUILD_DIR="$B/gen/color" "$B/gen/
   || { echo "shape.sh: could not write color's libver_gen.h (see $B/gen-color.log)" >&2; exit 2; }
 make -s -C "$ROOT/libs/image" SKIP_DEP_CHECK=1 BUILD_DIR="$B/gen/image" "$B/gen/image/generated/ghoti.io/image/libver_gen.h" > "$B/gen-image.log" 2>&1 \
   || { echo "shape.sh: could not write image's libver_gen.h (see $B/gen-image.log)" >&2; exit 2; }
+
+# The control builds (tag "bare") have no SSE flags, so GCC cannot read the rounding mode with stmxcsr and math's
+# nearby_mode() falls back on fegetround(), which only libm supplies (nearby_mode.h says the fallback needs the
+# platform fenv runtime).  Without -lm the control's link failed and the section printed "nothing", which is a control
+# that never ran.  Only the control links libm: the builds that must match the committed hash stay libm-free.
+control_libs() {
+  case "$1" in bare) echo "-lm" ;; esac
+}
 
 LIBS="math shape-geometry shape-scene shape-cpu"
 # Section 1 only: vector carries the same gate scripts but is not built by the other sections.
@@ -487,7 +502,7 @@ math_run() {
   local triple=$1 cc=$2 qemu=$3 tag=$4 out
   shift 4
   "$cc" $MFLAGS "$@" "$MATH/tools/corpus-hash.c" "$MATH"/src/elementary/*.c "$MATH"/src/decimal/*.c \
-    -o "$B/math-$tag-$triple" 2> "$B/math-$tag-$triple.err" || return 1
+    $(control_libs "$tag") -o "$B/math-$tag-$triple" 2> "$B/math-$tag-$triple.err" || return 1
   xarch_run "$triple" "$qemu" "$B/math-$tag-$triple" "$CORPUS" > "$B/math-$tag-$triple.txt" 2>> "$B/math-$tag-$triple.err" || return 1
   awk '/^math.trig.hash/{h=$2} /^math.trig.count/{c=$2} END{if (h != "") print h, c}' "$B/math-$tag-$triple.txt"
 }
@@ -755,7 +770,7 @@ geom_run() {
   shift 4
   # shellcheck disable=SC2086
   "$cc" $GFLAGS "$@" "$GEOM/tools/corpus-hash.c" $(find "$GEOM/src" -name '*.c' | sort) "$MATH"/src/elementary/*.c \
-    "$HERE/shape-stubs/cutil-allocator-stub.c" -o "$B/geom-$tag-$triple" 2> "$B/geom-$tag-$triple.err" || return 1
+    "$HERE/shape-stubs/cutil-allocator-stub.c" $(control_libs "$tag") -o "$B/geom-$tag-$triple" 2> "$B/geom-$tag-$triple.err" || return 1
   xarch_run "$triple" "$qemu" "$B/geom-$tag-$triple" > "$B/geom-$tag-$triple.txt" 2>> "$B/geom-$tag-$triple.err" || return 1
   awk '/^shape-geometry.hash/{h=$2} /^shape-geometry.count/{c=$2} /^shape-geometry.predicate-hash/{ph=$2} /^shape-geometry.predicate-count/{pc=$2}
     /^shape-geometry.vertex-hash/{vh=$2} /^shape-geometry.vertex-count/{vc=$2}
@@ -882,7 +897,7 @@ cpu_run() {
   "$cc" $CPUFLAGS "$@" "$CPU/tools/corpus-hash.c" $(find "$CPU/src" -name '*.c' | sort) $(find "$ROOT/libs/shape-scene/src" -name '*.c' | sort) \
     $(find "$GEOM/src" -name '*.c' | sort) "$MATH"/src/elementary/*.c "$ROOT/libs/cutil/src/allocator.c" "$ROOT/libs/cutil/src/atomic.c" \
     "$ROOT/libs/color/src/gamut/gamut.c" "$ROOT/libs/image/src/raster/raster.c" "$ROOT/libs/image/src/core/allocator.c" \
-    -o "$B/cpu-$tag-$triple" 2> "$B/cpu-$tag-$triple.err" || return 1
+    $(control_libs "$tag") -o "$B/cpu-$tag-$triple" 2> "$B/cpu-$tag-$triple.err" || return 1
   xarch_run "$triple" "$qemu" "$B/cpu-$tag-$triple" > "$B/cpu-$tag-$triple.txt" 2>> "$B/cpu-$tag-$triple.err" || return 1
   awk '/^shape-cpu.hash/{h=$2} /^shape-cpu.count/{c=$2} /^shape-cpu.render-hash/{rh=$2} /^shape-cpu.render-count/{rc=$2}
     /^shape-cpu.dense-hash/{dh=$2} /^shape-cpu.dense-count/{dc=$2}
@@ -1054,7 +1069,7 @@ scene_run() {
   # shellcheck disable=SC2086
   "$cc" $SCFLAGS "$@" "$SCENE/tools/corpus-hash.c" $(find "$SCENE/src" -name '*.c' | sort) $(find "$GEOM/src" -name '*.c' | sort) "$MATH"/src/elementary/*.c \
     "$ROOT/libs/cutil/src/allocator.c" "$ROOT/libs/cutil/src/atomic.c" "$ROOT/libs/color/src/gamut/gamut.c" \
-    "$ROOT/libs/image/src/raster/raster.c" "$ROOT/libs/image/src/core/allocator.c" -o "$B/scene-$tag-$triple" 2> "$B/scene-$tag-$triple.err" || return 1
+    "$ROOT/libs/image/src/raster/raster.c" "$ROOT/libs/image/src/core/allocator.c" $(control_libs "$tag") -o "$B/scene-$tag-$triple" 2> "$B/scene-$tag-$triple.err" || return 1
   xarch_run "$triple" "$qemu" "$B/scene-$tag-$triple" > "$B/scene-$tag-$triple.txt" 2>> "$B/scene-$tag-$triple.err" || return 1
   awk '$1=="shape-scene.hash"{h=$2} $1=="shape-scene.count"{c=$2} $1=="shape-scene.stroke-hash"{sh=$2} $1=="shape-scene.stroke-count"{sc=$2}
        $1=="shape-scene.plane-hash"{ph=$2} $1=="shape-scene.plane-count"{pc=$2}
@@ -1323,10 +1338,10 @@ elif ! printf '%s  %s\n' "$SUCCESS_SHA256" "$SUCCESS_FONT" | sha256sum -c - > /d
   status=1; s_ready=0
 fi
 [ -s "$SUCCESS/expected.txt" ] || { echo "   FAIL  no $SUCCESS/expected.txt"; status=1; s_ready=0; }
-# success_run TRIPLE QEMU TAG -> the program's output on stdout, or status 1 (a failed check is a failed run)
+# success_run TRIPLE QEMU TAG [TEXT] -> the program's output on stdout, or status 1 (a failed check is a failed run)
 success_run() {
-  local triple=$1 qemu=$2 tag=$3 out="$B/font-$3-$1"
-  bash -c '. "$1"/targets.sh; xarch_run "$2" "$3" "$4" "$5" AB' _ "$HERE" "$triple" "$qemu" "$out" "$SUCCESS_FONT" \
+  local triple=$1 qemu=$2 tag=$3 text=${4:-AB} out="$B/font-$3-$1"
+  bash -c '. "$1"/targets.sh; xarch_run "$2" "$3" "$4" "$5" "$6"' _ "$HERE" "$triple" "$qemu" "$out" "$SUCCESS_FONT" "$text" \
     2>> "$out.err"
 }
 # The plant flips the last hex digit of the fold in a copy of the output.
@@ -1381,31 +1396,101 @@ if [ $s_ready -eq 1 ]; then
   echo " a. every target prints expected.txt: every hash, route, report entry and the damage"
   success_gate "" || status=1
 
+  # The default text, AB, is not sensitive to x87: its control build prints expected.txt although the
+  # build holds x87 arithmetic (the line below counts it).  The scene's doubles (the star, the circle, the
+  # rotations) are rounded to 8-bit pixels and 26.6 coordinates, and the test sink's stream for these glyphs does not
+  # land near a rounding boundary.  Other glyph pairs do: the stream of the turned glyph differs in the last digits
+  # of an outline coordinate.  SENS_TEXTS are such pairs, found by running the control build over a set of pairs.
+  # They are run on every target and must agree with x86_64 (a2); the control must differ from x86_64 on at least
+  # one of them (b), so that a green a-line for expected.txt is not all the gate has to say about x87.
+  SENS_TEXTS="Wq gy Rj"
+  for t in $SENS_TEXTS; do
+    while IFS='|' read -r triple cc qemu desc; do
+      triple=$(echo "$triple" | tr -d ' '); qemu=$(echo "$qemu" | tr -d ' ')
+      [ -z "$triple" ] && continue
+      f="$B/success-$t-$triple.txt"
+      if [ -x "$B/font-success-$triple" ] && success_run "$triple" "$qemu" success "$t" > "$f"; then
+        success_plant "$f" > "$f.planted"
+      else
+        : > "$f"; : > "$f.planted"
+      fi
+    done <<EOT
+$XARCH_TARGETS
+EOT
+  done
+  # text_gate PLANTED_TRIPLE -> 0 if every target prints, for every sensitive text, what x86_64 prints.
+  text_gate() {
+    local planted=$1 rc=0 triple cc qemu desc t f ref line
+    while IFS='|' read -r triple cc qemu desc; do
+      triple=$(echo "$triple" | tr -d ' ')
+      [ -z "$triple" ] && continue
+      line=""; local good=1
+      for t in $SENS_TEXTS; do
+        ref="$B/success-$t-x86_64-linux-gnu.txt"
+        f="$B/success-$t-$triple.txt"
+        [ "$triple" = "$planted" ] && f="$f.planted"
+        if [ -s "$f" ] && [ -s "$ref" ] && cmp -s "$f" "$ref"; then
+          line="$line $t:$(awk '$1=="font-scene.hash"{print $2}' "$f")"
+        else
+          line="$line $t:DIFFERS"; good=0
+        fi
+      done
+      if [ $good -eq 1 ]; then printf "   ok    %-22s%s\n" "$triple" "$line"
+      else printf "   FAIL  %-22s%s\n" "$triple" "$line"; rc=1; fi
+    done <<EOT2
+$XARCH_TARGETS
+EOT2
+    return $rc
+  }
+  echo " a2. every target agrees with x86_64 on the texts that are sensitive to x87 ($SENS_TEXTS)"
+  text_gate "" || status=1
+
   echo " b. the control: x87 excess precision is seen"
-  for ctl in "i686-linux-gnu|i686-linux-gnu-gcc||-O2"; do
-    IFS='|' read -r triple cc qemu extra <<EOF2
-$ctl
-EOF2
-    qemu=$(awk -F'|' -v t="$triple" '{gsub(/ /,"",$1); gsub(/ /,"",$3)} $1==t{print $3}' <<EOT3
+  ctl_triple=i686-linux-gnu
+  ctl_qemu=$(awk -F'|' -v t="$ctl_triple" '{gsub(/ /,"",$1); gsub(/ /,"",$3)} $1==t{print $3}' <<EOT3
 $XARCH_TARGETS
 EOT3
 )
-    # The control replaces the target's own flags: i686 with none, so x87.
-    if FONT_MAIN="$FONT/examples/font-scene.c" font_build "$triple" "$cc" ctl $extra; then
-      success_run "$triple" "$qemu" ctl > "$B/success-ctl-$triple.txt" || true
-      if [ -s "$B/success-ctl-$triple.txt" ] && ! cmp -s "$B/success-ctl-$triple.txt" "$SUCCESS/expected.txt"; then
-        echo "   ok    $triple $extra: prints $(awk '$1=="font-scene.hash"{print $2}' "$B/success-ctl-$triple.txt"), not expected.txt"
-      elif [ ! -s "$B/success-ctl-$triple.txt" ]; then
-        echo "   ok    $triple $extra: the program's own check failed (see $B/font-ctl-$triple.err)"
-      else
-        echo "   FAIL  $triple $extra: printed expected.txt; the scene cannot see what the flags prevent there"
-        status=1
-      fi
-    else
-      echo "   FAIL  $triple: cannot build the control (see $B/font-ctl-$triple.err)"
+  # The control replaces the target's own flags: i686 with none, so x87.
+  if FONT_MAIN="$FONT/examples/font-scene.c" font_build "$ctl_triple" i686-linux-gnu-gcc ctl -O2; then
+    x87_count=$(i686-linux-gnu-objdump -d --no-show-raw-insn "$B"/font-obj-ctl-"$ctl_triple"/*.o 2>/dev/null \
+      | grep -cE '\s(fld|fst|fstp|fadd|faddp|fmul|fmulp|fsub|fsubp|fsubr|fsubrp|fdiv|fdivp|fdivr|fdivrp|fxch|fild|fistp|fchs|fabs|fsqrt)[a-z]*\s' || true)
+    echo "   |     the control build holds $x87_count x87 instructions"
+    if [ "${x87_count:-0}" -eq 0 ]; then
+      echo "   FAIL  $ctl_triple -O2: the control build holds no x87 instruction, so it is not a control"
       status=1
     fi
-  done
+    # The default text: informational.
+    success_run "$ctl_triple" "$ctl_qemu" ctl > "$B/success-ctl-AB.txt" || true
+    if [ -s "$B/success-ctl-AB.txt" ] && cmp -s "$B/success-ctl-AB.txt" "$SUCCESS/expected.txt"; then
+      echo "   |     note: the default text (AB) prints expected.txt under x87, so it cannot be the control"
+    fi
+    seen=0
+    for t in $SENS_TEXTS; do
+      success_run "$ctl_triple" "$ctl_qemu" ctl "$t" > "$B/success-ctl-$t.txt" || true
+      if [ -s "$B/success-ctl-$t.txt" ] && ! cmp -s "$B/success-ctl-$t.txt" "$B/success-$t-x86_64-linux-gnu.txt"; then
+        echo "   ok    $ctl_triple -O2, text $t: prints $(awk '$1=="font-scene.hash"{print $2}' "$B/success-ctl-$t.txt"), not $(awk '$1=="font-scene.hash"{print $2}' "$B/success-$t-x86_64-linux-gnu.txt")"
+        seen=$((seen + 1))
+      elif [ ! -s "$B/success-ctl-$t.txt" ]; then
+        if grep -q '^font-scene:' "$B/font-ctl-$ctl_triple.err"; then
+          echo "   ok    $ctl_triple -O2, text $t: the program's own check failed (see $B/font-ctl-$ctl_triple.err)"
+          seen=$((seen + 1))
+        else
+          echo "   FAIL  $ctl_triple -O2, text $t: the control did not run (see $B/font-ctl-$ctl_triple.err)"
+          status=1
+        fi
+      else
+        echo "   |     $ctl_triple -O2, text $t: prints what x86_64 prints"
+      fi
+    done
+    if [ $seen -eq 0 ]; then
+      echo "   FAIL  $ctl_triple -O2: no text printed anything but x86_64's: the scene cannot see what the flags prevent there"
+      status=1
+    fi
+  else
+    echo "   FAIL  $ctl_triple: cannot build the control (see $B/font-ctl-$ctl_triple.err)"
+    status=1
+  fi
 
   echo " c. planted: one differing bit on each target in turn must fail the gate, naming it"
   while IFS='|' read -r triple cc qemu desc; do
@@ -1420,6 +1505,25 @@ EOT3
     else
       sed 's/^/   | /' "$B/success-gate-planted-$triple.txt"
       echo "   FAIL  the success gate failed, but not on $triple alone"
+      status=1
+    fi
+  done <<EOT
+$XARCH_TARGETS
+EOT
+
+  echo " c2. planted: one differing bit in the sensitive texts' output on each target in turn must fail a2, naming it"
+  while IFS='|' read -r triple cc qemu desc; do
+    triple=$(echo "$triple" | tr -d ' ')
+    [ -z "$triple" ] && continue
+    if text_gate "$triple" > "$B/success-text-planted-$triple.txt" 2>&1; then
+      echo "   FAIL  the sensitive-text gate passed with a bit flipped on $triple: it checks nothing there"
+      status=1
+    elif grep -q "FAIL  $triple " "$B/success-text-planted-$triple.txt" \
+      && [ "$(grep -c FAIL "$B/success-text-planted-$triple.txt")" -eq 1 ]; then
+      echo "   ok    $triple: caught, and only $triple named"
+    else
+      sed 's/^/   | /' "$B/success-text-planted-$triple.txt"
+      echo "   FAIL  the sensitive-text gate failed, but not on $triple alone"
       status=1
     fi
   done <<EOT
