@@ -6,6 +6,7 @@
 #
 #   text.sh aarch64      AArch64 (64-bit, little-endian), qemu-aarch64
 #   text.sh i686         32-bit x86 (32-bit size_t), qemu-i386
+#   text.sh s390x        s390x (64-bit, BIG-endian), qemu-s390x: the image of Containerfile.text-be
 #
 # In the image of Containerfile.text, with the workspace at /work (read-only) and a scratch
 # directory at /scratch:
@@ -30,7 +31,8 @@ ARCH="${1:-}"
 case "$ARCH" in
   aarch64) TRIPLE=aarch64-linux-gnu; QEMU=qemu-aarch64; SYSROOT=/usr/aarch64-linux-gnu; WORD=64 ;;
   i686)    TRIPLE=i686-linux-gnu;    QEMU=qemu-i386;    SYSROOT=/usr/i686-linux-gnu;    WORD=32 ;;
-  *) echo "usage: text.sh aarch64|i686" >&2; exit 2 ;;
+  s390x)   TRIPLE=s390x-linux-gnu;   QEMU=qemu-s390x;   SYSROOT=/usr/s390x-linux-gnu;   WORD=64 ;;
+  *) echo "usage: text.sh aarch64|i686|s390x" >&2; exit 2 ;;
 esac
 WORK="${WORK:-/work}"
 S="${SCRATCH:-/scratch}/$ARCH"
@@ -61,6 +63,7 @@ elf_ok() { # path
   case "$ARCH" in
     aarch64) [[ "$re" == *AArch64* && "$fe" == *"ARM aarch64"* ]] ;;
     i686)    [[ "$re" == *"Intel 80386"* && "$fe" == *"Intel i386"* ]] ;;
+    s390x)   [[ "$re" == *"IBM S/390"* && "$fe" == *"IBM S/390"* && "$fe" == *"MSB"* ]] ;;
   esac
 }
 
