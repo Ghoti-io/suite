@@ -21,7 +21,7 @@
 /**
  * @file gallery.c
  *
- * A gallery of nine PNGs drawn entirely by the suite's own libraries, for a
+ * A gallery of ten PNGs drawn entirely by the suite's own libraries, for a
  * person to look at (README.md says what each shows).  Every pixel comes from
  * shape-cpu rendering shape-scene lists; text is font's paragraph layout and
  * shaping, its glyphs reaching the scene through font's glyph path provider;
@@ -31,7 +31,7 @@
  *
  * FONTDIR is font's tests/data/fonts, DEJAVU the pinned DejaVuSans.ttf that
  * suite/tools/shape-success/fetch.sh fetches.  Writes shapes.png,
- * compositing.png, blend-modes.png, color.png, gradients.png, images.png, strokes.png, text.png and color-glyphs.png
+ * compositing.png, blend-modes.png, color.png, gradients.png, images.png, masks.png, strokes.png, text.png and color-glyphs.png
  * into OUTDIR and a log on stdout: each render's result and its report entries
  * tallied by class and reason, the diagnostics of a few fixture fonts, and what
  * the color-glyph page refused.  Exits nonzero when any step failed.
@@ -2271,6 +2271,604 @@ static void image_images(void) {
   gshscene_resource_release(swatch_srgb);
 }
 
+/* --- 7: masks ------------------------------------------------------------------------------------------------- */
+
+/* A page of tiles.  Each tile is the same subject (a hue sweep with a white and a dark bar) in a group over a checkerboard, and
+ * what differs is the group's mask, which is drawn in the tile's own coordinates and placed at its corner by the group's mask map
+ * unless the tile is about the placement.  Under each tile a label says what the mask is, and the 8-bit values of chosen pixels,
+ * read back from the render, are printed (and logged).  Every probe sits at the middle of a white checker square, so a value read
+ * back is the tile's color over white. */
+
+enum { MASK_TW = 180, MASK_TH = 110 };
+
+static struct MaskProbe {
+  char tag[16];
+  int x, y;      /* in the raster */
+  double tx, ty; /* the tile's corner */
+} g_probe[160];
+static size_t g_nprobe;
+
+static GSHGEOM_Map move_by(double tx, double ty) {
+  GSHGEOM_Map m;
+  if (gshgeom_map_translate(2, tx, ty, 0.0, &m) != GSHGEOM_OK) {
+    fail("translate map");
+  }
+  return m;
+}
+
+/** The matrix (a b; c d) taking the point (fx, fy) to (tx, ty): a mask placement. */
+static GSHGEOM_Map map_about(double a, double b, double c, double d, double fx, double fy, double tx, double ty) {
+  const double m[4] = {a, b, c, d};
+  const double t[2] = {tx - (a * fx + b * fy), ty - (c * fx + d * fy)};
+  GSHGEOM_Map out;
+  if (gshgeom_map_from_matrix(2, m, t, &out) != GSHGEOM_OK) {
+    fail("matrix map");
+  }
+  return out;
+}
+
+/** Close @p L into a picture resource (the caller releases it) and destroy the list. */
+static const GSHSCENE_Resource * picture_of(GSHSCENE_List * L) {
+  const GSHSCENE_Resource * pic = NULL;
+  if (gshscene_list_close(L) != GSHSCENE_OK || gshscene_store_intern_picture(g_store, L, &pic) != GSHSCENE_OK) {
+    fail("intern picture");
+  }
+  gshscene_list_destroy(L);
+  return pic;
+}
+
+/** A mask over @p picture (retained by it; the caller still releases its own reference to the picture) in @p mode, with the
+ *  identity transfer and the default spaces; the caller sets the rest of @p m before interning it with mask_intern. */
+static GSHSCENE_Mask mask_new(const GSHSCENE_Resource * picture, uint32_t mode, uint32_t acts_on) {
+  GSHSCENE_Mask m;
+  memset(&m, 0, sizeof m);
+  m.picture = picture;
+  m.mode = mode;
+  m.acts_on = acts_on;
+  return m;
+}
+
+static const GSHSCENE_Resource * mask_intern(const GSHSCENE_Mask * m) {
+  const GSHSCENE_Resource * r = NULL;
+  GSHSCENE_Result e = gshscene_store_intern_mask(g_store, m, &r);
+  if (e != GSHSCENE_OK) {
+    fprintf(stderr, "gallery: intern mask: %s\n", gshscene_result_string(e));
+    g_failed = 1;
+  }
+  return r;
+}
+
+static void masked_push(GSHSCENE_List * L, const GSHSCENE_Resource * mask, const GSHGEOM_Map * at, double opacity, uint32_t op) {
+  GSHSCENE_Group g = group_props(opacity, op);
+  g.soft_mask = mask;
+  if (at && mask) {
+    g.soft_mask_map = *at;
+  }
+  group_push(L, g);
+}
+
+/** The subject every tile masks: a hue sweep about the tile's middle, with a dark bar and a yellow bar across it. */
+static void mask_subject(GSHSCENE_List * L, double x, double y) {
+  GSHSCENE_Gradient g = grad_new(GSHSCENE_GRADIENT_SWEEP);
+  g.center[0] = x + MASK_TW / 2.0;
+  g.center[1] = y + MASK_TH / 2.0;
+  g.angle_unit = GSHGEOM_ANGLE_DEGREES;
+  g.a0 = 0;
+  g.a1 = 360;
+  fill_gradient(L, rect(x, y, x + MASK_TW, y + MASK_TH), NULL, g, hue_stops(), 7);
+  fill_rect(L, x, y + MASK_TH * 0.80, x + MASK_TW, y + MASK_TH * 0.88, solid(0.95, 0.95, 0.2, 1));
+  fill_rect(L, x, y + MASK_TH * 0.30, x + MASK_TW, y + MASK_TH * 0.36, solid(0.1, 0.1, 0.1, 1));
+}
+
+/** The tile's backdrop: a thin frame round a checkerboard of 10-pixel squares. */
+static void mask_tile_base(GSHSCENE_List * L, double x, double y) {
+  fill_rect(L, x - 1, y - 1, x + MASK_TW + 1, y + MASK_TH + 1, solid(0.55, 0.55, 0.55, 1));
+  checker(L, x, y, x + MASK_TW, y + MASK_TH, 10);
+}
+
+/** A masked tile: the base, then the subject in a group of @p opacity and @p op masked by @p mask placed by @p at (NULL: put the
+ *  mask's origin at the tile's corner). */
+static void masked_tile(GSHSCENE_List * L, double x, double y, const GSHSCENE_Resource * mask, const GSHGEOM_Map * at, double opacity,
+    uint32_t op) {
+  mask_tile_base(L, x, y);
+  GSHGEOM_Map corner = move_by(x, y);
+  masked_push(L, mask, at ? at : &corner, opacity, op);
+  mask_subject(L, x, y);
+  group_pop(L);
+}
+
+/** Register a probe at tile coordinates (px, py), moved to the middle of the nearest white checker square to the right. */
+static void mask_probe(const char * tag, double tx, double ty, double px, double py) {
+  int i = (int)(px / 10), j = (int)(py / 10);
+  if ((i + j) % 2 == 0) {
+    i += (i + 1) * 10 < MASK_TW ? 1 : -1;
+  }
+  if (g_nprobe < sizeof g_probe / sizeof g_probe[0]) {
+    struct MaskProbe * p = &g_probe[g_nprobe++];
+    snprintf(p->tag, sizeof p->tag, "%s", tag);
+    p->x = (int)tx + i * 10 + 5;
+    p->y = (int)ty + j * 10 + 5;
+    p->tx = tx;
+    p->ty = ty;
+  }
+}
+
+/** The top-left corner of tile @p col of the section whose header is at @p top. */
+static void mask_tile_at(double top, int col, double * x, double * y) {
+  *x = 40 + col * 204;
+  *y = top + 30;
+}
+
+static void image_masks(void) {
+  const int W = 1280, H = 1560;
+  const double SEC = 206, TOP = 84;
+  GIMG_Raster * R = raster_new(W, H);
+  GSHSCENE_List * L = list_new();
+  background(L, W, H, 0.95);
+  const GSHSCENE_Color_Space srgb = space(GCOL_PRIMARIES_SRGB, GCOL_TRANSFER_SRGB);
+  const GSHSCENE_Color_Space linear = space(GCOL_PRIMARIES_SRGB, GCOL_TRANSFER_LINEAR);
+  const double TW = MASK_TW, TH = MASK_TH;
+  /* The labels of the tiles, in order, for the second pass: (section, column, text). */
+  struct {
+    int section, col;
+    char text[48];
+  } names[48];
+  size_t nn = 0;
+#define NAME(sec, c, str) \
+  do { \
+    names[nn].section = (sec); \
+    names[nn].col = (c); \
+    snprintf(names[nn].text, sizeof names[nn].text, "%s", (str)); \
+    nn++; \
+  } while (0)
+  double x, y;
+
+  /* ---- 0: SVG. Luminance by W3C's coefficients over black, alpha, and the picture rendered and read in other spaces. */
+  {
+    const double top = TOP;
+    {
+      mask_tile_at(top, 0, &x, &y);
+      GSHSCENE_List * PL = list_new();
+      GSHSCENE_Gradient g = grad_new(GSHSCENE_GRADIENT_LINEAR);
+      g.p0[0] = 0;
+      g.p0[1] = 0;
+      g.p1[0] = TW;
+      g.p1[1] = 0;
+      const GSHSCENE_Gradient_Stop ramp[2] = {stop(0, 1, 1, 1, 1), stop(1, 0, 0, 0, 1)};
+      fill_gradient(PL, rect(0, 0, TW, TH), NULL, g, ramp, 2);
+      const GSHSCENE_Resource * pic = picture_of(PL);
+      GSHSCENE_Mask m = mask_new(pic, GSHSCENE_MASK_LUMINANCE, GSHSCENE_MASK_ACTS_ON_OPACITY);
+      const GSHSCENE_Resource * mk = mask_intern(&m);
+      masked_tile(L, x, y, mk, NULL, 1.0, GSHSCENE_COMPOSITE_SRC_OVER);
+      mask_probe("left", x, y, 30, 20);
+      mask_probe("right", x, y, 150, 20);
+      NAME(0, 0, "luminance: white to black");
+      gshscene_resource_release(mk);
+      gshscene_resource_release(pic);
+    }
+    {
+      mask_tile_at(top, 1, &x, &y);
+      GSHSCENE_List * PL = list_new();
+      fill(PL, circle(34, TH / 2, 24), solid(1, 0, 0, 1));
+      fill(PL, circle(78, TH / 2, 24), solid(0, 1, 0, 1));
+      fill(PL, circle(122, TH / 2, 24), solid(0, 0, 1, 1));
+      fill(PL, circle(158, TH / 2, 14), solid(1, 1, 1, 0.5));
+      const GSHSCENE_Resource * pic = picture_of(PL);
+      GSHSCENE_Mask m = mask_new(pic, GSHSCENE_MASK_LUMINANCE, GSHSCENE_MASK_ACTS_ON_OPACITY);
+      const GSHSCENE_Resource * mk = mask_intern(&m);
+      masked_tile(L, x, y, mk, NULL, 1.0, GSHSCENE_COMPOSITE_SRC_OVER);
+      mask_probe("red", x, y, 34, 55);
+      mask_probe("green", x, y, 78, 55);
+      NAME(0, 1, "luminance of r, g, b, and a=0.5");
+      gshscene_resource_release(mk);
+      gshscene_resource_release(pic);
+    }
+    {
+      mask_tile_at(top, 2, &x, &y);
+      GSHSCENE_List * PL = list_new();
+      GSHSCENE_Gradient g = grad_new(GSHSCENE_GRADIENT_RADIAL);
+      g.c0[0] = g.c1[0] = TW / 2;
+      g.c0[1] = g.c1[1] = TH / 2;
+      g.r1 = 54;
+      const GSHSCENE_Gradient_Stop spot[2] = {stop(0, 0.9, 0.2, 0.2, 1), stop(1, 0.9, 0.2, 0.2, 0)};
+      fill_gradient(PL, circle(TW / 2, TH / 2, 54), NULL, g, spot, 2);
+      const GSHSCENE_Resource * pic = picture_of(PL);
+      GSHSCENE_Mask m = mask_new(pic, GSHSCENE_MASK_ALPHA, GSHSCENE_MASK_ACTS_ON_OPACITY);
+      const GSHSCENE_Resource * mk = mask_intern(&m);
+      masked_tile(L, x, y, mk, NULL, 1.0, GSHSCENE_COMPOSITE_SRC_OVER);
+      mask_probe("middle", x, y, 90, 55);
+      NAME(0, 2, "alpha: a fading spot");
+      gshscene_resource_release(mk);
+      gshscene_resource_release(pic);
+    }
+    /* Overlapping translucent discs on black, in three combinations of render space (the picture is blended there) and
+     * luminance space (the luminance is taken there): linear then sRGB, sRGB and sRGB, linear and linear. */
+    GSHSCENE_List * PL = list_new();
+    fill(PL, circle(TW * 0.36, TH * 0.42, 36), solid(1.0, 0.85, 0.1, 0.65));
+    fill(PL, circle(TW * 0.62, TH * 0.42, 36), solid(0.1, 0.8, 0.9, 0.65));
+    fill(PL, circle(TW * 0.49, TH * 0.68, 36), solid(0.9, 0.2, 0.7, 0.65));
+    const GSHSCENE_Resource * discs = picture_of(PL);
+    static const char * names3[3] = {"discs: render linear, luma sRGB", "discs: render and luma sRGB", "discs: render and luma linear"};
+    for (int k = 0; k < 3; k++) {
+      mask_tile_at(top, 3 + k, &x, &y);
+      GSHSCENE_Mask m = mask_new(discs, GSHSCENE_MASK_LUMINANCE, GSHSCENE_MASK_ACTS_ON_OPACITY);
+      m.render_space = k == 1 ? srgb : linear;
+      m.space = k == 0 ? srgb : k == 1 ? srgb : linear;
+      const GSHSCENE_Resource * mk = mask_intern(&m);
+      masked_tile(L, x, y, mk, NULL, 1.0, GSHSCENE_COMPOSITE_SRC_OVER);
+      mask_probe("overlap", x, y, TW * 0.49, TH * 0.5);
+      mask_probe("one disc", x, y, TW * 0.25, TH * 0.5);
+      NAME(0, 3 + k, names3[k]);
+      gshscene_resource_release(mk);
+    }
+    gshscene_resource_release(discs);
+  }
+
+  /* ---- 1: PDF. Luminosity over a backdrop color, DeviceRGB's coefficients (30, 59, 11) / 100, and a transfer function. */
+  {
+    const double top = TOP + SEC;
+    GSHSCENE_List * PL = list_new();
+    GSHSCENE_Gradient g = grad_new(GSHSCENE_GRADIENT_RADIAL);
+    g.c0[0] = g.c1[0] = TW / 2;
+    g.c0[1] = g.c1[1] = TH / 2;
+    g.r1 = 46;
+    const GSHSCENE_Gradient_Stop disc[2] = {stop(0, 1, 1, 1, 1), stop(1, 0.25, 0.25, 0.25, 1)};
+    fill_gradient(PL, circle(TW / 2, TH / 2, 46), NULL, g, disc, 2);
+    const GSHSCENE_Resource * pic = picture_of(PL);
+    static const double table[4] = {0.0, 0.1, 0.9, 1.0};
+    static const double fine[3] = {0.1, 0.5, 0.9};
+    GSHSCENE_Transfer_Piece pieces[3];
+    memset(pieces, 0, sizeof pieces);
+    pieces[0].lo = 0.0;
+    pieces[0].hi = 0.3;
+    pieces[0].e0 = 0.0;
+    pieces[0].e1 = 1.0;
+    pieces[0].leaf_kind = GSHSCENE_TRANSFER_IDENTITY;
+    pieces[1].lo = 0.3;
+    pieces[1].hi = 0.7;
+    pieces[1].e0 = 0.0;
+    pieces[1].e1 = 1.0;
+    pieces[1].leaf_kind = GSHSCENE_TRANSFER_EXPONENTIAL;
+    pieces[1].c0 = 0.2;
+    pieces[1].c1 = 0.9;
+    pieces[1].n = 2.5;
+    pieces[2].lo = 0.7;
+    pieces[2].hi = 1.0;
+    pieces[2].e0 = 1.0;
+    pieces[2].e1 = 0.0;
+    pieces[2].leaf_kind = GSHSCENE_TRANSFER_TABLE;
+    pieces[2].sample_count = 3;
+    pieces[2].samples = fine;
+    static const char * nm[5] = {"BC (.5 .35 .2), identity", "BC, exponential n = 2.2", "BC, table 0 .1 .9 1", "BC, stitching of three", "black BC, identity"};
+    for (int k = 0; k < 5; k++) {
+      mask_tile_at(top, k, &x, &y);
+      GSHSCENE_Mask m = mask_new(pic, GSHSCENE_MASK_LUMINANCE, GSHSCENE_MASK_ACTS_ON_OPACITY);
+      m.coefficients = GSHSCENE_MASK_COEFF_LUM;
+      if (k < 4) {
+        m.backdrop[0] = 0.5;
+        m.backdrop[1] = 0.35;
+        m.backdrop[2] = 0.2;
+      }
+      if (k == 1) {
+        m.transfer.kind = GSHSCENE_TRANSFER_EXPONENTIAL;
+        m.transfer.c0 = 0.0;
+        m.transfer.c1 = 1.0;
+        m.transfer.n = 2.2;
+      } else if (k == 2) {
+        m.transfer.kind = GSHSCENE_TRANSFER_TABLE;
+        m.transfer.sample_count = 4;
+        m.transfer.samples = table;
+      } else if (k == 3) {
+        m.transfer.kind = GSHSCENE_TRANSFER_STITCHING;
+        m.transfer.piece_count = 3;
+        m.transfer.pieces = pieces;
+      }
+      const GSHSCENE_Resource * mk = mask_intern(&m);
+      masked_tile(L, x, y, mk, NULL, 1.0, GSHSCENE_COMPOSITE_SRC_OVER);
+      mask_probe("middle", x, y, TW / 2, TH / 2);
+      mask_probe("outside", x, y, 8, 8);
+      NAME(1, k, nm[k]);
+      gshscene_resource_release(mk);
+    }
+    gshscene_resource_release(pic);
+  }
+
+  /* ---- 2: CSS mask-composite. A stack of layers, bottom first; each layer is composited onto the ones below with its operator
+   * (add SRC_OVER, subtract SRC_OUT, intersect SRC_IN, exclude XOR), as a group of the mask's picture; a luminance layer is a
+   * group holding an opaque fill, masked by that layer's luminance mask, which makes its alpha the luminance. */
+  {
+    const double top = TOP + 2 * SEC;
+    static const uint32_t ops[4] = {GSHSCENE_COMPOSITE_SRC_OVER, GSHSCENE_COMPOSITE_SRC_OUT, GSHSCENE_COMPOSITE_SRC_IN,
+        GSHSCENE_COMPOSITE_XOR};
+    static const char * nm[5] = {"add: circle, luminance layer", "subtract (SRC_OUT)", "intersect (SRC_IN)", "exclude (XOR)",
+        "the stack, all four operators"};
+    /* the luminance layer's own mask: a ramp from black at 0.3 of the width to white at 0.82, over black */
+    GSHSCENE_List * R0 = list_new();
+    GSHSCENE_Gradient lg = grad_new(GSHSCENE_GRADIENT_LINEAR);
+    lg.p0[0] = TW * 0.30;
+    lg.p0[1] = 0;
+    lg.p1[0] = TW * 0.82;
+    lg.p1[1] = 0;
+    const GSHSCENE_Gradient_Stop lramp[2] = {stop(0, 0, 0, 0, 1), stop(1, 1, 1, 1, 1)};
+    fill_gradient(R0, rect(TW * 0.30, 0, TW * 0.82, TH), NULL, lg, lramp, 2);
+    const GSHSCENE_Resource * lpic = picture_of(R0);
+    GSHSCENE_Mask lm = mask_new(lpic, GSHSCENE_MASK_LUMINANCE, GSHSCENE_MASK_ACTS_ON_OPACITY);
+    const GSHSCENE_Resource * lmask = mask_intern(&lm);
+    for (int k = 0; k < 5; k++) {
+      mask_tile_at(top, k, &x, &y);
+      GSHSCENE_List * PL = list_new();
+      if (k < 4) {
+        fill(PL, circle(TW * 0.38, TH / 2, 38), solid(1, 1, 1, 1));
+        group_push(PL, group_props(1.0, ops[k]));
+        masked_push(PL, lmask, NULL, 1.0, GSHSCENE_COMPOSITE_SRC_OVER);
+        fill_rect(PL, 0, 0, TW, TH, solid(1, 1, 1, 1));
+        group_pop(PL);
+        group_pop(PL);
+      } else {
+        fill(PL, circle(TW * 0.40, TH / 2, 24), solid(1, 1, 1, 1));
+        group_push(PL, group_props(1.0, GSHSCENE_COMPOSITE_SRC_OVER));
+        fill_rect(PL, TW * 0.30, TH * 0.35, TW * 0.60, TH * 0.65, solid(1, 1, 1, 1));
+        group_pop(PL);
+        group_push(PL, group_props(1.0, GSHSCENE_COMPOSITE_SRC_OUT));
+        fill(PL, circle(TW * 0.45, TH / 2, 46), solid(1, 1, 1, 1));
+        group_pop(PL);
+        group_push(PL, group_props(1.0, GSHSCENE_COMPOSITE_SRC_IN));
+        fill_rect(PL, TW * 0.35, 0, TW * 0.65, TH, solid(1, 1, 1, 1));
+        group_pop(PL);
+        group_push(PL, group_props(1.0, GSHSCENE_COMPOSITE_XOR));
+        masked_push(PL, lmask, NULL, 1.0, GSHSCENE_COMPOSITE_SRC_OVER);
+        fill_rect(PL, 0, 0, TW, TH, solid(1, 1, 1, 1));
+        group_pop(PL);
+        group_pop(PL);
+      }
+      const GSHSCENE_Resource * pic = picture_of(PL);
+      GSHSCENE_Mask m = mask_new(pic, GSHSCENE_MASK_ALPHA, GSHSCENE_MASK_ACTS_ON_OPACITY);
+      const GSHSCENE_Resource * mk = mask_intern(&m);
+      masked_tile(L, x, y, mk, NULL, 1.0, GSHSCENE_COMPOSITE_SRC_OVER);
+      mask_probe("middle", x, y, TW * 0.55, TH / 2);
+      mask_probe("circle", x, y, TW * 0.30, TH / 2);
+      NAME(2, k, nm[k]);
+      gshscene_resource_release(mk);
+      gshscene_resource_release(pic);
+    }
+    gshscene_resource_release(lmask);
+    gshscene_resource_release(lpic);
+  }
+
+  /* ---- 3: a mask of a mask. The outer mask's picture is a group of stripes that is itself masked by a spot. */
+  {
+    const double top = TOP + 3 * SEC;
+    GSHSCENE_List * S = list_new();
+    GSHSCENE_Gradient sg = grad_new(GSHSCENE_GRADIENT_RADIAL);
+    sg.c0[0] = sg.c1[0] = TW / 2;
+    sg.c0[1] = sg.c1[1] = TH / 2;
+    sg.r1 = 56;
+    const GSHSCENE_Gradient_Stop sstops[2] = {stop(0, 1, 1, 1, 1), stop(1, 1, 1, 1, 0)};
+    fill_gradient(S, circle(TW / 2, TH / 2, 56), NULL, sg, sstops, 2);
+    const GSHSCENE_Resource * spot = picture_of(S);
+    GSHSCENE_Mask sm = mask_new(spot, GSHSCENE_MASK_ALPHA, GSHSCENE_MASK_ACTS_ON_OPACITY);
+    const GSHSCENE_Resource * spot_mask = mask_intern(&sm);
+    GSHGEOM_Path * stripes = path_new();
+    for (int i = 0; i < 9; i++) {
+      add_rect(stripes, 4 + i * 20, 0, 14 + i * 20, TH);
+    }
+    const GSHSCENE_Resource * stripe_res = intern(stripes);
+    /* picture 0: the stripes alone; picture 1: the stripes in a group masked by the spot */
+    GSHSCENE_List * A = list_new();
+    gshscene_resource_retain(stripe_res);
+    fill(A, stripe_res, solid(1, 1, 1, 1));
+    const GSHSCENE_Resource * plain = picture_of(A);
+    GSHSCENE_List * B = list_new();
+    masked_push(B, spot_mask, NULL, 1.0, GSHSCENE_COMPOSITE_SRC_OVER);
+    gshscene_resource_retain(stripe_res);
+    fill(B, stripe_res, solid(1, 1, 1, 1));
+    group_pop(B);
+    const GSHSCENE_Resource * nested = picture_of(B);
+    static const char * nm[3] = {"mask of a mask: stripes in a spot", "the stripes alone", "the spot alone"};
+    const GSHSCENE_Resource * pics[3] = {nested, plain, spot};
+    for (int k = 0; k < 3; k++) {
+      mask_tile_at(top, k, &x, &y);
+      GSHSCENE_Mask m = mask_new(pics[k], GSHSCENE_MASK_ALPHA, GSHSCENE_MASK_ACTS_ON_OPACITY);
+      const GSHSCENE_Resource * mk = mask_intern(&m);
+      masked_tile(L, x, y, mk, NULL, 1.0, GSHSCENE_COMPOSITE_SRC_OVER);
+      mask_probe("middle", x, y, TW / 2, TH / 2);
+      mask_probe("edge", x, y, 24, 40);
+      NAME(3, k, nm[k]);
+      gshscene_resource_release(mk);
+    }
+    gshscene_resource_release(nested);
+    gshscene_resource_release(plain);
+    gshscene_resource_release(stripe_res);
+    gshscene_resource_release(spot_mask);
+    gshscene_resource_release(spot);
+  }
+
+  /* ---- 4: what the mask multiplies. A group of a white disc, composited DEST_IN onto a layer of the subject, under an alpha ramp
+   * that acts on the group's opacity or on its shape; they differ for DEST_IN (an unbounded operator) and agree for SRC_OVER. */
+  {
+    const double top = TOP + 4 * SEC;
+    GSHSCENE_List * PL = list_new();
+    GSHSCENE_Gradient g = grad_new(GSHSCENE_GRADIENT_LINEAR);
+    g.p0[0] = 0;
+    g.p0[1] = 0;
+    g.p1[0] = TW;
+    g.p1[1] = 0;
+    const GSHSCENE_Gradient_Stop ramp[2] = {stop(0, 1, 1, 1, 0), stop(1, 1, 1, 1, 1)};
+    fill_gradient(PL, rect(0, 0, TW, TH), NULL, g, ramp, 2);
+    const GSHSCENE_Resource * pic = picture_of(PL);
+    static const char * nm[5] = {"DEST_IN, no mask", "DEST_IN, mask on opacity", "DEST_IN, mask on shape", "SRC_OVER, mask on opacity",
+        "SRC_OVER, mask on shape"};
+    for (int k = 0; k < 5; k++) {
+      mask_tile_at(top, k, &x, &y);
+      mask_tile_base(L, x, y);
+      GSHSCENE_Mask m = mask_new(pic, GSHSCENE_MASK_ALPHA, k % 2 == 0 ? GSHSCENE_MASK_ACTS_ON_SHAPE : GSHSCENE_MASK_ACTS_ON_OPACITY);
+      const GSHSCENE_Resource * mk = k == 0 ? NULL : mask_intern(&m);
+      GSHGEOM_Map corner = move_by(x, y);
+      group_push(L, group_props(1.0, GSHSCENE_COMPOSITE_SRC_OVER));
+      mask_subject(L, x, y);
+      masked_push(L, mk, &corner, 1.0, k < 3 ? GSHSCENE_COMPOSITE_DEST_IN : GSHSCENE_COMPOSITE_SRC_OVER);
+      fill(L, circle(x + TW / 2, y + TH / 2, 38), solid(0.95, 0.95, 0.95, 1));
+      group_pop(L);
+      group_pop(L);
+      mask_probe("in disc", x, y, TW / 2, TH / 2);
+      mask_probe("outside", x, y, 150, 20);
+      NAME(4, k, nm[k]);
+      gshscene_resource_release(mk);
+    }
+    gshscene_resource_release(pic);
+  }
+
+  /* ---- 5: the mask's placement. One picture, a star in a ring, in a box of 100 by 100, put in each tile by the group's mask map. */
+  {
+    const double top = TOP + 5 * SEC;
+    GSHSCENE_List * PL = list_new();
+    GSHGEOM_Path * star_path = path_new();
+    for (int i = 0; i < 5; i++) {
+      double a = -M_PI / 2 + i * 4 * M_PI / 5;
+      GSHGEOM_Point q = P(50 + 32 * cos(a), 50 + 32 * sin(a));
+      if (i == 0) {
+        gshgeom_path_move_to(star_path, q);
+      } else {
+        gshgeom_path_line_to(star_path, q);
+      }
+    }
+    gshgeom_path_close(star_path);
+    fill_map(PL, intern(star_path), NULL, GSHGEOM_FILL_NONZERO, solid(1, 1, 1, 1));
+    GSHGEOM_Path * ring = path_new();
+    add_circle(ring, 50, 50, 47);
+    add_circle(ring, 50, 50, 41);
+    fill_map(PL, intern(ring), NULL, GSHGEOM_FILL_EVEN_ODD, solid(1, 1, 1, 0.7));
+    const GSHSCENE_Resource * pic = picture_of(PL);
+    GSHSCENE_Mask m = mask_new(pic, GSHSCENE_MASK_ALPHA, GSHSCENE_MASK_ACTS_ON_OPACITY);
+    const GSHSCENE_Resource * mk = mask_intern(&m);
+    GSHSCENE_Mask flat = m;
+    flat.transfer.kind = GSHSCENE_TRANSFER_EXPONENTIAL;
+    flat.transfer.c0 = 0.4;
+    flat.transfer.c1 = 0.4;
+    flat.transfer.n = 1.0;
+    const GSHSCENE_Resource * mk_flat = mask_intern(&flat);
+    const double mx = TW / 2, my = TH / 2, deg = M_PI / 180.0;
+    GSHGEOM_Map placements[6] = {
+        map_about(1, 0, 0, 1, 50, 50, mx, my),
+        map_about(cos(30 * deg), -sin(30 * deg), sin(30 * deg), cos(30 * deg), 50, 50, mx, my),
+        map_about(0.6 * cos(-20 * deg), -0.6 * sin(-20 * deg), 0.6 * sin(-20 * deg), 0.6 * cos(-20 * deg), 50, 50, mx, my),
+        map_about(1.7, 0, 0, 0.7, 50, 50, mx, my),
+        map_about(-1, 0, 0.35, 1, 50, 50, mx, my),
+        map_about(1, 0, 0, 0, 50, 50, mx, my),
+    };
+    static const char * nm[6] = {"translation", "rotated by 30 degrees", "scaled 0.6, turned -20", "scaled 1.7 by 0.7", "mirrored, with a shear",
+        "singular: the outside value"};
+    for (int k = 0; k < 6; k++) {
+      mask_tile_at(top, k, &x, &y);
+      GSHGEOM_Map at = placements[k];
+      /* the map is from the mask's space into the tile's: the tile's own origin is added by a leading translation */
+      GSHGEOM_Map shift = move_by(x, y);
+      GSHGEOM_Map chain[2] = {shift, at};
+      GSHGEOM_Map placed;
+      if (gshgeom_map_compose_chain(chain, 2, NULL, &placed) != GSHGEOM_OK) {
+        fail("compose placement");
+      }
+      masked_tile(L, x, y, k == 5 ? mk_flat : mk, &placed, 1.0, GSHSCENE_COMPOSITE_SRC_OVER);
+      mask_probe("middle", x, y, mx, my);
+      mask_probe("corner", x, y, 12, 12);
+      NAME(5, k, nm[k]);
+    }
+    gshscene_resource_release(mk_flat);
+    gshscene_resource_release(mk);
+    gshscene_resource_release(pic);
+  }
+
+  /* ---- 6: outside the picture. Where it draws nothing the mask's value is the transfer of the backdrop's value: TR(0) for alpha,
+   * TR of the backdrop's luminance for luminance, over the whole plane. */
+  {
+    const double top = TOP + 6 * SEC;
+    const GSHSCENE_Resource * empty = picture_of(list_new());
+    GSHSCENE_List * PL = list_new();
+    fill(PL, circle(TW / 2, TH / 2, 32), solid(1, 1, 1, 1));
+    const GSHSCENE_Resource * disc = picture_of(PL);
+    static const double half_to_zero[2] = {0.5, 0.0};
+    static const char * nm[5] = {"empty, TR(0) = 0.4", "disc, TR(0) = 0.4, TR(1) = 1", "empty, identity: nothing", "empty, luminance of BC .6",
+        "luminance disc, table .5 to 0"};
+    for (int k = 0; k < 5; k++) {
+      mask_tile_at(top, k, &x, &y);
+      GSHSCENE_Mask m = mask_new(k == 1 || k == 4 ? disc : empty, k >= 3 ? GSHSCENE_MASK_LUMINANCE : GSHSCENE_MASK_ALPHA,
+          GSHSCENE_MASK_ACTS_ON_OPACITY);
+      if (k <= 1) {
+        m.transfer.kind = GSHSCENE_TRANSFER_EXPONENTIAL;
+        m.transfer.c0 = 0.4;
+        m.transfer.c1 = 1.0;
+        m.transfer.n = 1.0;
+      } else if (k == 3) {
+        m.coefficients = GSHSCENE_MASK_COEFF_LUM;
+        m.backdrop[0] = m.backdrop[1] = m.backdrop[2] = 0.6;
+      } else if (k == 4) {
+        m.transfer.kind = GSHSCENE_TRANSFER_TABLE;
+        m.transfer.sample_count = 2;
+        m.transfer.samples = half_to_zero;
+      }
+      const GSHSCENE_Resource * mk = mask_intern(&m);
+      masked_tile(L, x, y, mk, NULL, 1.0, GSHSCENE_COMPOSITE_SRC_OVER);
+      mask_probe("outside", x, y, 12, 12);
+      mask_probe("middle", x, y, TW / 2, TH / 2 + 20);
+      NAME(6, k, nm[k]);
+      gshscene_resource_release(mk);
+    }
+    gshscene_resource_release(disc);
+    gshscene_resource_release(empty);
+  }
+  render("masks (tiles)", L, R);
+  {
+    /* A refused or approximated item would leave a tile blank or wrong without failing the render; the page is for looking at what
+     * the definition says, so either fails it. */
+    GSHSCENE_Report_Summary sum;
+    if (gshscene_report_summary(g_report, &sum) != GSHSCENE_OK || sum.by_class[GSHSCENE_ENTRY_REFUSED] ||
+        sum.by_class[GSHSCENE_ENTRY_APPROXIMATED]) {
+      fail("masks: an item was refused or approximated");
+    }
+  }
+
+  /* Labels and the values read back. */
+  L = list_new();
+  label(L, "Masks: a group's layer is multiplied by a value rendered from a picture (shape-scene's mask), as shape-cpu defines it", 19, 30, 12, 0.1);
+  label(L, "Each tile is one subject, a hue sweep with a dark bar and a yellow bar, in a group over a checkerboard; the label says the group's mask.", 14, 30, 40, 0.35);
+  label(L, "The 8-bit values under a tile are read back from this image at the middle of a white square of the checkerboard (also in gallery.log).", 14, 30, 58, 0.35);
+  static const char * title[7] = {
+      "SVG: luminance (W3C coefficients) and alpha, and the picture rendered and its luminance read in linear light or in sRGB",
+      "PDF soft masks: luminosity over a backdrop color BC, coefficients (30, 59, 11) / 100, then a transfer function",
+      "CSS mask-composite: a stack of layers, bottom first, each composited onto those below (add SRC_OVER, subtract SRC_OUT, intersect SRC_IN, exclude XOR)",
+      "A mask of a mask: the mask's picture holds a group that is itself masked",
+      "What the mask multiplies: a white disc in a group composited DEST_IN onto the subject, under an alpha ramp acting on opacity or on shape",
+      "Placement: one picture (a star in a ring, in a box of 100 by 100) put in the tile by the group's mask map",
+      "Outside the picture: the value there is the transfer of the backdrop's value, everywhere the picture draws nothing"};
+  for (int s = 0; s < 7; s++) {
+    label(L, title[s], 14, 40, TOP + s * SEC, 0.1);
+  }
+  for (size_t i = 0; i < nn; i++) {
+    mask_tile_at(TOP + names[i].section * SEC, names[i].col, &x, &y);
+    label_c(L, names[i].text, 11, x + TW / 2, y + MASK_TH + 4, 0.15);
+  }
+  /* The probes: the printed lines of a tile stack under its label. */
+  {
+    double last_tx = -1, last_ty = -1;
+    int line = 0;
+    for (size_t i = 0; i < g_nprobe; i++) {
+      const struct MaskProbe * p = &g_probe[i];
+      const unsigned char * c = pixel(R, p->x, p->y);
+      line = p->tx == last_tx && p->ty == last_ty ? line + 1 : 0;
+      last_tx = p->tx;
+      last_ty = p->ty;
+      char buf[96];
+      snprintf(buf, sizeof buf, "%.15s %d,%d,%d,%d", p->tag, c[0], c[1], c[2], c[3]);
+      label_c(L, buf, 11, p->tx + MASK_TW / 2, p->ty + MASK_TH + 20 + 14 * line, 0.4);
+      printf("masks probe (%d,%d) %s: %d,%d,%d,%d\n", p->x, p->y, p->tag, c[0], c[1], c[2], c[3]);
+    }
+  }
+  render("masks (labels)", L, R);
+  save_png(R, "masks.png");
+  gimg_raster_destroy(R);
+#undef NAME
+}
+
 int main(int argc, char ** argv) {
   if (argc != 4) {
     fprintf(stderr, "usage: gallery FONTDIR DEJAVU OUTDIR\n");
@@ -2297,6 +2895,7 @@ int main(int argc, char ** argv) {
   image_color();
   image_gradients();
   image_images();
+  image_masks();
   image_strokes();
   image_text(argv[1]);
   image_color_glyphs(argv[1]);
