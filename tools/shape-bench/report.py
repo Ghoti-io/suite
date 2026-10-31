@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: LGPL-3.0-only
 """The shape benchmark's cross-check and results file.
 
-    report.py --results DIR --pamdiff PAMDIFF --shipped SHIPPED [--corroborate TOOL] [--reuse EARLIER] [--tag TAG]
+    report.py --results DIR --pamdiff PAMDIFF --shipped SHIPPED [--corroborate TOOL] [--reuse EARLIER] [--tag TAG] [--scenes NAMES]
     report.py --markdown RECORD.json
 
 Reads what run.sh left in DIR (raw/<engine>.jsonl, frames/*.pam, prov/*.txt)
@@ -16,7 +16,8 @@ run's results directory instead of DIR: their measurements, provenance and
 frames are that run's, and they are cross-checked here against this run's
 shape-cpu frames. It is for re-measuring shape-cpu alone (run.sh time with
 SHAPE_BENCH_ENGINES=shape-cpu); the record names the run they came from. --tag
-names the files <date>-<tag>.json and .md, for a second run on one date.
+names the files <date>-<tag>.json and .md, for a second run on one date.  --scenes NAMES (space or comma separated) makes the
+record hold only those scenes, for a run of them alone (run.sh's SHAPE_BENCH_SCENES).
 
 The cross-check's bound is stated here and nowhere else (the story's spec gives
 the same numbers): against shape-cpu's last frame, the mean absolute difference
@@ -56,7 +57,19 @@ CONTROL_STRIDE = 16
 ENGINES = ["shape-cpu", "font", "blend2d", "skia"]
 CORROBORATED = ("strokes", "strokes-dashed")
 PERTURBED_PIXELS = 3000
-SCENES = ["fill-rect", "fill-circle", "paths", "text", "ui", "gradients", "strokes", "strokes-dashed"]
+SCENES = ["fill-rect", "fill-circle", "paths", "text", "ui", "gradients", "strokes", "strokes-dashed", "masks"]
+# What a scene's cross-check does and does not say, carried into the record and the Markdown beside its figures.
+SCENE_NOTES = {
+    "masks": [
+        "Alpha-mask groups are checked against both references, each by a layer multiplied by the mask's layer "
+        "(Blend2D and Skia, DST_IN); luminance masks against Skia, whose luma filter uses Rec. 709's coefficients "
+        "(found by probe, refs/probe-skia-luma.cpp), which are the set the scene's luminance masks name.",
+        "Blend2D has no luma filter: its driver converts the mask's layer by hand with the same numbers, so for the "
+        "luminance masks it checks the layer code only, not a luminance.",
+        "The bound cannot tell Rec. 709's coefficients from W3C's (at most a twentieth of an 8-bit level apart); the "
+        "probe does.  The control drops every sixteenth drawable of the groups' contents, never a mask's picture.",
+    ],
+}
 
 
 def within(d):
@@ -191,6 +204,7 @@ def main():
     ap.add_argument("--corroborate", help="the built corroborate tool: the stroke scenes are judged by corroboration")
     ap.add_argument("--reuse", help="an earlier run's results directory, for the reference engines")
     ap.add_argument("--tag", help="names the files <date>-<tag>.*")
+    ap.add_argument("--scenes", help="the scenes the record holds, space or comma separated (default: every scene)")
     args = ap.parse_args()
     if args.markdown:
         with open(args.markdown) as f:
@@ -236,8 +250,12 @@ def main():
     with open(args.shipped) as f:
         shipped = [l.strip() for l in f if l.strip()]
 
+    wanted = args.scenes.replace(",", " ").split() if args.scenes else SCENES
+    unknown = [n for n in wanted if n not in SCENES]
+    if unknown:
+        raise SystemExit("report.py: no such scene: %s" % ", ".join(unknown))
     scenes, blind, invalid = {}, [], []
-    for name in SCENES:
+    for name in [n for n in SCENES if n in wanted]:
         ref = os.path.join(frames, "shape-cpu.%s.pam" % name)
         base = measures.get(("shape-cpu", name))
         if not base or not os.path.exists(ref):
@@ -284,6 +302,7 @@ def main():
         entry = {k: base[k] for k in ("metric", "extent", "work_unit", "work")}
         entry["control"] = control
         entry["perturbation"] = perturbation
+        entry["scene_notes"] = SCENE_NOTES.get(name, [])
         empty = measures.get(("shape-cpu-empty", name))
         entry["shape_cpu_empty_list"] = empty["frame"] if empty else None
         entry["results"] = {}
@@ -451,6 +470,7 @@ def write_markdown(rec, path, jname):
                                             fmt_ms(s["shape_cpu_empty_list"]["p25"]),
                                             fmt_ms(s["shape_cpu_empty_list"]["p75"])))
         notes = ["%s: %s" % (e, r["note"]) for e, r in s["results"].items() if r["note"]]
+        notes += s.get("scene_notes") or []
         if notes:
             L.append("")
             for n in notes:

@@ -39,6 +39,10 @@
 #   SHAPE_BENCH_LIBS       the libraries to install, in suite/libraries.txt order
 #   SHAPE_BENCH_ENGINES    the engines to time (default: shape-cpu blend2d skia);
 #                          anything less leaves the report to report.py --reuse
+#   SHAPE_BENCH_SCENES     the scenes to run, space-separated (default: every scene): all three engines run only these, and the
+#                          report holds only these (report.py --scenes); `masks` alone is the masked-groups scene's own record
+#   SHAPE_BENCH_TAG        names the results files <date>-<tag>.json and .md (report.py --tag), so that a second run on one
+#                          date does not overwrite the first
 #   SHAPE_BENCH_CPU        the CPU every engine is pinned to (default 8)
 #   SHAPE_BENCH_CLI        the container command for inspecting images (docker)
 #   GHOTI_CONTAINER_ENGINE the command that runs the images (default: SHAPE_BENCH_CLI)
@@ -215,7 +219,8 @@ timing() {
   }
   base=$(sed -n 's/^FROM \([^ ]*\).*/\1/p' ws/suite/Containerfile.build | head -n 1)
 
-  FRAMES=results/frames NAMES= SHAPE_RUN="bench-build/bench-shape run results/scenes results/frames" RAWSUF=
+  FRAMES=results/frames NAMES=${SHAPE_BENCH_SCENES:-} RAWSUF=
+  SHAPE_RUN="${SHAPE_BENCH_SCENES:+SHAPE_BENCH_ONLY=$(echo "$SHAPE_BENCH_SCENES" | tr ' ' ',') }bench-build/bench-shape run results/scenes results/frames"
   time_engines
 
   # The libraries' commits, for the record: SHIPPED when whoever laid out WORK
@@ -235,7 +240,8 @@ timing() {
   fi
   echo "== report"
   "$ENGINE" run --rm --user "$(id -u):$(id -g)" -v "$WORK:$MNT" -w "$MNT" "$BUILD_IMAGE" \
-    python3 "$B/report.py" --results results --pamdiff bench-build/pamdiff --corroborate bench-build/corroborate --shipped SHIPPED
+    python3 "$B/report.py" --results results --pamdiff bench-build/pamdiff --corroborate bench-build/corroborate --shipped SHIPPED \
+    ${SHAPE_BENCH_SCENES:+--scenes "$SHAPE_BENCH_SCENES"} ${SHAPE_BENCH_TAG:+--tag "$SHAPE_BENCH_TAG"}
 }
 
 # The pictures: the scenes named picture-* are in WORK/results/scenes already (written by whatever draws the pictures);

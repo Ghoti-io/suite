@@ -70,10 +70,20 @@
  *   joins      miterclip and arcs (SVG 2) have no Skia join: both are drawn as kMiter_Join, which is a bevel past the
  *              limit, the nearest Skia has.
  *   gradients  on strokes as on fills (the shader on the stroking paint).
+ *
+ * The `masks` scene (README.md, "Masks") adds, by Skia's own public API: Skia has no mask on a group, so at a masked group's
+ * end, before its layer is restored, the mask's picture is drawn into a layer of its own (saveLayer, translated by the
+ * group's placement, over the opaque backdrop first for a luminance mask) whose paint has the blend mode kDstIn, which
+ * multiplies the group's layer, in all four premultiplied channels, by the mask layer's alpha when the mask layer is
+ * restored: an alpha mask is the picture's alpha, a luminance mask has SkLumaColorFilter (public in
+ * include/effects/SkLumaColorFilter.h) on that paint, which turns the layer into (0, 0, 0, y) with y the luma of the
+ * premultiplied color over nothing.  Which coefficients that filter uses was found by probe (refs/probe-skia-luma.cpp):
+ * Rec. 709's (2126, 7152, 722) / 10000, the set the scene's luminance masks name.
  */
 
 #include "include/core/SkCanvas.h"
 #include "include/core/SkColor.h"
+#include "include/core/SkColorFilter.h"
 #include "include/core/SkFont.h"
 #include "include/core/SkFontMgr.h"
 #include "include/core/SkImageInfo.h"
@@ -89,9 +99,11 @@
 #include "include/core/SkTextBlob.h"
 #include "include/core/SkTypeface.h"
 #include "include/effects/SkGradient.h"
+#include "include/effects/SkLumaColorFilter.h"
 #include "include/ports/SkFontMgr_empty.h"
 
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <string>
 #include <vector>
@@ -115,8 +127,34 @@ struct Engine {
   sk_sp<SkPicture> picture;
 };
 
+// The mask of group @p g: its picture in a layer of its own that multiplies the group's layer (kDstIn) when it is restored.
+void draw_mask(Engine & e, SkCanvas * c, const SB_Item & g) {
+  const SB_Scene & s = *e.scene;
+  const SB_Mask & m = s.masks[g.mask - 1];
+  SkPaint layer;
+  layer.setBlendMode(SkBlendMode::kDstIn);
+  if (m.mode == SB_MASK_LUMINANCE) {
+    layer.setColorFilter(SkLumaColorFilter::Make());
+  }
+  c->saveLayer(nullptr, &layer);
+  if (m.mode == SB_MASK_LUMINANCE) {
+    SkPaint backdrop;
+    backdrop.setColor(SkColorSetARGB(255, m.backdrop.r, m.backdrop.g, m.backdrop.b));
+    backdrop.setBlendMode(SkBlendMode::kSrc);
+    c->drawPaint(backdrop);
+  }
+  c->save();
+  c->translate(SkScalar(g.mask_dx), SkScalar(g.mask_dy));
+  for (size_t k = 0; k < m.n_items; k++) {
+    c->drawPath(e.paths[m.first_item + k], e.paints[m.first_item + k]);
+  }
+  c->restore();
+  c->restore();
+}
+
 void draw(Engine & e, SkCanvas * c) {
   const SB_Scene & s = *e.scene;
+  std::vector<size_t> groups;  // the open groups' items, so that a masked one is masked at its end
   for (size_t i = 0; i < s.n_items; i++) {
     const SB_Item & it = s.items[i];
     switch (it.kind) {
@@ -138,13 +176,23 @@ void draw(Engine & e, SkCanvas * c) {
       c->clipPath(e.paths[i], SkClipOp::kIntersect, true);
       break;
     case SB_GROUP:
+      groups.push_back(i);
       c->saveLayer(nullptr, &e.paints[i]);
       break;
     case SB_ENDGROUP:
+      if (s.items[groups.back()].mask) {
+        draw_mask(e, c, s.items[groups.back()]);
+      }
+      groups.pop_back();
       c->restore();
       break;
     case SB_RUN:
       c->drawTextBlob(e.blobs[i], 0, 0, e.paints[i]);
+      break;
+    case SB_MASK_BEGIN:
+      i = it.count;  // a mask's picture is drawn only through a group that names it
+      break;
+    case SB_MASK_END:
       break;
     }
   }
@@ -354,7 +402,7 @@ int main(int argc, char ** argv) {
     std::fprintf(stderr, "usage: bench-skia DIR OUT [SCENE...]\n");
     return 2;
   }
-  static const char * const scenes[] = {"fill-rect", "fill-circle", "paths", "text", "ui", "gradients", "strokes", "strokes-dashed"};
+  static const char * const scenes[] = {"fill-rect", "fill-circle", "paths", "text", "ui", "gradients", "strokes", "strokes-dashed", "masks"};
   // Scenes named after the two directories are the only ones drawn; none named is the benchmark's own.
   std::vector<const char *> names(scenes, scenes + sizeof scenes / sizeof scenes[0]);
   if (argc > 3) {
@@ -374,17 +422,22 @@ int main(int argc, char ** argv) {
       SB_Measure m;
       int rc = setup(e, s, argv[1]);
       SB_Engine eng = {&e, clear, e.record ? build : nullptr, submit};
+      // SHAPE_BENCH_FRAMES_ONLY: one frame, written, and nothing timed or reported (the cross-check alone).
+      const bool once = std::getenv("SHAPE_BENCH_FRAMES_ONLY") != nullptr;
       if (rc == 0) {
-        rc = sb_measure(&eng, &m);
+        rc = once ? (clear(&e) || (e.record && build(&e)) || submit(&e)) : sb_measure(&eng, &m);
       }
       std::string out = std::string("skia.") + s.name + ".pam";
       if (rc == 0) {
         rc = sb_write_pam((std::string(argv[2]) + "/" + out).c_str(), s.width, s.height, e.pixels.data(), e.stride, 0);
       }
-      if (rc == 0) {
+      if (rc == 0 && once) {
+        std::fprintf(stderr, "bench-skia: %s: one frame written to %s\n", s.name, out.c_str());
+      } else if (rc == 0) {
         sb_report(stdout, "skia", &s, &m, out.c_str(),
             e.record                              ? "build: SkPictureRecorder; submit: drawPicture"
                 : std::strcmp(s.metric, "text") == 0 ? "SkTextBlob built once; glyph masks cached by Skia's strike cache; text contrast 0 and gamma 1 (linear coverage)"
+                : std::strcmp(s.metric, "masks") == 0 ? "SkCanvas drawPath and saveLayer, paths and shaders built once; a masked group's layer is multiplied by a mask layer (blend mode kDstIn) drawn at its end; a luminance mask through SkLumaColorFilter, Rec. 709 by probe"
                 : std::strcmp(s.metric, "picture") == 0 ? "SkCanvas drawPath and saveLayer/clipPath, paths and shaders built once; Skia's own stroker and dasher; groups and clips by saveLayer and clipPath in encoded values"
                 : std::strncmp(s.name, "strokes", 7) == 0 ? "SkPaint stroke style (width, join, cap, miter limit) and SkDashPathEffect, Skia's own stroker and dasher, paths built once"
                 : s.n_gradients ? "SkShaders gradient shaders built once; paint dither off; 8-bit sRGB stops, destination interpolation on a surface with no color space, unpremultiplied"

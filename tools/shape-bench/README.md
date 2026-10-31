@@ -22,6 +22,7 @@ it. A figure quoted anywhere else is read from there, with its date and CPU.
 | `strokes` | path count (paths/s) | 2,500 stroked paths of 30 to 250 pixels and a width of 1 to 9, translucent, 1920x1080: a miter-joined polyline, round-joined and round-capped quadratics, a bevel-joined closed polygon, a round-joined circle, a zigzag with square caps and a miter limit of 2 |
 | `strokes-dashed` | path count | 800 dashed open cubic waves (butt or round caps), as `strokes`; drawn by shape-cpu and Skia only: this Blend2D (58ca946) accepts a dash array on its context and strokes solid, so its arm omits the scene (the minimal pair is in the strokes story's change log) |
 | `gradients` | fill rate | 12 opaque rectangles and circles overlapping on a 4x3 grid, each a gradient of 2 to 5 opaque stops: linear pad, repeat and reflect; radial concentric pad, repeat and reflect, and one focal pad; sweep over a whole turn (pad, and repeat from 30 degrees) and a third of a turn repeated, 1920x1080 |
+| `masks` | masked groups per second | 15 groups of three or four fills on 1600x1000, each multiplied by a mask the group places by a translation: four alpha masks (a ring with a translucent core, a linear fade, a radial spot, three translucent circles) and four luminance masks by Rec. 709's coefficients (a ramp, the three primaries, translucent shapes over a gray backdrop, black spots over a white one), source-over, multiply and screen at opacities of 0.6 to 1, over six large translucent shapes; Blend2D and Skia build each mask from layers ([Masks](#masks)) |
 
 `bench-shape emit` writes the scenes once (`scene.h` gives the format); every
 driver reads the same files through the same reader (`scene.c`, compiled into
@@ -92,6 +93,71 @@ dropped-drawable frame, judged by the same rule against each reference, must
 exceed the bound against every one, and a frame with 3000 of its drawn pixels
 inverted must still have those pixels counted and exceed the bound, or the rule
 would be hiding wrong frames and the scene is reported blind.
+
+## Masks
+
+The `masks` scene draws groups whose layer is multiplied by a mask: shape-scene's mask is a picture and a value taken from it at
+each pixel, and a group names one with a placement (`scene.h` has the record: `mask alpha` or `mask luminance <coefficients>
+<r> <g> <b>`, its picture of fills up to `endmask`, and `mask <n> <dx> <dy>` on a `group`). An alpha mask's value is the picture's
+alpha; a luminance mask's value is the weighted sum of the picture's premultiplied color over an opaque backdrop, in the target's
+encoded values, by a set of coefficients. The scene's masks use the identity transfer, the target's spaces, and act on the
+group's opacity. Neither reference has a mask on a group, so each driver builds one from layers when the group ends, before its
+layer is composited:
+
+- **Skia** (`refs/bench-skia.cpp`): the mask's picture is drawn into a `saveLayer` whose paint has the blend mode `kDstIn`, which
+  multiplies the group's layer by the mask layer's alpha when the mask layer is restored; for a luminance mask that paint carries
+  `SkLumaColorFilter`, and the backdrop is painted into the layer first.
+- **Blend2D** (`refs/bench-blend2d.cpp`): the picture is drawn into a spare layer (over the backdrop first for a luminance mask), the
+  layer is made the mask's value (a luminance mask is converted by hand, a pixel at a time, to `(0, 0, 0, y)` with `y` the nearest
+  level of the premultiplied color's weighted sum), and the group's layer is multiplied by it with `BL_COMP_OP_DST_IN`, as a path clip is.
+
+**What is compared against what.** Alpha-mask groups are checked against both references, each by a layer and `DST_IN`.
+Luminance masks are checked against Skia, whose luma filter is an independent implementation of the value. Blend2D has no luma
+filter, so its driver converts by hand with the same numbers, and for luminance masks it checks the layer code only, not a luminance:
+the record says so beside the scene's table.
+
+**The coefficient set is Skia's, found by probe.** `refs/probe-skia-luma.cpp` draws opaque colors through `SkLumaColorFilter` into a
+transparent surface and reads the alpha back, in the pinned Skia image. It compares the result with the nearest level of each of
+shape-scene's coefficient sets, `W3C` (2125, 7154, 721) / 10000, `REC709` (2126, 7152, 722) / 10000 and `LUM` (30, 59, 11) / 100,
+over 3,921 colors sampled from the 39,203 where `W3C` and `REC709` round to different levels (and `LUM` rounds to neither), with at
+least a hundredth of a level to spare on either side of the rounding point: Skia's alpha equals the `REC709` level for all 3,921, and the `W3C` level and the `LUM` level for
+none. A translucent layer gives the luma of the premultiplied color (the filter folds the layer's alpha in), within one level of
+the exact value, which is what the mask's value is over a black backdrop. The scene's luminance masks therefore name `rec709`,
+and Blend2D's hand conversion uses the same integers. The frame-level bound cannot tell `REC709` from `W3C` (they differ by at
+most a twentieth of a level), so the probe is what says which set Skia has; the cross-check says the layer code and the
+luminance agree.
+
+**What the scene leaves out.** The scene holds only the sub-cases every engine draws by one definition, as the others do. Left out, because a reference
+cannot say it or says it differently: a transfer other than the identity (neither reference has shape-scene's table, exponential and
+stitching functions on a mask); a mask acting on the shape rather than the opacity (the two differ only for the unbounded
+operators, which a masked group here does not use); luminance in a space other than the target's, and a picture rendered in
+another (neither reference converts a layer's space); a placement other than a translation; a mask of a mask; a mask on a
+non-isolated or knockout group; any coefficient set but Rec. 709's, which is Skia's only one; a picture of anything but fills (a
+stroke or glyph run would add stroker and rasterizer differences to what the scene checks); and a group in linear light. Where
+the picture draws nothing a mask is `(0, 0, 0, 0)` and its value is 0 for an alpha mask and the backdrop's luminance for a
+luminance one; the scene covers this, because each group's content runs past its mask's picture.
+
+**The control** is `shape-cpu` with every sixteenth drawable dropped, counted from the topmost, as for every scene; the drawables
+are the groups' contents, never a mask's picture. It exceeds the bound on this scene against both references, so the check can see a wrong frame; a frame with the masks left
+off the groups, or the luminance masks read as alpha masks, exceeds it by far more.
+
+**The cross-check without a timing run.** `SHAPE_BENCH_FRAMES_ONLY=1` makes each reference driver draw one frame, write it and print no
+measurement, and `SHAPE_BENCH_CONTROL=1 bench-shape frame DIR OUT masks` writes shape-cpu's frame and its control frame; `report.py`'s
+`pamdiff` and bound are then applied to those frames as they are to the last frames of a run.
+
+**The timing run** is the documented two phases, limited to this scene; all three engines run it, because no earlier run has
+reference figures for it:
+
+```bash
+SHAPE_BENCH_CPU=8 SHAPE_BENCH_SCENES=masks SHAPE_BENCH_TAG=masks \
+    sh "$WORK/ws/suite/tools/shape-bench/run.sh" time "$WORK"
+cp "$WORK"/results/report/<date>-masks.json "$WORK"/results/report/<date>-masks.md tools/shape-bench/results/
+```
+
+The record is `results/<date>-masks.json`, with the Markdown generated from it beside it, holding the scene's table of three engines
+(frame time, throughput in masked groups per second, the cross-check figures and the control) and the provenance this file states:
+the images and their IDs, the compilers and flags, the CPU model, architecture and CPUs online, the governor and boost, the pinned
+CPU and the load before and after each engine; it does not name the host.
 
 ## COLRv1 against Skia
 

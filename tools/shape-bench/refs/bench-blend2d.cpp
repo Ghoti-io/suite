@@ -69,6 +69,14 @@
  *              filled opaque into a second layer, and the first is multiplied by the second's coverage (BL_COMP_OP_DST_IN)
  *              before it is blitted source-over.
  *   joins      SVG 2's miter-clip is BL_STROKE_JOIN_MITER_CLIP; arcs has no Blend2D join and is drawn BL_STROKE_JOIN_MITER_BEVEL.
+ *   mask       the `masks` scene (README.md, "Masks"): Blend2D has no mask on a group.  The group is a layer, as above; at
+ *              its end the mask's picture is drawn into a spare layer of its own (translated by the group's placement, over
+ *              the opaque backdrop first for a luminance mask), which is then made the mask's value: an alpha mask is the
+ *              layer as it is, a luminance mask is converted by hand, a pixel at a time, to (0, 0, 0, y) with y the nearest
+ *              level of the premultiplied color's weighted sum (the coefficients of scene.c's sb_coefficients, the set
+ *              Skia's luma filter uses).  The group's layer is then multiplied by it (BL_COMP_OP_DST_IN, as a path clip
+ *              is) before it is composited.  The conversion is this file's own code, so for a luminance mask Blend2D
+ *              checks the layer code alone, not a luminance.
  *   dashes     this Blend2D's context accepts a dash array and strokes solid (see the strokes-dashed scene); the same dash
  *              array in BLStrokeOptions through BLPath::add_stroked_path, in the frame, was tried and also strokes solid
  *              (the pictures show it), so a dashed stroke is drawn solid and the record lists it.
@@ -445,6 +453,56 @@ int draw_item(Engine & e, BLContext & c, size_t i) {
   return 0;
 }
 
+// A mask's value, made in place in its layer (PRGB32, B G R A in memory): an alpha mask is the layer as drawn; a luminance
+// mask becomes (0, 0, 0, y) with y the nearest level of the weighted sum of the premultiplied color (the layer already holds
+// the picture over the opaque backdrop), the sum exact in integers.
+void mask_value(Engine::Layer & M, const SB_Scene & s, size_t stride, const SB_Mask & m) {
+  if (m.mode != SB_MASK_LUMINANCE) {
+    return;
+  }
+  int k[3], den = 1;
+  sb_coefficients(m.coefficients, k, &den);
+  for (int y = 0; y < s.height; y++) {
+    uint8_t * p = M.px.data() + size_t(y) * stride;
+    for (int x = 0; x < s.width; x++, p += 4) {
+      int sum = k[0] * p[2] + k[1] * p[1] + k[2] * p[0];
+      int level = (sum + den / 2) / den;
+      p[0] = p[1] = p[2] = 0;
+      p[3] = uint8_t(level > 255 ? 255 : level);
+    }
+  }
+}
+
+// The masked group's layer L times its mask's value, through the spare layer.
+int apply_mask(Engine & e, Engine::Layer & L, const SB_Item & g) {
+  const SB_Scene & s = *e.scene;
+  const SB_Mask & m = s.masks[g.mask - 1];
+  Engine::Layer & M = *e.layers[e.max_depth];
+  std::memset(M.px.data(), 0, M.px.size());
+  if (begin_ctx(M.ctx, M.img)) {
+    return 1;
+  }
+  if (m.mode == SB_MASK_LUMINANCE) {
+    M.ctx.fill_rect(BLRect(0, 0, s.width, s.height), BLRgba32(m.backdrop.r, m.backdrop.g, m.backdrop.b, 255));
+  }
+  M.ctx.translate(g.mask_dx, g.mask_dy);
+  for (size_t k = 0; k < m.n_items; k++) {
+    if (draw_item(e, M.ctx, m.first_item + k)) {
+      return 2;
+    }
+  }
+  if (M.ctx.end() != BL_SUCCESS) {
+    return 2;
+  }
+  mask_value(M, s, e.stride, m);
+  if (begin_ctx(L.ctx, L.img)) {
+    return 1;
+  }
+  L.ctx.set_comp_op(BL_COMP_OP_DST_IN);
+  L.ctx.blit_image(BLPointI(0, 0), M.img);
+  return L.ctx.end() == BL_SUCCESS ? 0 : 2;
+}
+
 int submit(void * ctx) {
   Engine & e = *static_cast<Engine *>(ctx);
   const SB_Scene & s = *e.scene;
@@ -517,6 +575,9 @@ int submit(void * ctx) {
         parent.blit_image(BLPointI(0, 0), L.img);
       } else {
         const SB_Item & g = s.items[o.item];
+        if (g.mask && apply_mask(e, L, g)) {
+          return 2;
+        }
         parent.set_comp_op(comp_op(g.composite));
         parent.set_global_alpha(g.opacity);
         parent.blit_image(BLPointI(0, 0), L.img);
@@ -525,6 +586,11 @@ int submit(void * ctx) {
       }
       break;
     }
+    case SB_MASK_BEGIN:
+      i = it.count; // a mask's picture is drawn only through a group that names it
+      break;
+    case SB_MASK_END:
+      break;
     default:
       if (draw_item(e, c, i)) {
         return 2;
@@ -542,7 +608,7 @@ int main(int argc, char ** argv) {
     std::fprintf(stderr, "usage: bench-blend2d DIR OUT [SCENE...]\n");
     return 2;
   }
-  static const char * const scenes[] = {"fill-rect", "fill-circle", "paths", "text", "ui", "gradients", "strokes"};
+  static const char * const scenes[] = {"fill-rect", "fill-circle", "paths", "text", "ui", "gradients", "strokes", "masks"};
   std::vector<const char *> names(scenes, scenes + sizeof scenes / sizeof scenes[0]);
   if (argc > 3) {
     names.assign(argv + 3, argv + argc);
@@ -561,16 +627,21 @@ int main(int argc, char ** argv) {
       SB_Measure m;
       SB_Engine eng = {&e, clear, nullptr, submit};
       int rc = setup(e, s, argv[1]);
+      // SHAPE_BENCH_FRAMES_ONLY: one frame, written, and nothing timed or reported (the cross-check alone).
+      const bool once = std::getenv("SHAPE_BENCH_FRAMES_ONLY") != nullptr;
       if (rc == 0) {
-        rc = sb_measure(&eng, &m);
+        rc = once ? (clear(&e) || submit(&e)) : sb_measure(&eng, &m);
       }
       std::string out = std::string("blend2d.") + s.name + ".pam";
       if (rc == 0) {
         rc = sb_write_pam((std::string(argv[2]) + "/" + out).c_str(), s.width, s.height, e.pixels.data(), e.stride, 1);
       }
-      if (rc == 0) {
+      if (rc == 0 && once) {
+        std::fprintf(stderr, "bench-blend2d: %s: one frame written to %s\n", s.name, out.c_str());
+      } else if (rc == 0) {
         sb_report(stdout, "blend2d", &s, &m, out.c_str(),
             std::strcmp(s.metric, "list") == 0 ? "immediate mode: no recorded list, the build step does not exist"
+                : std::strcmp(s.metric, "masks") == 0 ? "immediate mode, no build step; a masked group is a layer multiplied (BL_COMP_OP_DST_IN) by a mask layer drawn at its end; a luminance mask is converted by hand (Blend2D has no luminance filter): a check of the layer code only"
                 : std::strcmp(s.metric, "picture") == 0 ? "immediate mode, no build step; BLContext fill_path and stroke_path, paths and gradients built once; groups by BLImage layers blitted with the comp-op and alpha, path clips by a coverage layer (DST_IN); dashes by BLPath::add_stroked_path in the frame"
                 : std::strncmp(s.name, "strokes", 7) == 0 ? "stroke options on the context (width, join, caps, miter limit), Blend2D's own stroker, paths built once; no dashes (see README)"
                 : s.n_gradients ? "BLGradient objects built once; gradient quality hint BL_GRADIENT_QUALITY_NEAREST (undithered)"
