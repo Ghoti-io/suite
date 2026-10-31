@@ -37,15 +37,33 @@
  *     clip <x0> <y0> <x1> <y1>            push a rectangular clip
  *     clippath <count>                    push the clip of a path (anti-aliased, non-zero), then <count> commands as a fill's
  *     unclip                              pop the innermost clip
- *     group <composite> <opacity> [linear]  begin an isolated group: what follows, up to the matching `endgroup`, is drawn on
+ *     group <composite> <opacity> [linear] [mask <n> <dx> <dy>]
+ *                                         begin an isolated group: what follows, up to the matching `endgroup`, is drawn on
  *                                         a transparent layer of the extent, and the layer is then composited onto what is
  *                                         beneath with the named operator after its result is scaled by <opacity> (0 to 1);
  *                                         groups nest, and nest well with the clips.  `linear` says the group composites in
  *                                         linear light (its layer and the backdrop converted from the target's encoded
  *                                         values, blended there, and converted back), which is what shape-scene's
  *                                         `blend_space` says; a reference whose layers blend in the encoded values only
- *                                         draws it encoded, and its driver says so
+ *                                         draws it encoded, and its driver says so.  `mask` names the n-th mask defined
+ *                                         above (counted from 1), placed by the translation (<dx>, <dy>) in pixels, so
+ *                                         that one definition serves many places: the group's layer is multiplied, in all
+ *                                         four premultiplied channels, by the mask's value at each pixel before it is
+ *                                         scaled by <opacity> and composited (see below)
  *     endgroup                            end it
+ *     mask alpha                          define a mask whose value is its picture's alpha, with the records up to the
+ *     mask luminance <coeff> <r> <g> <b>  matching `endmask`: the picture.  `luminance` defines one whose value is the
+ *                                         luminance of the picture composited over the opaque backdrop <r> <g> <b> (8-bit
+ *                                         straight sRGB, the target's encoded values, like every other color here), by
+ *                                         the coefficient set <coeff> (`w3c`, `rec709` or `lum`, scene.c's
+ *                                         sb_coefficients) applied to the premultiplied components: shape-scene's mask
+ *                                         (mask.h) with the identity transfer, the render and luminance spaces left to
+ *                                         the target's, and the mask acting on the opacity.  A definition stands at the
+ *                                         top level, outside every clip and group, and holds only `fill` and `fill-eo`
+ *                                         records (each with its gradient where it has one): the picture, in the mask's
+ *                                         own space, which a group's translation then places.  Nothing in it is drawn
+ *                                         where it stands
+ *     endmask                             end it
  *     fill <r> <g> <b> <a> <count>        a path filled non-zero, then <count> commands:
  *     M x y | L x y | Q x1 y1 x y | C x1 y1 x2 y2 x y | Z
  *     fill-eo <r> <g> <b> <a> <count>     as `fill`, by the even-odd rule
@@ -85,6 +103,13 @@
  * and undithered.  These are shape-scene's G7 to G9 (its paint.h) restricted to
  * what the references can also say; a scene states in its generator which of
  * them it uses and why.
+ *
+ * A mask's value at a pixel is shape-scene's (mask.h, MK2) for the mask's picture, translated by the group's placement and
+ * drawn into a transparent isolated layer of the extent in the target's encoded values: `alpha` is the layer's alpha a;
+ * `luminance` is y = k . (c + (1 - a) B), with c the layer's premultiplied color, B the backdrop and k the coefficients,
+ * all as values in [0, 1], clamped to [0, 1].  Where the picture draws nothing the layer is (0, 0, 0, 0), so the value
+ * is 0 for `alpha` and k . B for `luminance`, at every pixel of the extent.  A reference with no such mask builds it
+ * from layers, and its driver says how.
  */
 
 #ifndef GHOTI_IO_SHAPE_BENCH_SCENE_H
@@ -110,7 +135,9 @@ typedef enum SB_Kind {
   SB_STROKE = 5,
   SB_GROUP = 6,
   SB_ENDGROUP = 7,
-  SB_CLIPPATH = 8
+  SB_CLIPPATH = 8,
+  SB_MASK_BEGIN = 9, ///< a mask definition's start; `count` is the index of its matching SB_MASK_END, `mask` its index
+  SB_MASK_END = 10
 } SB_Kind;
 
 typedef enum SB_Join {
@@ -203,6 +230,25 @@ typedef struct SB_Gradient {
   size_t n_stops;
 } SB_Gradient;
 
+/** What a mask takes from its picture. */
+typedef enum SB_Mask_Mode { SB_MASK_ALPHA = 1, SB_MASK_LUMINANCE = 2 } SB_Mask_Mode;
+
+/** The luminance coefficient sets, in shape-scene's order (mask.h, MK3). */
+typedef enum SB_Coefficients { SB_COEFF_W3C = 0, SB_COEFF_REC709 = 1, SB_COEFF_LUM = 2, SB_COEFF_COUNT } SB_Coefficients;
+
+/** The name a coefficient set is spelled with in a scene file. */
+const char * sb_coefficients_name(SB_Coefficients c);
+/** The set as exact integers: k[i] / @p den are the coefficients of red, green and blue (their sum is @p den). */
+void sb_coefficients(SB_Coefficients c, int k[3], int * den);
+
+/** A mask's definition; its picture is the items [first_item, first_item + n_items) of SB_Scene.items, all fills. */
+typedef struct SB_Mask {
+  SB_Mask_Mode mode;
+  SB_Coefficients coefficients; ///< luminance only
+  SB_Color backdrop;            ///< luminance only: opaque
+  size_t first_item, n_items;
+} SB_Mask;
+
 typedef struct SB_Item {
   SB_Kind kind;
   SB_Color color;  ///< fill, run; a gradient fill's is 0 0 0 and its alpha multiplier
@@ -215,6 +261,8 @@ typedef struct SB_Item {
   int composite;   ///< group: an SB_Composite
   double opacity;  ///< group: 0 to 1
   int linear;      ///< group: composites in linear light (sRGB primaries)
+  size_t mask;     ///< group: 1 + the index of its mask in SB_Scene.masks; 0 for none.  SB_MASK_BEGIN: 1 + the index it defines
+  double mask_dx, mask_dy; ///< group: the mask's placement, a translation in pixels
 } SB_Item;
 
 typedef struct SB_Scene {
@@ -238,6 +286,8 @@ typedef struct SB_Scene {
   size_t n_stops, cap_stops;
   SB_Stroke * strokes;
   size_t n_strokes, cap_strokes;
+  SB_Mask * masks;
+  size_t n_masks, cap_masks;
 } SB_Scene;
 
 /** Zero a scene. */
@@ -253,7 +303,9 @@ int sb_scene_add_gradient(SB_Scene * scene, const SB_Gradient * gradient);
 int sb_scene_add_stop(SB_Scene * scene, double offset, SB_Color color);
 /** Append a stroke style; 0 on success. */
 int sb_scene_add_stroke(SB_Scene * scene, const SB_Stroke * stroke);
-/** Items that draw (fills, runs and strokes). */
+/** Append a mask definition; 0 on success. */
+int sb_scene_add_mask(SB_Scene * scene, const SB_Mask * mask);
+/** Items that draw (fills, runs and strokes) and are not the picture of a mask: the control drops these. */
 size_t sb_scene_drawables(const SB_Scene * scene);
 
 /** Read a scene file; 0 on success, else -1 with a message in err. */

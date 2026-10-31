@@ -38,6 +38,7 @@ void sb_scene_free(SB_Scene * scene) {
   free(scene->gradients);
   free(scene->stops);
   free(scene->strokes);
+  free(scene->masks);
   sb_scene_init(scene);
 }
 
@@ -117,6 +118,30 @@ int sb_scene_add_stroke(SB_Scene * scene, const SB_Stroke * stroke) {
   return 0;
 }
 
+int sb_scene_add_mask(SB_Scene * scene, const SB_Mask * mask) {
+  if (grow((void **)&scene->masks, &scene->cap_masks, scene->n_masks + 1, sizeof *mask)) {
+    return -1;
+  }
+  scene->masks[scene->n_masks++] = *mask;
+  return 0;
+}
+
+static const char * const COEFF_NAMES[SB_COEFF_COUNT] = {"w3c", "rec709", "lum"};
+
+const char * sb_coefficients_name(SB_Coefficients c) {
+  return (unsigned)c < SB_COEFF_COUNT ? COEFF_NAMES[c] : "w3c";
+}
+
+/* shape-scene's sets (mask.h, MK3), as the exact rationals it defines them with. */
+void sb_coefficients(SB_Coefficients c, int k[3], int * den) {
+  static const int table[SB_COEFF_COUNT][4] = {{2125, 7154, 721, 10000}, {2126, 7152, 722, 10000}, {30, 59, 11, 100}};
+  const int * t = table[(unsigned)c < SB_COEFF_COUNT ? c : SB_COEFF_W3C];
+  k[0] = t[0];
+  k[1] = t[1];
+  k[2] = t[2];
+  *den = t[3];
+}
+
 static const char * const JOIN_NAMES[] = {"miter", "round", "bevel", "miterclip", "arcs"};
 #define N_JOINS 5
 
@@ -141,6 +166,10 @@ static int gradient_arity(SB_Gradient_Kind kind) {
 size_t sb_scene_drawables(const SB_Scene * scene) {
   size_t n = 0;
   for (size_t i = 0; i < scene->n_items; i++) {
+    if (scene->items[i].kind == SB_MASK_BEGIN) {
+      i = scene->items[i].count; /* a mask's picture is not drawn where it stands */
+      continue;
+    }
     n += scene->items[i].kind == SB_FILL || scene->items[i].kind == SB_RUN || scene->items[i].kind == SB_STROKE;
   }
   return n;
@@ -192,6 +221,7 @@ int sb_scene_load(const char * path, SB_Scene * out, char * err, size_t errlen) 
   int line = 0, header = 0, ended = 0;
   int status = 0;
   size_t pending = 0; /* 1 + the gradient the next record, a fill, paints with */
+  size_t open_mask = 0; /* 1 + the mask whose definition is open */
   while (fgets(buf, sizeof buf, f)) {
     line++;
     char * nl = strchr(buf, '\n');
@@ -221,6 +251,11 @@ int sb_scene_load(const char * path, SB_Scene * out, char * err, size_t errlen) 
     const char * rest = buf + used;
     if (pending && strcmp(word, "fill") != 0 && strcmp(word, "fill-eo") != 0 && strcmp(word, "stroke") != 0) {
       status = fail(err, errlen, line, "a gradient not followed by a fill or a stroke");
+      break;
+    }
+    if (open_mask && strcmp(word, "fill") != 0 && strcmp(word, "fill-eo") != 0 && strcmp(word, "gradient") != 0 &&
+        strcmp(word, "endmask") != 0) {
+      status = fail(err, errlen, line, "a mask's picture holds only fills");
       break;
     }
     if (!strcmp(word, "name")) {
@@ -280,22 +315,97 @@ int sb_scene_load(const char * path, SB_Scene * out, char * err, size_t errlen) 
       SB_Item it;
       memset(&it, 0, sizeof it);
       it.kind = SB_GROUP;
-      char name[32] = {0}, flag[16] = {0};
-      int op = -1;
-      int got = sscanf(rest, " %31s %lf %15s", name, &it.opacity, flag);
-      it.linear = got == 3 && !strcmp(flag, "linear");
-      if (got < 2 || (got == 3 && !it.linear) || !(it.opacity >= 0 && it.opacity <= 1)) {
-        status = fail(err, errlen, line, "bad group");
-        break;
+      char name[32] = {0};
+      int op = -1, ok = 1, used3 = 0;
+      if (sscanf(rest, " %31s %lf%n", name, &it.opacity, &used3) != 2 || !(it.opacity >= 0 && it.opacity <= 1)) {
+        ok = 0;
       }
-      for (int k = 0; k < SB_COMPOSITE_COUNT; k++) {
+      const char * at = rest + used3;
+      while (ok) {
+        char tok[16] = {0};
+        int u = 0;
+        if (sscanf(at, " %15s%n", tok, &u) != 1) {
+          break;
+        }
+        at += u;
+        if (!strcmp(tok, "linear") && !it.linear) {
+          it.linear = 1;
+        } else if (!strcmp(tok, "mask") && !it.mask) {
+          unsigned long n = 0;
+          int u2 = 0;
+          if (sscanf(at, " %lu %lf %lf%n", &n, &it.mask_dx, &it.mask_dy, &u2) != 3 || n < 1 || n > s.n_masks ||
+              !isfinite(it.mask_dx) || !isfinite(it.mask_dy)) {
+            ok = 0;
+          }
+          it.mask = n;
+          at += u2;
+        } else {
+          ok = 0;
+        }
+      }
+      for (int k = 0; ok && k < SB_COMPOSITE_COUNT; k++) {
         op = !strcmp(name, COMPOSITE_NAMES[k]) ? k : op;
       }
       it.composite = op;
-      if (op < 0 || sb_scene_add_item(&s, &it)) {
+      if (!ok || op < 0 || sb_scene_add_item(&s, &it)) {
         status = fail(err, errlen, line, "bad group");
         break;
       }
+    } else if (!strcmp(word, "mask")) {
+      SB_Mask m;
+      SB_Item it;
+      memset(&m, 0, sizeof m);
+      memset(&it, 0, sizeof it);
+      char mode[16] = {0}, coeff[16] = {0};
+      unsigned r = 0, g = 0, b = 0;
+      int u = 0, ok = 0;
+      if (sscanf(rest, " %15s%n", mode, &u) == 1 && !strcmp(mode, "alpha") && rest[u] == 0) {
+        m.mode = SB_MASK_ALPHA;
+        ok = 1;
+      } else if (!strcmp(mode, "luminance") && sscanf(rest, " %15s %15s %u %u %u%n", mode, coeff, &r, &g, &b, &u) == 5 &&
+          rest[u] == 0 && r <= 255 && g <= 255 && b <= 255) {
+        m.mode = SB_MASK_LUMINANCE;
+        for (int k = 0; k < SB_COEFF_COUNT; k++) {
+          if (!strcmp(coeff, COEFF_NAMES[k])) {
+            m.coefficients = (SB_Coefficients)k;
+            ok = 1;
+          }
+        }
+        m.backdrop.r = (uint8_t)r;
+        m.backdrop.g = (uint8_t)g;
+        m.backdrop.b = (uint8_t)b;
+        m.backdrop.a = 255;
+      }
+      if (!ok || open_mask || sb_scene_add_mask(&s, &m)) {
+        status = fail(err, errlen, line, open_mask ? "masks do not nest" : "bad mask");
+        break;
+      }
+      it.kind = SB_MASK_BEGIN;
+      it.mask = s.n_masks;
+      if (sb_scene_add_item(&s, &it)) {
+        status = fail(err, errlen, line, "out of memory");
+        break;
+      }
+      s.masks[s.n_masks - 1].first_item = s.n_items;
+      open_mask = s.n_masks;
+    } else if (!strcmp(word, "endmask")) {
+      SB_Item it;
+      memset(&it, 0, sizeof it);
+      it.kind = SB_MASK_END;
+      if (!open_mask) {
+        status = fail(err, errlen, line, "endmask without mask");
+        break;
+      }
+      SB_Mask * m = &s.masks[open_mask - 1];
+      m->n_items = s.n_items - m->first_item;
+      it.mask = open_mask;
+      size_t end = s.n_items;
+      if (sb_scene_add_item(&s, &it)) {
+        status = fail(err, errlen, line, "out of memory");
+        break;
+      }
+      s.items[m->first_item - 1].count = end;
+      open_mask = 0;
     } else if (!strcmp(word, "endgroup")) {
       SB_Item it;
       memset(&it, 0, sizeof it);
@@ -529,6 +639,9 @@ int sb_scene_load(const char * path, SB_Scene * out, char * err, size_t errlen) 
   if (status == 0 && pending) {
     status = fail(err, errlen, line, "a gradient not followed by a fill or a stroke");
   }
+  if (status == 0 && open_mask) {
+    status = fail(err, errlen, line, "mask left open");
+  }
   if (status == 0 && (!ended ||!s.name[0] || !s.metric[0] || !s.width || !s.work_unit[0])) {
     status = fail(err, errlen, line, "incomplete scene");
   }
@@ -540,6 +653,13 @@ int sb_scene_load(const char * path, SB_Scene * out, char * err, size_t errlen) 
   size_t depth = 0;
   for (size_t i = 0; status == 0 && i < s.n_items; i++) {
     SB_Kind k = s.items[i].kind;
+    if (k == SB_MASK_BEGIN) {
+      if (depth != 0) {
+        status = fail(err, errlen, line, "a mask defined inside a clip or group");
+      }
+      i = s.items[i].count; /* its picture holds fills only (checked above) */
+      continue;
+    }
     if (k == SB_CLIP || k == SB_CLIPPATH || k == SB_GROUP) {
       if (depth == sizeof open) {
         status = fail(err, errlen, line, "clips and groups nest too deep");
@@ -590,7 +710,23 @@ int sb_scene_save(const char * path, const SB_Scene * s) {
       fprintf(f, "unclip\n");
       break;
     case SB_GROUP:
-      fprintf(f, "group %s %.9g%s\n", COMPOSITE_NAMES[it->composite], it->opacity, it->linear ? " linear" : "");
+      fprintf(f, "group %s %.9g%s", COMPOSITE_NAMES[it->composite], it->opacity, it->linear ? " linear" : "");
+      if (it->mask) {
+        fprintf(f, " mask %zu %.17g %.17g", it->mask, it->mask_dx, it->mask_dy);
+      }
+      fputc('\n', f);
+      break;
+    case SB_MASK_BEGIN: {
+      const SB_Mask * m = &s->masks[it->mask - 1];
+      if (m->mode == SB_MASK_ALPHA) {
+        fprintf(f, "mask alpha\n");
+      } else {
+        fprintf(f, "mask luminance %s %u %u %u\n", COEFF_NAMES[m->coefficients], m->backdrop.r, m->backdrop.g, m->backdrop.b);
+      }
+      break;
+    }
+    case SB_MASK_END:
+      fprintf(f, "endmask\n");
       break;
     case SB_ENDGROUP:
       fprintf(f, "endgroup\n");

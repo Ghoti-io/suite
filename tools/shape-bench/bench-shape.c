@@ -32,7 +32,7 @@
  *
  * shape-cpu is driven as an application would drive it: path resources (and,
  * for text, one path a glyph and one glyph run a line; for a gradient fill,
- * its gradient) interned once into a
+ * its gradient; for a mask, its picture and the mask) interned once into a
  * shape-scene store; each frame records a list (the build) and renders it
  * through the CPU sink (the submit), strict, into a borrowed premultiplied
  * RGBA8 raster.
@@ -632,9 +632,290 @@ done:
   return status;
 }
 
+/*
+ * Masked groups (masks-images-patterns story M2, decision M2-D5): fifteen groups of three or four fills, each masked by one
+ * of eight masks placed at its cell of a 5 by 3 grid of 300-pixel cells on 1600x1000, over a few large translucent shapes.
+ * Four masks are alpha masks (a ring with a translucent core; a linear fade; a radial spot; three overlapping translucent
+ * circles) and four are luminance masks by Rec. 709's coefficients, the set the Skia probe finds Skia's luma filter uses
+ * (README.md, "Masks"): a gray ramp; the three primaries as overlapping circles over black; translucent white, black and
+ * orange over a middle gray backdrop; black spots and a stripe over a white backdrop.  A mask serves several cells, placed
+ * by a translation each.  Composites are source-over, multiply and screen, at opacities of 1 to 0.6.
+ *
+ * The sub-cases are the ones every engine here draws by one definition: the value of an alpha mask is the alpha of its
+ * picture and of a luminance mask the Rec. 709 luminance of the picture over its backdrop, in the target's encoded values
+ * (scene.h); a reference without masks builds that from layers (alpha masks by a layer and DST_IN, luminance masks by
+ * Skia's luma filter, and by hand in Blend2D, which has no such filter).  Left out, because a reference cannot say them or
+ * says them differently: a transfer other than the identity (neither reference has shape-scene's table, exponential and
+ * stitching functions on a mask), a mask acting on the shape instead of the opacity (the two differ only for the unbounded
+ * operators, which a group with a mask does not use here), luminance in a space other than the target's and a picture
+ * rendered in another (neither reference converts a layer's space), a placement other than a translation, a mask of a mask,
+ * a mask on a non-isolated or knockout group, a coefficient set other than Rec. 709's (Skia's luma filter has one), a picture
+ * of anything but fills (a stroke or a glyph run would add stroker and rasterizer differences to what the scene checks), and
+ * a group in linear light.
+ */
+typedef struct Mask_Stop {
+  double offset;
+  uint8_t r, g, b, a;
+} Mask_Stop;
+
+static int mask_begin(SB_Scene * s, SB_Mask_Mode mode, int br, int bg, int bb) {
+  SB_Mask m;
+  SB_Item it;
+  memset(&m, 0, sizeof m);
+  memset(&it, 0, sizeof it);
+  m.mode = mode;
+  m.coefficients = SB_COEFF_REC709;
+  m.backdrop.r = (uint8_t)br;
+  m.backdrop.g = (uint8_t)bg;
+  m.backdrop.b = (uint8_t)bb;
+  m.backdrop.a = 255;
+  it.kind = SB_MASK_BEGIN;
+  if (sb_scene_add_mask(s, &m)) {
+    return -1;
+  }
+  it.mask = s->n_masks;
+  if (sb_scene_add_item(s, &it)) {
+    return -1;
+  }
+  s->masks[s->n_masks - 1].first_item = s->n_items;
+  return 0;
+}
+
+static int mask_end(SB_Scene * s) {
+  SB_Mask * m = &s->masks[s->n_masks - 1];
+  SB_Item it;
+  memset(&it, 0, sizeof it);
+  it.kind = SB_MASK_END;
+  it.mask = s->n_masks;
+  m->n_items = s->n_items - m->first_item;
+  size_t end = s->n_items;
+  if (sb_scene_add_item(s, &it)) {
+    return -1;
+  }
+  s->items[m->first_item - 1].count = end;
+  return 0;
+}
+
+/** A pad gradient (linear x0 y0 x1 y1, or radial x0 y0 r0 x1 y1 r1) for the fill added next; stops carry their own alpha. */
+static int add_gradient(SB_Scene * s, SB_Gradient_Kind kind, const double * geom, const Mask_Stop * st, int n) {
+  SB_Gradient g;
+  memset(&g, 0, sizeof g);
+  g.kind = kind;
+  g.extend = SB_EXTEND_PAD;
+  g.first_stop = s->n_stops;
+  g.n_stops = (size_t)n;
+  for (int j = 0; j < (kind == SB_GRADIENT_RADIAL ? 6 : 4); j++) {
+    g.g[j] = geom[j];
+  }
+  for (int j = 0; j < n; j++) {
+    SB_Color c = {st[j].r, st[j].g, st[j].b, st[j].a};
+    if (sb_scene_add_stop(s, st[j].offset, c)) {
+      return -1;
+    }
+  }
+  return sb_scene_add_gradient(s, &g);
+}
+
+/** The fill added last takes the gradient added last for its paint (its color is then 0 0 0 and the alpha multiplier). */
+static void paint_last(SB_Scene * s) {
+  SB_Item * it = &s->items[s->n_items - 1];
+  it->gradient = s->n_gradients;
+  it->color.r = it->color.g = it->color.b = 0;
+  it->color.a = 255;
+}
+
+/** A closed circle of two sub-paths in one fill, even-odd: a ring. */
+static int ring(SB_Scene * s, SB_Color c, double cx, double cy, double r0, double r1) {
+  for (int pass = 0; pass < 2; pass++) {
+    double r = pass ? r1 : r0, k = r * KAPPA;
+    if ((pass == 0 && add_fill(s, c)) || cmd(s, 'M', cx + r, cy, 0, 0, 0, 0) ||
+        cmd(s, 'C', cx + r, cy + k, cx + k, cy + r, cx, cy + r) || cmd(s, 'C', cx - k, cy + r, cx - r, cy + k, cx - r, cy) ||
+        cmd(s, 'C', cx - r, cy - k, cx - k, cy - r, cx, cy - r) || cmd(s, 'C', cx + k, cy - r, cx + r, cy - k, cx + r, cy) ||
+        cmd(s, 'Z', 0, 0, 0, 0, 0, 0)) {
+      return -1;
+    }
+  }
+  end_fill(s);
+  s->items[s->n_items - 1].evenodd = 1;
+  return 0;
+}
+
+static int gen_mask_defs(SB_Scene * s) {
+  const SB_Color white = {255, 255, 255, 255};
+  /* 1: an alpha ring (even-odd) with a translucent core */
+  if (mask_begin(s, SB_MASK_ALPHA, 0, 0, 0) || ring(s, white, 140, 140, 130, 72)) {
+    return -1;
+  }
+  SB_Color core = {255, 255, 255, 160};
+  if (circle(s, core, 140, 140, 40) || mask_end(s)) {
+    return -1;
+  }
+  /* 2: an alpha fade, left to right */
+  {
+    const double geom[4] = {0, 0, 280, 0};
+    const Mask_Stop st[3] = {{0, 255, 255, 255, 255}, {0.625, 255, 255, 255, 200}, {1, 255, 255, 255, 0}};
+    if (mask_begin(s, SB_MASK_ALPHA, 0, 0, 0) || add_gradient(s, SB_GRADIENT_LINEAR, geom, st, 3) ||
+        rect(s, white, 0, 0, 280, 280)) {
+      return -1;
+    }
+    paint_last(s);
+    if (mask_end(s)) {
+      return -1;
+    }
+  }
+  /* 3: an alpha spot: a circle with a radial fade to nothing */
+  {
+    const double geom[6] = {140, 140, 0, 140, 140, 140};
+    const Mask_Stop st[3] = {{0, 255, 255, 255, 255}, {0.6875, 255, 255, 255, 230}, {1, 255, 255, 255, 0}};
+    if (mask_begin(s, SB_MASK_ALPHA, 0, 0, 0) || add_gradient(s, SB_GRADIENT_RADIAL, geom, st, 3) ||
+        circle(s, white, 140, 140, 140)) {
+      return -1;
+    }
+    paint_last(s);
+    if (mask_end(s)) {
+      return -1;
+    }
+  }
+  /* 4: three overlapping translucent circles */
+  {
+    SB_Color a = {255, 255, 255, 170}, b = {255, 255, 255, 140}, c = {255, 255, 255, 200};
+    if (mask_begin(s, SB_MASK_ALPHA, 0, 0, 0) || circle(s, a, 100, 110, 80) || circle(s, b, 180, 110, 80) ||
+        circle(s, c, 140, 180, 80) || mask_end(s)) {
+      return -1;
+    }
+  }
+  /* 5: a luminance ramp over black, corner to corner */
+  {
+    const double geom[4] = {0, 0, 280, 280};
+    const Mask_Stop st[2] = {{0, 0, 0, 0, 255}, {1, 255, 255, 255, 255}};
+    if (mask_begin(s, SB_MASK_LUMINANCE, 0, 0, 0) || add_gradient(s, SB_GRADIENT_LINEAR, geom, st, 2) ||
+        rect(s, white, 0, 0, 280, 280)) {
+      return -1;
+    }
+    paint_last(s);
+    if (mask_end(s)) {
+      return -1;
+    }
+  }
+  /* 6: the three primaries as overlapping opaque circles over black */
+  {
+    SB_Color r = {255, 0, 0, 255}, g = {0, 255, 0, 255}, b = {0, 0, 255, 255};
+    if (mask_begin(s, SB_MASK_LUMINANCE, 0, 0, 0) || circle(s, r, 100, 110, 80) || circle(s, g, 180, 110, 80) ||
+        circle(s, b, 140, 180, 80) || mask_end(s)) {
+      return -1;
+    }
+  }
+  /* 7: translucent white, black and orange over a middle gray backdrop */
+  {
+    SB_Color w = {255, 255, 255, 128}, k = {0, 0, 0, 200}, o = {255, 140, 0, 170};
+    if (mask_begin(s, SB_MASK_LUMINANCE, 90, 90, 90) || circle(s, w, 140, 140, 110) || rect(s, k, 20, 20, 120, 120) ||
+        circle(s, o, 200, 200, 60) || mask_end(s)) {
+      return -1;
+    }
+  }
+  /* 8: black spots and a stripe over a white backdrop */
+  {
+    const double geom[6] = {140, 140, 0, 140, 140, 140};
+    const Mask_Stop st[2] = {{0, 0, 0, 0, 230}, {1, 0, 0, 0, 0}};
+    SB_Color k = {0, 0, 0, 255};
+    if (mask_begin(s, SB_MASK_LUMINANCE, 255, 255, 255) || add_gradient(s, SB_GRADIENT_RADIAL, geom, st, 2) ||
+        circle(s, k, 140, 140, 140)) {
+      return -1;
+    }
+    paint_last(s);
+    if (rect(s, k, 20, 124, 260, 140) || mask_end(s)) {
+      return -1;
+    }
+  }
+  return 0;
+}
+
+static int group_masked(SB_Scene * s, int composite, double opacity, size_t mask, double dx, double dy) {
+  SB_Item it;
+  memset(&it, 0, sizeof it);
+  it.kind = SB_GROUP;
+  it.composite = composite;
+  it.opacity = opacity;
+  it.mask = mask;
+  it.mask_dx = q64(dx);
+  it.mask_dy = q64(dy);
+  return sb_scene_add_item(s, &it);
+}
+
+static int group_end(SB_Scene * s) {
+  SB_Item it;
+  memset(&it, 0, sizeof it);
+  it.kind = SB_ENDGROUP;
+  return sb_scene_add_item(s, &it);
+}
+
+static int gen_masks(SB_Scene * s) {
+  begin(s, "masks", "masks", 1600, 1000, "groups");
+  s->background.r = 240;
+  s->background.g = 236;
+  s->background.b = 228;
+  rng_state = 0x6d61736b73ull; /* the scene draws from a stream of its own, so that no earlier scene depends on it */
+  if (gen_mask_defs(s)) {
+    return -1;
+  }
+  /* What the groups are drawn over: six large translucent shapes. */
+  for (int i = 0; i < 6; i++) {
+    double cx = range(200, 1400), cy = range(150, 850), r = range(140, 300);
+    if (i % 2 ? circle(s, color(96, 224), cx, cy, r) : rect(s, color(96, 224), cx - r, cy - r * 0.7, cx + r, cy + r * 0.7)) {
+      return -1;
+    }
+  }
+  /* mask index (1 to 8) of each cell, row by row */
+  static const int mask_of[15] = {1, 2, 3, 4, 1, 5, 6, 7, 8, 5, 3, 6, 7, 1, 8};
+  for (int k = 0; k < 15; k++) {
+    double x0 = 20 + 316 * (k % 5), y0 = 20 + 320 * (k / 5);
+    int composite = k == 4 || k == 11 ? SB_COMPOSITE_MULTIPLY : k == 7 ? SB_COMPOSITE_SCREEN : SB_COMPOSITE_SRC_OVER;
+    double opacity = k % 4 == 0 ? 1.0 : k % 4 == 1 ? 0.85 : k % 4 == 2 ? 0.6 : 0.95;
+    if (group_masked(s, composite, opacity, (size_t)mask_of[k], x0 + 8 + 0.1875 * k, y0 + 8 + 0.3125 * k)) {
+      return -1;
+    }
+    SB_Color c0 = color(200, 255), c1 = color(160, 230), c2 = color(220, 255);
+    switch (k % 3) {
+    case 0: {
+      double band[8] = {x0, y0 + 220, x0 + 300, y0 + 40, x0 + 300, y0 + 100, x0, y0 + 280};
+      if (rect(s, c0, x0, y0, x0 + 300, y0 + 300) || circle(s, c1, x0 + 150, y0 + 150, 110) || polygon(s, c2, band, 4)) {
+        return -1;
+      }
+      break;
+    }
+    case 1: {
+      const double geom[4] = {x0, y0, x0 + 300, y0 + 300};
+      const Mask_Stop st[3] = {{0, (uint8_t)c0.r, (uint8_t)c0.g, (uint8_t)c0.b, 255}, {0.5, (uint8_t)c1.r, (uint8_t)c1.g, (uint8_t)c1.b, 255},
+          {1, (uint8_t)c2.r, (uint8_t)c2.g, (uint8_t)c2.b, 255}};
+      SB_Color paint = {0, 0, 0, 255};
+      if (add_gradient(s, SB_GRADIENT_LINEAR, geom, st, 3) || rect(s, paint, x0, y0, x0 + 300, y0 + 300)) {
+        return -1;
+      }
+      paint_last(s);
+      if (circle(s, c1, x0 + 90, y0 + 210, 70) || circle(s, c2, x0 + 220, y0 + 80, 50)) {
+        return -1;
+      }
+      break;
+    }
+    default:
+      if (round_rect(s, c0, x0 + 10, y0 + 10, x0 + 290, y0 + 290, 40) || round_rect(s, c1, x0 + 50, y0 + 60, x0 + 250, y0 + 240, 30) ||
+          circle(s, c2, x0 + 150, y0 + 150, 60)) {
+        return -1;
+      }
+      break;
+    }
+    if (group_end(s)) {
+      return -1;
+    }
+    s->work += 1;
+  }
+  return 0;
+}
+
 /* The gradients scene, and the strokes scene after it, come last, so that the generator's random stream, and with it every earlier scene, is as
- * it was before they existed (the gradients scene draws nothing from that stream; the strokes scene draws from it last). */
-static const char * const SCENES[] = {"fill-rect", "fill-circle", "paths", "text", "ui", "gradients", "strokes", "strokes-dashed"};
+ * it was before they existed (the gradients scene draws nothing from that stream; the strokes scene draws from it last).  The masks scene
+ * follows them and seeds a stream of its own. */
+static const char * const SCENES[] = {"fill-rect", "fill-circle", "paths", "text", "ui", "gradients", "strokes", "strokes-dashed", "masks"};
 #define N_SCENES (sizeof SCENES / sizeof SCENES[0])
 
 static int emit(const char * dir, const char * font_path) {
@@ -648,7 +929,8 @@ static int emit(const char * dir, const char * font_path) {
         : i == 4    ? gen_ui(&s)
         : i == 5    ? gen_gradients(&s)
         : i == 6    ? gen_strokes(&s, 0)
-                    : gen_strokes(&s, 1);
+        : i == 7    ? gen_strokes(&s, 1)
+                    : gen_masks(&s);
     char path[1024];
     snprintf(path, sizeof path, "%s/%s.scene", dir, SCENES[i]);
     if (rc || sb_scene_save(path, &s)) {
@@ -684,6 +966,7 @@ typedef struct Shape {
   GSHSCENE_Paint * paint; ///< per item
   const GSHSCENE_Resource ** grad; ///< per item: a gradient fill's gradient
   const GSHSCENE_Resource ** style; ///< per item: a stroke's style
+  const GSHSCENE_Resource ** mask_res; ///< per mask: the mask resource (its picture is retained by it)
 } Shape;
 
 static GSHGEOM_Point pt(double x, double y) {
@@ -891,6 +1174,7 @@ static int shape_setup(Shape * e, const SB_Scene * s, const char * dir, int cont
   e->paint = calloc(s->n_items ? s->n_items : 1, sizeof *e->paint);
   e->grad = calloc(s->n_items ? s->n_items : 1, sizeof *e->grad);
   e->style = calloc(s->n_items ? s->n_items : 1, sizeof *e->style);
+  e->mask_res = calloc(s->n_masks ? s->n_masks : 1, sizeof *e->mask_res);
   sb_background_bytes(s, 0, e->bg);
   GIMG_Pixel_Format format = GIMG_PIXEL_RGBA8;
   format.alpha_form = GIMG_ALPHA_PREMULTIPLIED;
@@ -925,7 +1209,7 @@ static int shape_setup(Shape * e, const SB_Scene * s, const char * dir, int cont
       executor.wait = bench_wait;
     }
   }
-  if (!e->pixels || !e->res || !e->paint || !e->grad || !e->style || gshscene_store_create(NULL, NULL, &e->store) != GSHSCENE_OK ||
+  if (!e->pixels || !e->res || !e->paint || !e->grad || !e->style || !e->mask_res || gshscene_store_create(NULL, NULL, &e->store) != GSHSCENE_OK ||
       gshscene_list_create(NULL, NULL, e->store, &e->list) != GSHSCENE_OK ||
       gshcpu_sink_create_with_executor(NULL, NULL, &limits, &executor, &e->sink) != GSHCPU_OK ||
       gshscene_report_create(NULL, NULL, &e->report) != GSHSCENE_OK ||
@@ -1049,6 +1333,50 @@ static int shape_setup(Shape * e, const SB_Scene * s, const char * dir, int cont
       status = -1;
     }
   }
+  /* The masks: each picture is the fills of its definition (interned above with every other item), frozen into a picture
+   * resource, and the mask over it is interned once, like the paths: an acts-on-opacity mask with the identity transfer, the
+   * spaces left to the target's (shape-scene's mask.h; the scene format says the same of every driver). */
+  for (size_t m = 0; m < s->n_masks && status == 0; m++) {
+    const SB_Mask * sm = &s->masks[m];
+    GSHSCENE_List * picture_list = NULL;
+    const GSHSCENE_Resource * picture = NULL;
+    GSHSCENE_Result r = gshscene_list_create(NULL, NULL, e->store, &picture_list);
+    for (size_t k = 0; k < sm->n_items && r == GSHSCENE_OK; k++) {
+      size_t at = sm->first_item + k;
+      r = gshscene_list_fill(picture_list, e->res[at], NULL, s->items[at].evenodd ? GSHGEOM_FILL_EVEN_ODD : GSHGEOM_FILL_NONZERO,
+          &e->paint[at], 0, 0.0);
+    }
+    if (r == GSHSCENE_OK) {
+      r = gshscene_list_close(picture_list);
+    }
+    if (r == GSHSCENE_OK) {
+      r = gshscene_store_intern_picture(e->store, picture_list, &picture);
+    }
+    if (r == GSHSCENE_OK) {
+      GSHSCENE_Mask gm;
+      memset(&gm, 0, sizeof gm);
+      gm.picture = picture;
+      gm.acts_on = GSHSCENE_MASK_ACTS_ON_OPACITY;
+      if (sm->mode == SB_MASK_ALPHA) {
+        gm.mode = GSHSCENE_MASK_ALPHA;
+      } else {
+        gm.mode = GSHSCENE_MASK_LUMINANCE;
+        gm.coefficients = sm->coefficients == SB_COEFF_REC709 ? GSHSCENE_MASK_COEFF_REC709
+            : sm->coefficients == SB_COEFF_LUM               ? GSHSCENE_MASK_COEFF_LUM
+                                                             : GSHSCENE_MASK_COEFF_W3C;
+        gm.backdrop[0] = sm->backdrop.r / 255.0;
+        gm.backdrop[1] = sm->backdrop.g / 255.0;
+        gm.backdrop[2] = sm->backdrop.b / 255.0;
+      }
+      r = gshscene_store_intern_mask(e->store, &gm, &e->mask_res[m]);
+    }
+    gshscene_resource_release(picture);
+    gshscene_list_destroy(picture_list);
+    if (r != GSHSCENE_OK) {
+      fprintf(stderr, "bench-shape: cannot intern mask %zu of %s: %s\n", m + 1, s->name, gshscene_result_string(r));
+      status = -1;
+    }
+  }
   gfnt_face_free(face);
   gfnt_blob_destroy(blob);
   return status;
@@ -1059,6 +1387,9 @@ static void shape_teardown(Shape * e) {
     gshscene_resource_release(e->res[i]);
     gshscene_resource_release(e->grad ? e->grad[i] : NULL);
     gshscene_resource_release(e->style ? e->style[i] : NULL);
+  }
+  for (size_t m = 0; e->mask_res && m < e->scene->n_masks; m++) {
+    gshscene_resource_release(e->mask_res[m]);
   }
   for (size_t i = 0; i < e->n_glyph_paths; i++) {
     gshscene_resource_release(e->glyph_paths[i]);
@@ -1073,6 +1404,7 @@ static void shape_teardown(Shape * e) {
   free(e->paint);
   free(e->grad);
   free(e->style);
+  free(e->mask_res);
   free(e->pixels);
   memset(e, 0, sizeof *e);
 }
@@ -1121,9 +1453,20 @@ static int shape_build(void * ctx) {
         g.blend_space.primaries = GCOL_PRIMARIES_SRGB;
         g.blend_space.transfer = GCOL_TRANSFER_LINEAR;
       }
+      if (it->mask) {
+        g.soft_mask = e->mask_res[it->mask - 1];
+        if (gshgeom_map_translate(2, it->mask_dx, it->mask_dy, 0.0, &g.soft_mask_map) != GSHGEOM_OK) {
+          return 2;
+        }
+      }
       r = gshscene_list_group_push(e->list, &g, 0, 0.0);
       break;
     }
+    case SB_MASK_BEGIN:
+      i = it->count; /* a mask's picture is interned with the masks, and drawn only through a group's mask */
+      break;
+    case SB_MASK_END:
+      break;
     case SB_ENDGROUP:
       r = gshscene_list_group_pop(e->list);
       break;
@@ -1294,6 +1637,8 @@ static int run(const char * dir, const char * out) {
           !strcmp(s.metric, "text") ? "glyph outlines from font, decoded and interned once; one outline glyph run a line"
               : !strncmp(s.name, "strokes", 7) ? "styles and paths interned once; the expansion of each stroke is cached by the sink "
                                              "across frames (warm after the first), its coverage composed per frame"
+              : s.n_masks           ? "mask pictures and masks interned once with the paths; each frame records the masked groups and "
+                                      "renders them: the mask drawn over each group's pop region at the pop, its value in double"
               : s.n_gradients       ? "gradients interned once with the paths; evaluated per pixel in double at the pixel "
                                       "center, straight, in the target's space, undithered"
                                     : NULL);
@@ -1356,7 +1701,8 @@ static int run(const char * dir, const char * out) {
  * One frame of each named scene with shape-cpu, written as PAMs and nothing timed: for a census of the cells the exact step
  * handles (libs/shape-cpu/tools/exact-census.c), and for comparing two builds of the step byte for byte.  The names are those
  * of the scenes in the directory (strokes, strokes-dashed, ...); none named is every scene.  SHAPE_BENCH_FRAMES=N draws N
- * frames of each and writes the last, whose instructions are the only ones counted when the program runs under
+ * frames of each and writes the last (SHAPE_BENCH_CONTROL=1 also writes the control frame, as `run` does: every
+ * SB_CONTROL_STRIDE-th drawable dropped), whose instructions are the only ones counted when the program runs under
  * `valgrind --tool=callgrind --instr-atstart=no` (the sink caches the expansions of the strokes, so the last frame is a
  * warm one, which is what the timed frames of a run are).
  */
@@ -1403,6 +1749,19 @@ static int frames(const char * dir, const char * out, int count, char ** names) 
       failures++;
     }
     shape_teardown(&e);
+    /* SHAPE_BENCH_CONTROL=1: also the control's frame (every SB_CONTROL_STRIDE-th drawable dropped), as `run` writes it. */
+    if (rc == 0 && getenv("SHAPE_BENCH_CONTROL")) {
+      rc = shape_setup(&e, &s, dir, 1);
+      if (rc == 0 && !(rc = shape_clear(&e)) && !(rc = shape_build(&e)) && !(rc = shape_submit(&e))) {
+        snprintf(pam, sizeof pam, "%s/shape-cpu.%s.control.pam", out, s.name);
+        rc = sb_write_pam(pam, s.width, s.height, e.pixels, e.stride, 0);
+      }
+      if (rc) {
+        fprintf(stderr, "bench-shape: the control frame of %s failed (%d)\n", s.name, rc);
+        failures++;
+      }
+      shape_teardown(&e);
+    }
     sb_scene_free(&s);
   }
   return failures ? 1 : 0;
