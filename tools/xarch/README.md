@@ -714,3 +714,27 @@ Arm64 is qemu-user here, not hardware; real arm64 hardware runs the native
 checks (`suite/tools/shape-success/check.sh`). A
 library whose sources include its dependencies' headers needs
 `SHAPE_DEP_INCLUDES` set to their `-I` flags; the scaffolds include none.
+
+## The vector library's cross-target gate: `vector.sh`
+
+`vector.sh` builds vector and the libraries it depends on for a foreign target
+and runs, under qemu-user, every unit test program and the lowering gate
+(`tests/lower/lower_gate.c`) over every SVG fixture. The gate compares the
+list's hash, the raster's hash, the diagnostics and the dump with the goldens
+committed from the x86-64 build, so a number that comes out differently on
+the target is a failing golden. It is then shown to fail: a golden with one
+hex digit changed must be refused by the same binary.
+
+```bash
+podman run --rm -v "$PWD:/work:ro,z" -v /tmp/xvector:/scratch:z \
+  localhost/ghoti-xarch-text:deb13-gxx14-gtest-main-locales \
+  bash /work/suite/tools/xarch/vector.sh aarch64      # or i686
+podman run --rm -v "$PWD:/work:ro,z" -v /tmp/xvector:/scratch:z \
+  localhost/ghoti-xarch-text-be:deb13-gxx14-gtest-locales \
+  bash /work/suite/tools/xarch/vector.sh s390x
+```
+
+The images are those of `text.sh` (`Containerfile.text`, `Containerfile.text-be`).
+`VECTOR_XARCH_TESTS` selects test programs by name (default all) and
+`VECTOR_XARCH_TIMEOUT` bounds each. aarch64 and i686 are qemu-user, not
+hardware; s390x is the big-endian target.
