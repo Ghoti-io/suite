@@ -12,11 +12,14 @@
 # The tag names what is inside (notes/suite/CONTAINERS.md section 6).  Never :latest.
 FROM localhost/ghoti-xarch-arm64-jit:deb13-gxx14-gtest
 
+# `locales` is the package that holds the charmaps and the source of the de_DE locale: text.sh makes that locale with this image's own localedef (a
+# target under emulation cannot run one), because the CSS number tests need a locale whose decimal separator is a comma.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
       g++-i686-linux-gnu \
       libstdc++-14-dev-i386-cross \
       binutils-i686-linux-gnu \
+      locales \
  && rm -rf /var/lib/apt/lists/*
 
 RUN set -eux; \

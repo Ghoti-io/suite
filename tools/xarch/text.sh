@@ -12,7 +12,7 @@
 # directory at /scratch:
 #
 #   podman run --rm -v "$PWD:/work:ro,z" -v /tmp/xtext:/scratch:z \
-#     ghoti-xarch-text:deb13-gxx14-gtest-main bash /work/suite/tools/xarch/text.sh i686
+#     ghoti-xarch-text:deb13-gxx14-gtest-main-locales bash /work/suite/tools/xarch/text.sh i686
 #
 # What it does: checks that a binary of the target is a binary of the target (ELF header, by two
 # readers) before it runs one; builds cutil, unicode, chron, regex, security, math and text for the target into a
@@ -134,14 +134,16 @@ heading "Running ($ARCH, GTEXT_TEST_FULL=${FULL}, GTEXT_TEST_SLOWDOWN=${TEXT_XAR
 dir="$SRC/text/build/linux/release/apps"
 # A target under emulation cannot run localedef, and the CSS number tests need a locale whose decimal separator is a comma and fail, not
 # skip, without one (tests/test-css-oom.cpp). The locale is made here, with the host's own localedef, and handed to the tests as LOCPATH:
-# the files are the same for any target of the same byte order. localedef needs the charmaps of glibc's locales package; an image
-# without them (the image of Containerfile.text has none) cannot make it, and TEXT_XARCH_LOCPATH then names a directory that holds one
-# made elsewhere (a de_DE.UTF-8 directory from any host with localedef and the charmaps).
+# the files are the same for any target of the same byte order. localedef needs the charmaps of glibc's locales package, which the images of
+# Containerfile.text and Containerfile.text-be install; with an image that lacks them TEXT_XARCH_LOCPATH names a directory that holds one made elsewhere
+# (a de_DE.UTF-8 directory from any host with localedef and the charmaps).
 LOC="${TEXT_XARCH_LOCPATH:-$S/locale}"
 mkdir -p "$LOC"
 if [ ! -e "$LOC/de_DE.UTF-8/LC_NUMERIC" ] && command -v localedef >/dev/null 2>&1; then
   # (-c: write the locale even when localedef has warnings to give; what counts is that the files are there)
-  env -u LD_PRELOAD -u LD_LIBRARY_PATH localedef -c -i de_DE -f UTF-8 "$LOC/de_DE.UTF-8" > "$S/localedef.log" 2>&1
+  # (a locale file has the byte order of the machine that reads it: a big-endian target reads none that a little-endian localedef wrote)
+  ENDIAN=--little-endian; [ "$ARCH" = s390x ] && ENDIAN=--big-endian
+  env -u LD_PRELOAD -u LD_LIBRARY_PATH localedef -c $ENDIAN -i de_DE -f UTF-8 "$LOC/de_DE.UTF-8" > "$S/localedef.log" 2>&1
 fi
 [ -e "$LOC/de_DE.UTF-8/LC_NUMERIC" ] || { say "text.sh: no de_DE.UTF-8 locale ($LOC), so the tests that need a comma locale will fail; set TEXT_XARCH_LOCPATH to a directory that has one"; tail -3 "$S/localedef.log" 2>/dev/null; }
 fails=(); total=0; ran=0; skips=()

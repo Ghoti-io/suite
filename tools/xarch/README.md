@@ -505,14 +505,14 @@ script as `jit-arm64.sh` and shares its rules: every binary's ELF header is read
 tests fails, a failure does not stop the others (the list of failures is the last thing printed), and skips are listed by name.
 On i686 it also requires that `HtmlSourceMapLimit` ran and did not skip (the 32-bit limit of the offset map, 128 MiB: 2^27
 bytes; the test feeds that many bytes and one more), and on AArch64 that it skipped. Its image is
-`Containerfile.text` (the arm64-jit image plus `g++-i686-linux-gnu`, and a googletest with `gtest_main` for both targets):
+`Containerfile.text` (the arm64-jit image plus `g++-i686-linux-gnu`, a googletest with `gtest_main` for both targets, and `locales`, whose charmaps `text.sh` makes the comma-decimal locale of the CSS number tests from):
 
 ```bash
-docker build -t localhost/ghoti-xarch-text:deb13-gxx14-gtest-main -f suite/tools/xarch/Containerfile.text suite/tools/xarch
+docker build -t localhost/ghoti-xarch-text:deb13-gxx14-gtest-main-locales -f suite/tools/xarch/Containerfile.text suite/tools/xarch
 for a in aarch64 i686; do      # WS holds libs/ (cutil security unicode chron regex text) and suite/
   mkdir -p "$SCRATCH/$a"
   docker run --rm --memory 10g --cpus=6 -v "$WS:/work:ro" -v "$SCRATCH/$a:/scratch" \
-      localhost/ghoti-xarch-text:deb13-gxx14-gtest-main bash -c "JOBS=6 bash /work/suite/tools/xarch/text.sh $a"
+      localhost/ghoti-xarch-text:deb13-gxx14-gtest-main-locales bash -c "JOBS=6 bash /work/suite/tools/xarch/text.sh $a"
 done
 ```
 

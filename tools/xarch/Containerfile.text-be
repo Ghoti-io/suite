@@ -7,6 +7,9 @@
 # the distribution's source.  The target has a gtest.pc and a gtest_main.pc in /opt/s390x/lib/pkgconfig,
 # found first by PKG_CONFIG_PATH so that the host's x86-64 archives are never linked.
 #
+# `locales` holds the charmaps and the source of the de_DE locale that text.sh makes with this image's own localedef (a target under emulation cannot
+# run one; the CSS number tests need a locale whose decimal separator is a comma).
+#
 # The tag names what is inside.  Never :latest.
 FROM localhost/ghoti-xarch:deb13
 
@@ -16,6 +19,7 @@ RUN apt-get update \
       libstdc++-14-dev-s390x-cross \
       binutils-s390x-linux-gnu \
       pkg-config make python3 rsync libgtest-dev \
+      locales \
  && rm -rf /var/lib/apt/lists/*
 
 RUN set -eux; \
