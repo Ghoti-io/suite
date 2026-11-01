@@ -915,7 +915,10 @@ static void image_blend_modes(void) {
     blend_tile(L, oor[i], x0 + i * dx, 1158, tw, th, wide, 4, encoded);
   }
   /* Isolation (B6): the same multiply group drawn straight onto the backdrop, and inside an isolated group of its own,
-   * where there is nothing beneath it to multiply; then PDF's two other kinds of group, which shape-cpu refuses. */
+   * where there is nothing beneath it to multiply; inside a non-isolated group it sees the backdrop again.  Then PDF's two
+   * kinds of group (T1 to T7, drawn by shape-cpu since masks-images-patterns story M3): a knockout group, where the second of two
+   * translucent shapes replaces the first against the backdrop, and the same two shapes in a plain group, where it composites
+   * over the first. */
   const double iy = 1400;
   blend_backdrop(L, x0, iy, tw, th);
   group_push(L, group_props(1.0, GSHSCENE_COMPOSITE_MULTIPLY));
@@ -927,29 +930,26 @@ static void image_blend_modes(void) {
   blend_source(L, x0 + dx, iy, tw, th, kPatches, 4);
   group_pop(L);
   group_pop(L);
+  blend_backdrop(L, x0 + 2 * dx, iy, tw, th);
+  GSHSCENE_Group open_group = group_props(1.0, GSHSCENE_COMPOSITE_SRC_OVER);
+  open_group.isolation = GSHSCENE_ISOLATION_NON_ISOLATED;
+  group_push(L, open_group);
+  group_push(L, group_props(1.0, GSHSCENE_COMPOSITE_MULTIPLY));
+  blend_source(L, x0 + 2 * dx, iy, tw, th, kPatches, 4);
+  group_pop(L);
+  group_pop(L);
   for (int k = 0; k < 2; k++) {
-    double x = x0 + (2 + k) * dx;
-    fill_rect(L, x, iy, x + tw, iy + th, solid(0.82, 0.82, 0.82, 1));
-    fill_rect(L, x + 3, iy + 3, x + tw - 3, iy + th - 3, solid(0.9, 0.9, 0.9, 1));
+    double x = x0 + (3 + k) * dx;
+    blend_backdrop(L, x, iy, tw, th);
+    GSHSCENE_Group g = group_props(1.0, GSHSCENE_COMPOSITE_SRC_OVER);
+    g.isolation = GSHSCENE_ISOLATION_NON_ISOLATED;
+    g.knockout = k == 0 ? 1u : 0u;
+    group_push(L, g);
+    fill_rect(L, x + 0.10 * tw, iy + 0.15 * th, x + 0.65 * tw, iy + 0.70 * th, solid(0.90, 0.10, 0.10, 0.6));
+    fill_rect(L, x + 0.35 * tw, iy + 0.30 * th, x + 0.90 * tw, iy + 0.85 * th, solid(0.10, 0.20, 0.90, 0.6));
+    group_pop(L);
   }
   render("blend modes (tiles)", L, R);
-
-  /* PDF's non-isolated and knockout groups (T1 to T7): drawn by no sink yet.  Each is recorded and rendered over its
-   * placeholder, so the log shows shape-cpu's refusal (S19) and the placeholder shows it drew nothing. */
-  for (int k = 0; k < 2; k++) {
-    L = list_new();
-    double x = x0 + (2 + k) * dx;
-    GSHSCENE_Group g = group_props(1.0, GSHSCENE_COMPOSITE_MULTIPLY);
-    if (k == 0) {
-      g.isolation = GSHSCENE_ISOLATION_NON_ISOLATED;
-    } else {
-      g.knockout = 1;
-    }
-    group_push(L, g);
-    blend_source(L, x, iy, tw, th, kPatches, 4);
-    group_pop(L);
-    render(k == 0 ? "blend modes (a non-isolated group, refused)" : "blend modes (a knockout group, refused)", L, R);
-  }
 
   /* Labels, and each tile's middle pixel read back. */
   L = list_new();
@@ -978,16 +978,20 @@ static void image_blend_modes(void) {
     label_c(L, gshscene_composite_string((GSHSCENE_Composite)oor[i]), 14, x + tw / 2, 1158 + th + 4, 0.15);
     tile_readback(L, R, x, 1158, tw, th);
   }
-  label(L, "Isolation (B6): multiply at the root, and inside an isolated group of its own; PDF's other groups are refused (S19)",
+  label(L, "Isolation (B6): multiply at the root, in an isolated group, in a non-isolated one; a knockout group and a plain one (T1 to T7)",
       16, 30, iy - 26, 0.15);
   label_c(L, "multiply onto the backdrop", 14, x0 + tw / 2, iy + th + 4, 0.15);
   label_c(L, "inside an isolated group", 14, x0 + dx + tw / 2, iy + th + 4, 0.15);
-  tile_readback(L, R, x0, iy, tw, th);
-  tile_readback(L, R, x0 + dx, iy, tw, th);
-  label_c(L, "non-isolated group:", 14, x0 + 2 * dx + tw / 2, iy + 34, 0.3);
-  label_c(L, "refused by shape-cpu", 14, x0 + 2 * dx + tw / 2, iy + 56, 0.3);
-  label_c(L, "knockout group:", 14, x0 + 3 * dx + tw / 2, iy + 34, 0.3);
-  label_c(L, "refused by shape-cpu", 14, x0 + 3 * dx + tw / 2, iy + 56, 0.3);
+  label_c(L, "inside a non-isolated group", 14, x0 + 2 * dx + tw / 2, iy + th + 4, 0.15);
+  label_c(L, "a knockout group of two shapes", 14, x0 + 3 * dx + tw / 2, iy + th + 4, 0.15);
+  label_c(L, "the same in a plain group", 14, x0 + 4 * dx + tw / 2, iy + th + 4, 0.15);
+  static const char * const isolation_tiles[5] = {"multiply at the root", "in an isolated group", "in a non-isolated group",
+      "a knockout group of two shapes", "the same in a plain group"};
+  for (int k = 0; k < 5; k++) {
+    tile_readback(L, R, x0 + k * dx, iy, tw, th);
+    const unsigned char * mid = pixel(R, (int)(x0 + k * dx + tw / 2), (int)(iy + th / 2));
+    printf("blend modes: isolation tile %d (%s): mid %d,%d,%d,%d\n", k, isolation_tiles[k], mid[0], mid[1], mid[2], mid[3]);
+  }
   render("blend modes (labels)", L, R);
   save_png(R, "blend-modes.png");
   gimg_raster_destroy(R);
