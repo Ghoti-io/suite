@@ -62,6 +62,9 @@ echo "native x86_64 hash: $want"
 
 # The math sources, corpus and committed hash, copied beside the scratch tree.
 MATH="$ROOT/libs/math"
+# math owns the list of its generated corpora; one stable target prepares them all before the tree is copied.
+make -s -j1 -C "$MATH" prepare-corpora > "$W/prepare-math-corpora.log" 2>&1 \
+  || { echo "shape.sh: math's prepare-corpora failed (see $W/prepare-math-corpora.log)" >&2; exit 2; }
 rm -rf "$W/math"
 mkdir -p "$W/math/tools" "$W/math/tests" "$W/math/src" "$W/math/gen"
 cp -r "$MATH/include" "$W/math/include"

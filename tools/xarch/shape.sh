@@ -5,8 +5,12 @@
 # a library's own `make test`.  Run it in the ghoti-xarch image, from the
 # workspace root:
 #
+#   make -s -j1 -C libs/math prepare-corpora
 #   podman run --rm -v "$PWD:/work:ro,z" ghoti-xarch:sid-gcc16 \
 #     bash /work/suite/tools/xarch/shape.sh
+#
+# The first line is on the host: math's generated corpora are gitignored, the
+# container has no Python and mounts the tree read-only.
 #
 # Ten sections, each of which shows its gate failing:
 #
@@ -485,6 +489,14 @@ if [ -z "$committed_hash" ] || [ -z "$committed_count" ]; then
 fi
 MFLAGS="-std=c17 -O2 -pedantic-errors -Wall -Wextra -Werror -ffp-contract=off -DGMATH_BUILD -I$MATH/include -I$mg/generated"
 
+# math's generated corpora are prepared on the host before this script runs (the container mounts the tree read-only
+# and has no Python); a probe that cannot open one says so, and this names the step.
+corpus_hint() {
+  if grep -qs "cannot open" "$1.txt" "$1.err"; then
+    echo "   hint  a generated corpus is missing: run 'make -s -j1 -C libs/math prepare-corpora' on the host first"
+  fi
+}
+
 # math_run TRIPLE CC QEMU TAG FLAGS... -> prints "HASH COUNT"; binary in $B/math-TAG-TRIPLE
 math_run() {
   local triple=$1 cc=$2 qemu=$3 tag=$4 out
@@ -503,6 +515,7 @@ while IFS='|' read -r triple cc qemu desc; do
   # shellcheck disable=SC2046
   MOK[$triple]=$(math_run "$triple" "$cc" "$qemu" ok $(xarch_fp_cflags "$triple")) \
     || { echo "   FAIL  $triple: cannot build or run the math hash probe (see $B/math-ok-$triple.err)"; status=1; MOK[$triple]=""; }
+  corpus_hint "$B/math-ok-$triple"
   # shellcheck disable=SC2046
   MPLANT[$triple]=$(math_run "$triple" "$cc" "$qemu" plant -DGMATH_PLANT_BIT $(xarch_fp_cflags "$triple")) \
     || { echo "   FAIL  $triple: cannot build or run the planted math hash probe"; status=1; MPLANT[$triple]=""; }

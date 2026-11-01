@@ -621,8 +621,15 @@ compiler run in each library's own `make test` (`check-fp-contract`,
 violation for each). `shape.sh` holds the three that do:
 
 ```bash
+make -s -j1 -C libs/math prepare-corpora
+```
+
+```bash
 podman run --rm -v "$PWD:/work:ro,z" ghoti-xarch:sid-gcc16 bash /work/suite/tools/xarch/shape.sh
 ```
+
+The first command runs on the host: math's generated corpora are gitignored, and
+the container has no Python and mounts the tree read-only.
 
 1. **The four copies of each gate script are the same text.** CONVENTIONS
    reuses one script per library; a copy that has drifted is named. Planted: a
