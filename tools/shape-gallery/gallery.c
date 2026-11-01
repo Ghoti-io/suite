@@ -21,7 +21,7 @@
 /**
  * @file gallery.c
  *
- * A gallery of ten PNGs drawn entirely by the suite's own libraries, for a
+ * A gallery of eleven PNGs drawn entirely by the suite's own libraries, for a
  * person to look at (README.md says what each shows).  Every pixel comes from
  * shape-cpu rendering shape-scene lists; text is font's paragraph layout and
  * shaping, its glyphs reaching the scene through font's glyph path provider;
@@ -31,7 +31,7 @@
  *
  * FONTDIR is font's tests/data/fonts, DEJAVU the pinned DejaVuSans.ttf that
  * suite/tools/shape-success/fetch.sh fetches.  Writes shapes.png,
- * compositing.png, blend-modes.png, color.png, gradients.png, images.png, masks.png, strokes.png, text.png and color-glyphs.png
+ * compositing.png, blend-modes.png, color.png, gradients.png, images.png, masks.png, strokes.png, primitives.png, text.png and color-glyphs.png
  * into OUTDIR and a log on stdout: each render's result and its report entries
  * tallied by class and reason, the diagnostics of a few fixture fonts, and what
  * the color-glyph page refused.  Exits nonzero when any step failed.
@@ -54,6 +54,7 @@
 #include <ghoti.io/shape-scene/shape-scene.h>
 
 #include <math.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -2869,6 +2870,582 @@ static void image_masks(void) {
 #undef NAME
 }
 
+/* --- 11: primitives: the exact arcs (shape-geometry A1) and the named primitives (A2) ------------------------- */
+
+#define PTW 270.0 /* a tile's width; four across at a pitch of 290 */
+
+static double g_py; /* the next section's top */
+static struct PLabel {
+  double cx, y;
+  char text[100];
+} g_plab[400];
+static size_t g_nplab;
+static struct PProbe {
+  double cx, y;
+  char tag[12];
+  int px, py;
+} g_ppr[80];
+static size_t g_nppr;
+
+/** A caption line (line 0, 1) under a tile whose bottom is at @p ybot, centered on @p cx. */
+static void pcap(double cx, double ybot, int line, const char * fmt, ...) {
+  if (g_nplab >= sizeof g_plab / sizeof g_plab[0]) {
+    fail("too many captions");
+    return;
+  }
+  va_list ap;
+  va_start(ap, fmt);
+  struct PLabel * l = &g_plab[g_nplab++];
+  vsnprintf(l->text, sizeof l->text, fmt, ap);
+  va_end(ap);
+  l->cx = cx;
+  l->y = ybot + 4 + 14 * line;
+}
+
+/** A pixel to read back after the render and print on line @p line (counted after the two caption lines). */
+static void pprobe(double cx, double ybot, int line, const char * tag, double px, double py) {
+  if (g_nppr >= sizeof g_ppr / sizeof g_ppr[0]) {
+    fail("too many probes");
+    return;
+  }
+  struct PProbe * p = &g_ppr[g_nppr++];
+  snprintf(p->tag, sizeof p->tag, "%s", tag);
+  p->cx = cx;
+  p->y = ybot + 4 + 14 * (2 + line);
+  p->px = (int)floor(px);
+  p->py = (int)floor(py);
+}
+
+/** A section: its title at the running y; returns the top of its tiles and moves the running y below the captions. */
+static double psec(GSHSCENE_List * L, const char * title, double th) {
+  label(L, title, 14, 40, g_py, 0.1);
+  double top = g_py + 26;
+  g_py = top + th + 86;
+  return top;
+}
+
+/** Tile @p col of a section whose tiles start at @p top and are @p th high: a white card; returns its left edge. */
+static double ptile(GSHSCENE_List * L, int col, double top, double th) {
+  double ox = 40 + col * 290;
+  fill_rect(L, ox - 1, top - 1, ox + PTW + 1, top + th + 1, solid(0.8, 0.8, 0.82, 1));
+  fill_rect(L, ox, top, ox + PTW, top + th, solid(1, 1, 1, 1));
+  return ox;
+}
+
+static void pdot(GSHSCENE_List * L, double x, double y, double r, GSHSCENE_Paint paint) {
+  fill(L, circle(x, y, r), paint);
+}
+
+/** A line from (x0, y0) to (x1, y1), @p w wide. */
+static void pline(GSHSCENE_List * L, double x0, double y0, double x1, double y1, double w, GSHSCENE_Paint paint) {
+  GSHGEOM_Path * p = path_new();
+  gshgeom_path_move_to(p, P(x0, y0));
+  gshgeom_path_line_to(p, P(x1, y1));
+  GSHSCENE_Stroke_Style st = style_new(w, GSHSCENE_STROKE_JOIN_MITER, GSHSCENE_STROKE_CAP_BUTT);
+  stroke_map(L, intern(p), NULL, &st, paint);
+}
+
+/** Fill @p res with @p f and stroke it with @p st in @p ink, under @p map (NULL: none). */
+static void pfs(GSHSCENE_List * L, const GSHSCENE_Resource * res, const GSHGEOM_Map * map, GSHSCENE_Paint f,
+    const GSHSCENE_Stroke_Style * st, GSHSCENE_Paint ink) {
+  if (f.rgba[3] > 0) {
+    fill_map(L, gshscene_resource_retain(res), map, GSHGEOM_FILL_NONZERO, f);
+  }
+  if (st) {
+    stroke_map(L, gshscene_resource_retain(res), map, st, ink);
+  }
+  gshscene_resource_release(res);
+}
+
+static const GSHSCENE_Resource * prim_intern(const GSHSCENE_Primitive * pr) {
+  const GSHSCENE_Resource * r = NULL;
+  if (gshscene_store_intern_primitive(g_store, pr, &r) != GSHSCENE_OK) {
+    fail("intern primitive");
+  }
+  return r;
+}
+
+static const GSHSCENE_Resource * prim_rect(double x, double y, double w, double h, int fx, int fy) {
+  GSHSCENE_Primitive pr;
+  memset(&pr, 0, sizeof pr);
+  pr.kind = GSHSCENE_PRIMITIVE_RECT;
+  pr.x = x, pr.y = y, pr.w = w, pr.h = h, pr.flip_x = fx, pr.flip_y = fy;
+  return prim_intern(&pr);
+}
+
+static const GSHSCENE_Resource * prim_rrect(
+    double x, double y, double w, double h, const GSHGEOM_Corner r[4], int fx, int fy) {
+  GSHSCENE_Primitive pr;
+  memset(&pr, 0, sizeof pr);
+  pr.kind = GSHSCENE_PRIMITIVE_ROUNDED_RECT;
+  pr.x = x, pr.y = y, pr.w = w, pr.h = h, pr.flip_x = fx, pr.flip_y = fy;
+  memcpy(pr.r, r, sizeof pr.r);
+  return prim_intern(&pr);
+}
+
+static const GSHSCENE_Resource * prim_ellipse(double cx, double cy, double rx, double ry, int fx, int fy) {
+  GSHSCENE_Primitive pr;
+  memset(&pr, 0, sizeof pr);
+  pr.kind = GSHSCENE_PRIMITIVE_ELLIPSE;
+  pr.cx = cx, pr.cy = cy, pr.rx = rx, pr.ry = ry, pr.flip_x = fx, pr.flip_y = fy;
+  return prim_intern(&pr);
+}
+
+static GSHGEOM_Arc_Kind g_arc_kind;
+
+/** SVG's `A rx ry phi large sweep end` (degrees) from the current point. */
+static void arc_end(GSHGEOM_Path * p, GSHGEOM_Point e, double rx, double ry, double phi, int large, int sweep) {
+  if (gshgeom_path_arc_endpoint_to(p, e, rx, ry, phi, GSHGEOM_ANGLE_DEGREES, large, sweep, &g_arc_kind) != GSHGEOM_OK) {
+    fail("arc endpoint");
+  }
+}
+
+/** The centre form about (cx, cy): radii, rotation @p phi and the start and sweep in @p unit; a subpath begins at P(t0). */
+static void arc_centre(GSHGEOM_Path * p, double cx, double cy, double rx, double ry, double phi, GSHGEOM_Angle_Unit unit,
+    double t0, double sweep) {
+  if (gshgeom_path_arc_center_to(p, P(cx, cy), rx, ry, phi, unit, t0, sweep, NULL) != GSHGEOM_OK) {
+    fail("arc centre");
+  }
+}
+
+static GSHGEOM_Map map_scale_to(double sx, double sy, double tx, double ty) {
+  return map_about(sx, 0, 0, sy, 0, 0, tx, ty);
+}
+
+static const char * kind_name(GSHGEOM_Arc_Kind k) {
+  return k == GSHGEOM_ARC_KIND_ARC ? "an arc" : k == GSHGEOM_ARC_KIND_LINE ? "a line" : "nothing";
+}
+
+static void image_primitives(void) {
+  const int W = 1200, H = 3220;
+  GIMG_Raster * R = raster_new(W, H);
+  GSHSCENE_List * L = list_new();
+  background(L, W, H, 0.97);
+  label(L, "primitives: exact arcs and named primitives, drawn by shape-cpu", 26, 30, 18, 0.1);
+  g_py = 64;
+  g_nplab = g_nppr = 0;
+  const GSHSCENE_Paint ink = solid(0.1, 0.2, 0.45, 1);
+  const GSHSCENE_Paint wash = solid(0.62, 0.76, 0.95, 0.6);
+  const GSHSCENE_Paint solid_fill = solid(0.62, 0.76, 0.95, 1);
+  const GSHSCENE_Paint guide = solid(0.9, 0.35, 0.1, 1);
+  const GSHSCENE_Paint green = solid(0.1, 0.6, 0.2, 1);
+  const GSHSCENE_Paint red = solid(0.85, 0.15, 0.15, 1);
+  const GSHSCENE_Paint none = solid(0, 0, 0, 0);
+  const GSHSCENE_Paint grey = solid(0.7, 0.7, 0.72, 1);
+  GSHSCENE_Stroke_Style s5 = style_new(5, GSHSCENE_STROKE_JOIN_ROUND, GSHSCENE_STROKE_CAP_BUTT);
+  GSHSCENE_Stroke_Style s6 = style_new(6, GSHSCENE_STROKE_JOIN_MITER, GSHSCENE_STROKE_CAP_BUTT);
+  GSHSCENE_Stroke_Style thin = style_new(1, GSHSCENE_STROKE_JOIN_MITER, GSHSCENE_STROKE_CAP_BUTT);
+  GSHSCENE_Stroke_Style s8 = style_new(8, GSHSCENE_STROKE_JOIN_MITER, GSHSCENE_STROKE_CAP_BUTT);
+  GSHSCENE_Stroke_Style s6r = style_new(6, GSHSCENE_STROKE_JOIN_ROUND, GSHSCENE_STROKE_CAP_ROUND);
+
+  /* A. Endpoint form, the four flag combinations on the same two points and radii. */
+  {
+    const double TH = 250;
+    double top = psec(L, "SVG 2 endpoint form (A rx ry phi large sweep x y): the four flag combinations, one chord, rx = ry = 70", TH);
+    for (int k = 0; k < 4; k++) {
+      int large = k >> 1, sweep = k & 1;
+      double ox = ptile(L, k, top, TH);
+      GSHGEOM_Path * p = path_new();
+      gshgeom_path_move_to(p, P(ox + 75, top + 130));
+      arc_end(p, P(ox + 195, top + 130), 70, 70, 0, large, sweep);
+      pfs(L, intern(p), NULL, wash, &s5, ink);
+      pdot(L, ox + 75, top + 130, 6, green);
+      pdot(L, ox + 195, top + 130, 6, red);
+      pcap(ox + PTW / 2, top + TH, 0, "large-arc %d, sweep %d", large, sweep);
+      pcap(ox + PTW / 2, top + TH, 1, "%s arc, %s on screen", large ? "the long" : "the short",
+          sweep ? "clockwise" : "counter-clockwise");
+    }
+  }
+
+  /* B. Endpoint form: the radius correction and the degenerate radii. */
+  {
+    const double TH = 210;
+    double top = psec(L, "Endpoint form: radii too small are scaled up (SVG 2 F.6.6), a zero radius is a line, a rotation turns the axes", TH);
+    double ox = ptile(L, 0, top, TH);
+    GSHGEOM_Path * p = path_new();
+    gshgeom_path_move_to(p, P(ox + 75, top + 130));
+    arc_end(p, P(ox + 195, top + 130), 30, 30, 0, 0, 1);
+    pfs(L, intern(p), NULL, wash, &s5, ink);
+    pdot(L, ox + 75, top + 130, 6, green);
+    pdot(L, ox + 195, top + 130, 6, red);
+    pcap(ox + PTW / 2, top + TH, 0, "r = 30, chord 120: scaled to 60");
+    pcap(ox + PTW / 2, top + TH, 1, "the half circle (%s)", kind_name(g_arc_kind));
+
+    ox = ptile(L, 1, top, TH);
+    p = path_new();
+    gshgeom_path_move_to(p, P(ox + 60, top + 125));
+    arc_end(p, P(ox + 210, top + 150), 110, 45, 30, 0, 1);
+    pfs(L, intern(p), NULL, wash, &s5, ink);
+    pdot(L, ox + 60, top + 125, 6, green);
+    pdot(L, ox + 210, top + 150, 6, red);
+    pcap(ox + PTW / 2, top + TH, 0, "rx 110, ry 45, phi 30 degrees");
+    pcap(ox + PTW / 2, top + TH, 1, "a tilted ellipse, short arc, clockwise");
+
+    ox = ptile(L, 2, top, TH);
+    p = path_new();
+    gshgeom_path_move_to(p, P(ox + 60, top + 150));
+    arc_end(p, P(ox + 210, top + 70), 0, 60, 0, 0, 1);
+    pfs(L, intern(p), NULL, wash, &s5, ink);
+    pdot(L, ox + 60, top + 150, 6, green);
+    pdot(L, ox + 210, top + 70, 6, red);
+    pcap(ox + PTW / 2, top + TH, 0, "rx = 0: SVG says draw a line");
+    pcap(ox + PTW / 2, top + TH, 1, "the call adds %s", kind_name(g_arc_kind));
+
+    ox = ptile(L, 3, top, TH);
+    p = path_new();
+    gshgeom_path_move_to(p, P(ox + 60, top + 140));
+    arc_end(p, P(ox + 210, top + 140), 60, 30, 0, 0, 1);
+    pfs(L, intern(p), NULL, wash, &s5, ink);
+    pdot(L, ox + 60, top + 140, 6, green);
+    pdot(L, ox + 210, top + 140, 6, red);
+    pcap(ox + PTW / 2, top + TH, 0, "rx 60, ry 30, chord 150: both x 1.25");
+    pcap(ox + PTW / 2, top + TH, 1, "to 75 and 37.5, the ratio kept");
+  }
+
+  /* C. Centre form. */
+  {
+    const double TH = 230;
+    double top = psec(L, "Centre form (Canvas arc and ellipse, DXF ARC): start, signed sweep, rotation, and the angle unit", TH);
+    double ox = ptile(L, 0, top, TH);
+    GSHGEOM_Path * p = path_new();
+    arc_centre(p, ox + 135, top + 115, 75, 75, 0, GSHGEOM_ANGLE_DEGREES, 0, 360);
+    gshgeom_path_close(p);
+    pfs(L, intern(p), NULL, wash, &s5, ink);
+    pdot(L, ox + 135 + 75, top + 115, 6, green);
+    pcap(ox + PTW / 2, top + TH, 0, "t0 0, sweep 360 degrees");
+    pcap(ox + PTW / 2, top + TH, 1, "one turn closes to the start, bit for bit");
+
+    ox = ptile(L, 1, top, TH);
+    p = path_new();
+    arc_centre(p, ox + 135, top + 115, 75, 75, 0, GSHGEOM_ANGLE_DEGREES, -90, -270);
+    pfs(L, intern(p), NULL, none, &s6r, ink);
+    pdot(L, ox + 135, top + 40, 6, green);
+    pdot(L, ox + 135 + 75, top + 115, 6, red);
+    pcap(ox + PTW / 2, top + TH, 0, "t0 -90, sweep -270 degrees");
+    pcap(ox + PTW / 2, top + TH, 1, "a negative sweep: counter-clockwise");
+
+    ox = ptile(L, 2, top, TH);
+    p = path_new();
+    arc_centre(p, ox + 135, top + 115, 105, 45, 30, GSHGEOM_ANGLE_DEGREES, 0, 360);
+    pfs(L, intern(p), NULL, none, &thin, grey);
+    p = path_new();
+    arc_centre(p, ox + 135, top + 115, 105, 45, 30, GSHGEOM_ANGLE_DEGREES, 20, 220);
+    pfs(L, intern(p), NULL, none, &s6r, ink);
+    pcap(ox + PTW / 2, top + TH, 0, "rx 105, ry 45, phi 30, t0 20, sweep 220");
+    pcap(ox + PTW / 2, top + TH, 1, "the ellipse it lies on in grey");
+
+    ox = ptile(L, 3, top, TH);
+    static const struct {
+      GSHGEOM_Angle_Unit u;
+      double quarter, r;
+      GSHSCENE_Paint c;
+    } unit[4] = {{GSHGEOM_ANGLE_RADIANS, 1.5707963267948966, 25, {0}}, {GSHGEOM_ANGLE_DEGREES, 90, 45, {0}},
+        {GSHGEOM_ANGLE_GRADIANS, 100, 65, {0}}, {GSHGEOM_ANGLE_TURNS, 0.25, 85, {0}}};
+    const GSHSCENE_Paint hue[4] = {solid(0.8, 0.15, 0.15, 1), solid(0.9, 0.55, 0.05, 1), solid(0.1, 0.6, 0.2, 1), solid(0.15, 0.3, 0.8, 1)};
+    pline(L, ox + 45, top + 45, ox + 45 + 110, top + 45, 1, grey);
+    pline(L, ox + 45, top + 45, ox + 45, top + 45 + 110, 1, grey);
+    for (int u = 0; u < 4; u++) {
+      p = path_new();
+      arc_centre(p, ox + 45, top + 45, unit[u].r, unit[u].r, 0, unit[u].u, 0, unit[u].quarter);
+      pfs(L, intern(p), NULL, none, &s6, hue[u]);
+    }
+    pcap(ox + PTW / 2, top + TH, 0, "one quarter turn, four units, from the right");
+    pcap(ox + PTW / 2, top + TH, 1, "radians, degrees, gradians, turns (in to out)");
+  }
+
+  /* D. Tangent form. */
+  {
+    const double TH = 210;
+    double top = psec(L, "Tangent form (Canvas arcTo): a line to the first tangent point, then a circular arc toward the second point", TH);
+    static const double radius[4] = {0, 30, 90, 40};
+    for (int k = 0; k < 4; k++) {
+      double ox = ptile(L, k, top, TH);
+      GSHGEOM_Point p0 = P(ox + 30, top + 40), p1 = P(ox + 150, top + 160), p2 = P(ox + 240, top + 40);
+      if (k == 3) {
+        p2 = P(ox + 30 + 2 * 70, top + 40 + 2 * 70); /* on the line p0 p1, past p1 */
+        p1 = P(ox + 30 + 70, top + 40 + 70);
+      }
+      pline(L, p0.x, p0.y, p1.x, p1.y, 1.5, guide);
+      pline(L, p1.x, p1.y, p2.x, p2.y, 1.5, guide);
+      GSHGEOM_Path * p = path_new();
+      gshgeom_path_move_to(p, p0);
+      if (gshgeom_path_arc_tangent_to(p, p1, p2, radius[k]) != GSHGEOM_OK) {
+        fail("arc tangent");
+      }
+      gshgeom_path_line_to(p, p2);
+      pfs(L, intern(p), NULL, none, &s5, ink);
+      pdot(L, p0.x, p0.y, 5, green);
+      pdot(L, p1.x, p1.y, 4, guide);
+      pdot(L, p2.x, p2.y, 5, red);
+      if (k == 3) {
+        pcap(ox + PTW / 2, top + TH, 0, "r = 40 with the three points collinear");
+        pcap(ox + PTW / 2, top + TH, 1, "no corner to round: a line");
+      } else {
+        pcap(ox + PTW / 2, top + TH, 0, "r = %g", radius[k]);
+        pcap(ox + PTW / 2, top + TH, 1, k == 0 ? "radius 0: a line to the corner" : "orange: the two lines it rounds");
+      }
+    }
+  }
+
+  /* E. Arcs through a map and as a stroke. */
+  {
+    const double TH = 230;
+    double top = psec(L, "An arc under a non-uniform map is an elliptical arc (the conic route); an arc as a stroke, with dashes", TH);
+    /* local-space arc about the origin: a C shape, radius 55, 240 degrees from -210 */
+    GSHSCENE_Stroke_Style wide = style_new(14, GSHSCENE_STROKE_JOIN_MITER, GSHSCENE_STROKE_CAP_BUTT);
+    GSHSCENE_Stroke_Style dev = wide;
+    dev.width_space = GSHSCENE_STROKE_WIDTH_DEVICE;
+    for (int k = 0; k < 4; k++) {
+      double ox = ptile(L, k, top, TH);
+      GSHGEOM_Path * p = path_new();
+      arc_centre(p, 0, 0, 55, 55, 0, GSHGEOM_ANGLE_DEGREES, k < 2 ? -210 : -120, k < 2 ? 240 : 300);
+      const GSHSCENE_Resource * res = intern(p);
+      if (k < 2) {
+        GSHGEOM_Map m1 = k ? map_scale_to(0.5, 1.6, ox + 60, top + 115) : map_scale_to(1, 1, ox + 70, top + 115),
+            m2 = k ? map_scale_to(1, 0.5, ox + 190, top + 115) : map_scale_to(0.5, 1.6, ox + 205, top + 115);
+        pfs(L, gshscene_resource_retain(res), &m1, none, k ? &dev : &wide, ink);
+        pfs(L, res, &m2, none, k ? &dev : &wide, ink);
+        if (k == 0) {
+          pcap(ox + PTW / 2, top + TH, 0, "the arc, stroked 14 wide, as it is and");
+          pcap(ox + PTW / 2, top + TH, 1, "under scale (0.5, 1.6): a local-width pen");
+        } else {
+          pcap(ox + PTW / 2, top + TH, 0, "a device width of 14, under (0.5, 1.6) and (1, 0.5):");
+          pcap(ox + PTW / 2, top + TH, 1, "uniform, whatever the map");
+        }
+      } else {
+        double dash[2] = {22, 16};
+        GSHSCENE_Stroke_Style d = style_new(9, GSHSCENE_STROKE_JOIN_ROUND, k == 2 ? GSHSCENE_STROKE_CAP_BUTT : GSHSCENE_STROKE_CAP_ROUND);
+        d.dashes = dash;
+        d.dash_count = 2;
+        GSHGEOM_Map m = k == 2 ? map_scale_to(1.35, 1.35, ox + 135, top + 115) : map_scale_to(1.9, 0.6, ox + 135, top + 115);
+        if (k == 3) {
+          dash[0] = 0.01;
+          dash[1] = 20;
+          d.width = 11;
+        }
+        pfs(L, res, &m, none, &d, ink);
+        double a = -120 * M_PI / 180;
+        double sx = k == 2 ? 1.35 : 1.9, sy = k == 2 ? 1.35 : 0.6;
+        pdot(L, ox + 135 + sx * 55 * cos(a), top + 115 + sy * 55 * sin(a), 5, green);
+        if (k == 2) {
+          pcap(ox + PTW / 2, top + TH, 0, "dashes 22 on 16 off along a 300 degree arc");
+          pcap(ox + PTW / 2, top + TH, 1, "the pattern starts at the green dot");
+        } else {
+          pcap(ox + PTW / 2, top + TH, 0, "round dots every 20 along the arc,");
+          pcap(ox + PTW / 2, top + TH, 1, "under scale (1.9, 0.6): dots follow the map");
+        }
+      }
+    }
+  }
+
+  /* F. Rect and rounded rect. */
+  {
+    const double TH = 190;
+    double top = psec(L, "rect and rounded rect (named primitives, exact lines and quarter-turn arcs), filled and stroked", TH);
+    GSHGEOM_Corner round24[4] = {{24, 24}, {24, 24}, {24, 24}, {24, 24}};
+    GSHGEOM_Corner ell[4] = {{50, 20}, {20, 50}, {50, 20}, {20, 50}};
+    double ox = ptile(L, 0, top, TH);
+    pfs(L, prim_rect(ox + 60, top + 45, 150, 100, 0, 0), NULL, solid_fill, &s6, ink);
+    pcap(ox + PTW / 2, top + TH, 0, "rect 150 by 100");
+    pcap(ox + PTW / 2, top + TH, 1, "four lines, no arcs");
+    pprobe(ox + PTW / 2, top + TH, 0, "ctr", ox + 135, top + 95);
+    pprobe(ox + PTW / 2, top + TH, 1, "corner", ox + 63, top + 48);
+
+    ox = ptile(L, 1, top, TH);
+    pfs(L, prim_rrect(ox + 60, top + 45, 150, 100, round24, 0, 0), NULL, solid_fill, &s6, ink);
+    pcap(ox + PTW / 2, top + TH, 0, "rounded rect, every corner 24 by 24");
+    pcap(ox + PTW / 2, top + TH, 1, "four circular quarter-turn arcs");
+    pprobe(ox + PTW / 2, top + TH, 0, "ctr", ox + 135, top + 95);
+    pprobe(ox + PTW / 2, top + TH, 1, "corner", ox + 63, top + 48);
+
+    ox = ptile(L, 2, top, TH);
+    pfs(L, prim_rrect(ox + 60, top + 45, 150, 100, ell, 0, 0), NULL, solid_fill, &s6, ink);
+    pcap(ox + PTW / 2, top + TH, 0, "elliptical corners, in the order");
+    pcap(ox + PTW / 2, top + TH, 1, "tl 50x20, tr 20x50, br 50x20, bl 20x50");
+    pprobe(ox + PTW / 2, top + TH, 0, "ctr", ox + 135, top + 95);
+    pprobe(ox + PTW / 2, top + TH, 1, "corner", ox + 63, top + 48);
+
+    /* The front-end resolves radii that do not fit: the waist refuses them and never scales (CSS: by the least of side / sum). */
+    ox = ptile(L, 3, top, TH);
+    GSHGEOM_Corner big[4] = {{80, 80}, {80, 80}, {80, 80}, {80, 80}};
+    GSHGEOM_Result unscaled = gshgeom_rounded_rect_check(150, 60, big);
+    double f = fmin(150.0 / 160.0, 60.0 / 160.0);
+    GSHGEOM_Corner scaled[4];
+    for (int i = 0; i < 4; i++) {
+      scaled[i].rx = big[i].rx * f;
+      scaled[i].ry = big[i].ry * f;
+    }
+    GSHGEOM_Result fits = gshgeom_rounded_rect_check(150, 60, scaled);
+    pfs(L, prim_rrect(ox + 60, top + 65, 150, 60, scaled, 0, 0), NULL, solid_fill, &s6, ink);
+    pcap(ox + PTW / 2, top + TH, 0, "r 80 on 150 by 60: check says %s;", gshgeom_result_string(unscaled));
+    pcap(ox + PTW / 2, top + TH, 1, "scaled by %g to 30 (%s): a stadium", f, gshgeom_result_string(fits));
+    pprobe(ox + PTW / 2, top + TH, 0, "ctr", ox + 135, top + 95);
+    pprobe(ox + PTW / 2, top + TH, 1, "corner", ox + 63, top + 68);
+  }
+
+  /* G. The flips of a rounded rect, as Chromium's roundRect with a negative size draws it. */
+  {
+    const double TH = 200;
+    double top = psec(L, "rounded rect flips, as Chromium's roundRect draws a negative width or height: one list of radii (44, 8, 24, 0) in visiting order", TH);
+    GSHGEOM_Corner r[4] = {{44, 44}, {8, 8}, {24, 24}, {0, 0}};
+    static const char * const name[4] = {"no flip", "flip_x (width < 0)", "flip_y (height < 0)", "flip_x and flip_y"};
+    static const int tl_index[4] = {0, 1, 3, 2};
+    static const double pat[4] = {52, 12, 8, 12};
+    GSHSCENE_Stroke_Style st = style_new(5, GSHSCENE_STROKE_JOIN_MITER, GSHSCENE_STROKE_CAP_BUTT);
+    st.dashes = pat;
+    st.dash_count = 4;
+    for (int k = 0; k < 4; k++) {
+      int fx = k & 1, fy = k >> 1;
+      double ox = ptile(L, k, top, TH);
+      double x = ox + 45, y = top + 45;
+      pfs(L, prim_rrect(x, y, 180, 110, r, fx, fy), NULL, wash, &st, ink);
+      pdot(L, x + r[tl_index[k]].rx, y, 6, green);
+      pcap(ox + PTW / 2, top + TH, 0, "%s", name[k]);
+      pcap(ox + PTW / 2, top + TH, 1, "%s, from the dot", fx == fy ? "clockwise" : "reversed");
+      pprobe(ox + PTW / 2, top + TH, 0, "br", x + 178, y + 108);
+    }
+  }
+
+  /* H. The flips of a rect and an ellipse. */
+  {
+    const double TH = 170;
+    double top = psec(L, "rect and ellipse flips (Canvas's four sign cases): the dashed outline starts at the dot and runs the way the dashes lead", TH);
+    static const char * const name[4] = {"no flip", "flip_x", "flip_y", "flip_x and flip_y"};
+    static const double pat[4] = {40, 10, 6, 10};
+    GSHSCENE_Stroke_Style st = style_new(5, GSHSCENE_STROKE_JOIN_MITER, GSHSCENE_STROKE_CAP_BUTT);
+    st.dashes = pat;
+    st.dash_count = 4;
+    for (int k = 0; k < 4; k++) {
+      int fx = k & 1, fy = k >> 1;
+      double ox = ptile(L, k, top, TH);
+      double x = ox + 18, y = top + 45, w = 105, h = 70;
+      pfs(L, prim_rect(x, y, w, h, fx, fy), NULL, wash, &st, ink);
+      pdot(L, fx ? x + w : x, fy ? y + h : y, 6, green);
+      double cx = ox + 198, cy = top + 80, rx = 58, ry = 36;
+      pfs(L, prim_ellipse(cx, cy, rx, ry, fx, fy), NULL, wash, &st, ink);
+      pdot(L, fx ? cx - rx : cx + rx, cy, 6, green);
+      pcap(ox + PTW / 2, top + TH, 0, "%s", name[k]);
+      pcap(ox + PTW / 2, top + TH, 1, "%s", (fx != fy) ? "counter-clockwise" : "clockwise");
+    }
+  }
+
+  /* I. Circles and ellipses. */
+  {
+    const double TH = 190;
+    double top = psec(L, "circle and ellipse (four quarter-turn arcs each), filled and stroked", TH);
+    double ox = ptile(L, 0, top, TH);
+    double cx = ox + 135, cy = top + 95;
+    pfs(L, prim_ellipse(cx, cy, 70, 70, 0, 0), NULL, solid_fill, &s8, ink);
+    pcap(ox + PTW / 2, top + TH, 0, "circle, r 70, stroked 8 centered");
+    pcap(ox + PTW / 2, top + TH, 1, "an ellipse whose radii are bit equal");
+    pprobe(ox + PTW / 2, top + TH, 0, "ctr", cx, cy);
+    pprobe(ox + PTW / 2, top + TH, 1, "rim", cx + 70, cy);
+
+    ox = ptile(L, 1, top, TH);
+    cx = ox + 135;
+    pfs(L, prim_ellipse(cx, cy, 115, 50, 0, 0), NULL, solid_fill, NULL, ink);
+    pcap(ox + PTW / 2, top + TH, 0, "ellipse, rx 115, ry 50, fill only");
+    pcap(ox + PTW / 2, top + TH, 1, "the conic route: smooth, no facets");
+    pprobe(ox + PTW / 2, top + TH, 0, "ctr", cx, cy);
+    pprobe(ox + PTW / 2, top + TH, 1, "outside", cx + 117, cy);
+
+    ox = ptile(L, 2, top, TH);
+    cx = ox + 135;
+    double dots[2] = {0.01, 17};
+    GSHSCENE_Stroke_Style dot = style_new(8, GSHSCENE_STROKE_JOIN_ROUND, GSHSCENE_STROKE_CAP_ROUND);
+    dot.dashes = dots;
+    dot.dash_count = 2;
+    pfs(L, prim_ellipse(cx, cy, 105, 60, 0, 0), NULL, none, &dot, ink);
+    pcap(ox + PTW / 2, top + TH, 0, "ellipse, rx 105, ry 60, dots every 17");
+    pcap(ox + PTW / 2, top + TH, 1, "dashes follow the true arc length");
+
+    ox = ptile(L, 3, top, TH);
+    cx = ox + 135;
+    double pat[4] = {52, 12, 8, 12};
+    GSHSCENE_Stroke_Style st = style_new(5, GSHSCENE_STROKE_JOIN_MITER, GSHSCENE_STROKE_CAP_BUTT);
+    st.dashes = pat;
+    st.dash_count = 4;
+    pfs(L, prim_ellipse(cx, cy, 70, 70, 0, 0), NULL, wash, &st, ink);
+    pdot(L, cx + 70, cy, 6, green);
+    pcap(ox + PTW / 2, top + TH, 0, "a circle's dashes start at 3 o'clock");
+    pcap(ox + PTW / 2, top + TH, 1, "and run clockwise, as SVG 2's do");
+  }
+
+  /* J. Very large circles and ellipses: an edge cut from a tile. */
+  {
+    const double TH = 150;
+    double top = psec(L, "very large circles and ellipses, each clipped to its tile: the device route keeps the edge smooth at any radius", TH);
+    for (int k = 0; k < 4; k++) {
+      double ox = ptile(L, k, top, TH);
+      double mx = ox + 135, my = top + 75; /* the edge passes through here */
+      const GSHSCENE_Resource * clip = rect(ox, top, ox + PTW, top + TH);
+      if (gshscene_list_clip_push(L, clip, NULL, GSHGEOM_FILL_NONZERO, 0, 0.0) != GSHSCENE_OK) {
+        fail("clip push");
+      }
+      gshscene_resource_release(clip);
+      /* the unit normal, pointing into the circle: 20 degrees off the vertical for the first and third */
+      double tilt = (k == 1 || k == 3 ? 0.0 : k == 2 ? -20.0 : 20.0) * M_PI / 180;
+      double nx = sin(tilt), ny = cos(tilt);
+      if (k == 3) {
+        pfs(L, prim_ellipse(mx, my + 1500, 4000, 1500, 0, 0), NULL, solid_fill, &s8, ink);
+        pcap(ox + PTW / 2, top + TH, 0, "ellipse rx 4000, ry 1500,");
+        pcap(ox + PTW / 2, top + TH, 1, "filled and stroked 8");
+      } else {
+        double R = k == 1 ? 3000 : 100000;
+        const GSHSCENE_Resource * c = prim_ellipse(mx + nx * R, my + ny * R, R, R, 0, 0);
+        if (k == 2) {
+          double dash[2] = {26, 14};
+          GSHSCENE_Stroke_Style d = style_new(7, GSHSCENE_STROKE_JOIN_MITER, GSHSCENE_STROKE_CAP_BUTT);
+          d.dashes = dash;
+          d.dash_count = 2;
+          pfs(L, c, NULL, none, &d, ink);
+          pcap(ox + PTW / 2, top + TH, 0, "circle r 100000 stroked 7, dashes 26 on 14");
+          pcap(ox + PTW / 2, top + TH, 1, "off, on an arc 600000 long");
+        } else if (k == 0) {
+          pfs(L, c, NULL, solid_fill, NULL, ink);
+          pcap(ox + PTW / 2, top + TH, 0, "circle r 100000, filled");
+          pcap(ox + PTW / 2, top + TH, 1, "an edge 20 degrees off the horizontal");
+        } else {
+          pfs(L, c, NULL, solid_fill, &s8, ink);
+          pcap(ox + PTW / 2, top + TH, 0, "circle r 3000, filled and stroked 8");
+          pcap(ox + PTW / 2, top + TH, 1, "the edge sags 3 px over the tile");
+        }
+      }
+      if (k == 0) {
+        pprobe(ox + PTW / 2, top + TH, 0, "in", mx + 12 * nx, my + 12 * ny);
+        pprobe(ox + PTW / 2, top + TH, 1, "out", mx - 12 * nx, my - 12 * ny);
+      }
+      if (k == 1) {
+        pprobe(ox + PTW / 2, top + TH, 0, "in", mx, my + 14);
+        pprobe(ox + PTW / 2, top + TH, 1, "out", mx, my - 14);
+      }
+      if (gshscene_list_clip_pop(L) != GSHSCENE_OK) {
+        fail("clip pop");
+      }
+    }
+  }
+
+  render("primitives", L, R);
+
+  /* The captions, and the pixels at the probes read back from what was drawn. */
+  L = list_new();
+  for (size_t i = 0; i < g_nplab; i++) {
+    label_c(L, g_plab[i].text, 11, g_plab[i].cx, g_plab[i].y, 0.15);
+  }
+  for (size_t i = 0; i < g_nppr; i++) {
+    const struct PProbe * p = &g_ppr[i];
+    const unsigned char * c = pixel(R, p->px, p->py);
+    char buf[64];
+    snprintf(buf, sizeof buf, "%s %d,%d,%d,%d", p->tag, c[0], c[1], c[2], c[3]);
+    label_c(L, buf, 11, p->cx, p->y, 0.4);
+    printf("primitives probe (%d,%d) %s: %d,%d,%d,%d\n", p->px, p->py, p->tag, c[0], c[1], c[2], c[3]);
+  }
+  render("primitives (labels)", L, R);
+  printf("primitives: page ends at y=%g of %d\n", g_py, H);
+  save_png(R, "primitives.png");
+  gimg_raster_destroy(R);
+}
+
 int main(int argc, char ** argv) {
   if (argc != 4) {
     fprintf(stderr, "usage: gallery FONTDIR DEJAVU OUTDIR\n");
@@ -2897,6 +3474,7 @@ int main(int argc, char ** argv) {
   image_images();
   image_masks();
   image_strokes();
+  image_primitives();
   image_text(argv[1]);
   image_color_glyphs(argv[1]);
   printf("gallery: %s\n", g_failed ? "FAILED" : "ok");
