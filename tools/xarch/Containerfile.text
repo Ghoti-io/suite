@@ -9,7 +9,7 @@
 # gtest.pc and a gtest_main.pc in /opt/<target>/lib/pkgconfig, found first by
 # PKG_CONFIG_PATH so that the host's x86-64 archives are never linked.
 #
-# The tag names what is inside (notes/suite/CONTAINERS.md section 6).  Never :latest.
+# The tag names what is inside (the parent, the compiler, gtest, the locales package) and is never :latest.
 FROM localhost/ghoti-xarch-arm64-jit:deb13-gxx14-gtest
 
 # `locales` is the package that holds the charmaps and the source of the de_DE locale: text.sh makes that locale with this image's own localedef (a

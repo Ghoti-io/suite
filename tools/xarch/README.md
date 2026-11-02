@@ -46,8 +46,8 @@ easy thing to type and gives you `:latest` silently - which is the one tag the
 suite's convention forbids, because a tag that does not say what is inside the
 image makes a green run name a set of names rather than a set of bytes. This
 image was `:latest` for a day for exactly that reason. `deb13` is the base it
-is built from, matching `ghoti-cross-mingw64:deb13`; see
-`notes/suite/CONTAINERS.md` section 6.
+is built from, matching `ghoti-cross-mingw64:deb13`; a tag names what is
+inside and is never retagged over different contents.
 
 `smoke.sh` checks the container. `check.sh` is the gate: it exits non-zero if
 any target disagrees with the others or with Appleby's published verification
@@ -188,7 +188,7 @@ the GCC 16 host compilers, `pkg-config`, `bison`, `curl` and
 googletest source built into an aarch64 archive with a `gtest.pc` beside it, and
 the host's `libgtest-dev` for the x86-64 control. The tag names what is inside
 (the parent, the compiler, that gtest is in it) and is never `:latest`; it does
-not retag `deb13` over different contents (`notes/suite/CONTAINERS.md` section 6).
+not retag `deb13` over different contents.
 
 What the script does:
 
@@ -260,7 +260,7 @@ are the commits): 31 test binaries, 573 tests passed under qemu-aarch64
 seed 3 of the differential. `jit-arm64: OK`. This replaces the first run
 (2026-10-04: 193 s, 29 binaries, 538 passed with 2 skipped, 539 on the control),
 which predated the runtime-jit and lang-tang commits of 2026-10-04 and 2026-10-05
-(the audit that asked for this re-run is `planning/specs/spec-runtime-stack-m1/audit-2026-10-05.md`, item 8).
+(the audit that asked for this re-run is not part of this repository).
 
 **What it does not show**, and the script says so when it ends: the instruction
 cache (`qemu-user` translates lazily and does not model it, so the library's cache
@@ -333,7 +333,7 @@ control. Two plants follow: the library built without
 `-D_FILE_OFFSET_BITS=64` must fail to compile, naming the flag, and the same
 build with that refusal switched off must fail the harness. The directory
 listing is held to the plant only if a probe built without the flag fails with
-`EOVERFLOW` on the workspace mount: only a directory whose entries carry 64-bit
+`EOVERFLOW` on the source mount: only a directory whose entries carry 64-bit
 cookies (ext4) shows it, and tmpfs does not.
 
 ```bash

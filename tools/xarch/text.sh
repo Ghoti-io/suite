@@ -8,7 +8,7 @@
 #   text.sh i686         32-bit x86 (32-bit size_t), qemu-i386
 #   text.sh s390x        s390x (64-bit, BIG-endian), qemu-s390x: the image of Containerfile.text-be
 #
-# In the image of Containerfile.text, with the workspace at /work (read-only) and a scratch
+# In the image of Containerfile.text, with the source tree at /work (read-only) and a scratch
 # directory at /scratch:
 #
 #   podman run --rm -v "$PWD:/work:ro,z" -v /tmp/xtext:/scratch:z \
