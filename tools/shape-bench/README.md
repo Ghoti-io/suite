@@ -22,6 +22,7 @@ it. A figure quoted anywhere else is read from there, with its date and CPU.
 | `strokes` | path count (paths/s) | 2,500 stroked paths of 30 to 250 pixels and a width of 1 to 9, translucent, 1920x1080: a miter-joined polyline, round-joined and round-capped quadratics, a bevel-joined closed polygon, a round-joined circle, a zigzag with square caps and a miter limit of 2 |
 | `strokes-dashed` | path count | 800 dashed open cubic waves (butt or round caps), as `strokes`; drawn by shape-cpu and Skia only: this Blend2D (58ca946) accepts a dash array on its context and strokes solid, so its arm omits the scene (the minimal pair is in the strokes story's change log) |
 | `gradients` | fill rate | 12 opaque rectangles and circles overlapping on a 4x3 grid, each a gradient of 2 to 5 opaque stops: linear pad, repeat and reflect; radial concentric pad, repeat and reflect, and one focal pad; sweep over a whole turn (pad, and repeat from 30 degrees) and a third of a turn repeated, 1920x1080 |
+| `groups` | groups per second (shape-cpu only: no reference draws it) | fifteen groups of three shapes on 1600x1000, three each of a non-isolated multiply group, a knockout group, a knockout group around a non-isolated group around a knockout one, the multiply group isolated (the control) and a non-isolated knockout screen group |
 | `masks` | masked groups per second | 15 groups of three or four fills on 1600x1000, each multiplied by a mask the group places by a translation: four alpha masks (a ring with a translucent core, a linear fade, a radial spot, three translucent circles) and four luminance masks by Rec. 709's coefficients (a ramp, the three primaries, translucent shapes over a gray backdrop, black spots over a white one), source-over, multiply and screen at opacities of 0.6 to 1, over six large translucent shapes; Blend2D and Skia build each mask from layers ([Masks](#masks)) |
 
 `bench-shape emit` writes the scenes once (`scene.h` gives the format); every
@@ -158,6 +159,23 @@ The record is `results/<date>-masks.json`, with the Markdown generated from it b
 (frame time, throughput in masked groups per second, the cross-check figures and the control) and the provenance this file states:
 the images and their IDs, the compilers and flags, the CPU model, architecture and CPUs online, the governor and boost, the pinned
 CPU and the load before and after each engine; it does not name the host.
+
+## Non-isolated and knockout groups: a scene no reference draws
+
+The `groups` scene draws groups of PDF's two kinds: fifteen groups of three shapes on 1600x1000, three of each of five kinds in the
+cells of a 5 by 3 grid. A non-isolated multiply group, whose content multiplies with what was painted before it; a knockout group of
+three overlapping translucent shapes, each composited with the group's initial backdrop and not with the shapes before it; a knockout
+group holding a non-isolated one holding a knockout one; the same multiply group isolated, as the control, which takes none of the
+code the others take; and a non-isolated knockout screen group. A scene line spells the flags as `nonisolated` and `knockout` after the
+group's operator and opacity.
+
+**Neither Blend2D nor Skia has either flag, so no reference draws this scene and no cross-check applies**: the default lists of the
+two reference drivers do not name it, and `report.py` does not table it. It records shape-cpu's figure with its provenance, and one
+claim that figures of other scenes can carry: a list that sets neither flag takes none of the code these groups take, so the
+default-group scenes already here (`ui`, `masks`) are no slower than before the flags were composited. That is measured, not asserted:
+shape-cpu is built from the commit before the flags and from the one after, `bench-shape run` draws the three scenes (interleaved,
+pinned to one CPU, on the same machine), and the results file `<date>-groups.md` holds both columns and the spread of each. The
+spread is the noise the claim is judged against.
 
 ## COLRv1 against Skia
 

@@ -330,6 +330,10 @@ int sb_scene_load(const char * path, SB_Scene * out, char * err, size_t errlen) 
         at += u;
         if (!strcmp(tok, "linear") && !it.linear) {
           it.linear = 1;
+        } else if (!strcmp(tok, "nonisolated") && !it.nonisolated) {
+          it.nonisolated = 1;
+        } else if (!strcmp(tok, "knockout") && !it.knockout) {
+          it.knockout = 1;
         } else if (!strcmp(tok, "mask") && !it.mask) {
           unsigned long n = 0;
           int u2 = 0;
@@ -710,7 +714,8 @@ int sb_scene_save(const char * path, const SB_Scene * s) {
       fprintf(f, "unclip\n");
       break;
     case SB_GROUP:
-      fprintf(f, "group %s %.9g%s", COMPOSITE_NAMES[it->composite], it->opacity, it->linear ? " linear" : "");
+      fprintf(f, "group %s %.9g%s%s%s", COMPOSITE_NAMES[it->composite], it->opacity, it->linear ? " linear" : "",
+          it->nonisolated ? " nonisolated" : "", it->knockout ? " knockout" : "");
       if (it->mask) {
         fprintf(f, " mask %zu %.17g %.17g", it->mask, it->mask_dx, it->mask_dy);
       }

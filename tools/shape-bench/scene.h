@@ -263,6 +263,8 @@ typedef struct SB_Item {
   int linear;      ///< group: composites in linear light (sRGB primaries)
   size_t mask;     ///< group: 1 + the index of its mask in SB_Scene.masks; 0 for none.  SB_MASK_BEGIN: 1 + the index it defines
   double mask_dx, mask_dy; ///< group: the mask's placement, a translation in pixels
+  int nonisolated;         ///< group: PDF's non-isolated group (its content composites with what was painted before it)
+  int knockout;            ///< group: PDF's knockout group (each element composites with the group's initial backdrop)
 } SB_Item;
 
 typedef struct SB_Scene {

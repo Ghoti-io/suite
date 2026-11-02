@@ -842,6 +842,18 @@ static int group_masked(SB_Scene * s, int composite, double opacity, size_t mask
   return sb_scene_add_item(s, &it);
 }
 
+/** A group of PDF's kinds (masks-images-patterns story M3): non-isolated, knockout, or both. */
+static int group_general(SB_Scene * s, int composite, double opacity, int nonisolated, int knockout) {
+  SB_Item it;
+  memset(&it, 0, sizeof it);
+  it.kind = SB_GROUP;
+  it.composite = composite;
+  it.opacity = opacity;
+  it.nonisolated = nonisolated;
+  it.knockout = knockout;
+  return sb_scene_add_item(s, &it);
+}
+
 static int group_end(SB_Scene * s) {
   SB_Item it;
   memset(&it, 0, sizeof it);
@@ -912,10 +924,76 @@ static int gen_masks(SB_Scene * s) {
   return 0;
 }
 
+/*
+ * Non-isolated and knockout groups (masks-images-patterns story M3, decision M3-D4): fifteen groups on 1600x1000 over a few large
+ * translucent shapes, three of each of five kinds in the cells of a 5 by 3 grid of 300-pixel cells: a non-isolated multiply group of
+ * three translucent shapes; a knockout group of three overlapping ones; a knockout group holding a non-isolated group holding a knockout
+ * one; the same multiply group as the first, isolated (the control, which takes none of the new code); and a non-isolated knockout screen
+ * group.  Neither Blend2D nor Skia has either flag, so **no reference draws this scene**: it records shape-cpu's figure with its
+ * provenance and, beside the default-group scenes (`masks`, `ui`), the evidence that a list that sets neither flag is no slower.
+ */
+static int gen_groups(SB_Scene * s) {
+  begin(s, "groups", "groups", 1600, 1000, "groups");
+  s->background.r = 236;
+  s->background.g = 240;
+  s->background.b = 232;
+  rng_state = 0x67726f757073ull; /* a stream of its own, so that no earlier scene depends on it */
+  for (int i = 0; i < 6; i++) {
+    double cx = range(200, 1400), cy = range(150, 850), r = range(140, 300);
+    if (i % 2 ? circle(s, color(96, 224), cx, cy, r) : rect(s, color(96, 224), cx - r, cy - r * 0.7, cx + r, cy + r * 0.7)) {
+      return -1;
+    }
+  }
+  for (int k = 0; k < 15; k++) {
+    const double x0 = 20 + 316 * (k % 5), y0 = 20 + 320 * (k / 5);
+    const int kind = k % 5;
+    int opened = 0;
+    int r = 0;
+    switch (kind) {
+    case 0:
+      r = group_general(s, SB_COMPOSITE_MULTIPLY, 0.9, 1, 0);
+      opened = 1;
+      break;
+    case 1:
+      r = group_general(s, SB_COMPOSITE_SRC_OVER, 1.0, 1, 1);
+      opened = 1;
+      break;
+    case 2:
+      r = group_general(s, SB_COMPOSITE_SRC_OVER, 1.0, 0, 1) || group_general(s, SB_COMPOSITE_MULTIPLY, 0.9, 1, 0) ||
+          group_general(s, SB_COMPOSITE_SRC_OVER, 0.8, 0, 1);
+      opened = 3;
+      break;
+    case 3:
+      r = group_masked(s, SB_COMPOSITE_MULTIPLY, 0.9, 0, 0, 0);
+      opened = 1;
+      break;
+    default:
+      r = group_general(s, SB_COMPOSITE_SCREEN, 0.9, 1, 1);
+      opened = 1;
+      break;
+    }
+    if (r) {
+      return -1;
+    }
+    SB_Color c0 = color(200, 255), c1 = color(160, 230), c2 = color(220, 255);
+    if (rect(s, c0, x0 + 10, y0 + 10, x0 + 220, y0 + 220) || circle(s, c1, x0 + 190, y0 + 190, 100) ||
+        round_rect(s, c2, x0 + 60, y0 + 90, x0 + 290, y0 + 280, 40)) {
+      return -1;
+    }
+    for (int g = 0; g < opened; g++) {
+      if (group_end(s)) {
+        return -1;
+      }
+    }
+    s->work += 1;
+  }
+  return 0;
+}
+
 /* The gradients scene, and the strokes scene after it, come last, so that the generator's random stream, and with it every earlier scene, is as
  * it was before they existed (the gradients scene draws nothing from that stream; the strokes scene draws from it last).  The masks scene
  * follows them and seeds a stream of its own. */
-static const char * const SCENES[] = {"fill-rect", "fill-circle", "paths", "text", "ui", "gradients", "strokes", "strokes-dashed", "masks"};
+static const char * const SCENES[] = {"fill-rect", "fill-circle", "paths", "text", "ui", "gradients", "strokes", "strokes-dashed", "masks", "groups"};
 #define N_SCENES (sizeof SCENES / sizeof SCENES[0])
 
 static int emit(const char * dir, const char * font_path) {
@@ -930,7 +1008,8 @@ static int emit(const char * dir, const char * font_path) {
         : i == 5    ? gen_gradients(&s)
         : i == 6    ? gen_strokes(&s, 0)
         : i == 7    ? gen_strokes(&s, 1)
-                    : gen_masks(&s);
+        : i == 8    ? gen_masks(&s)
+                    : gen_groups(&s);
     char path[1024];
     snprintf(path, sizeof path, "%s/%s.scene", dir, SCENES[i]);
     if (rc || sb_scene_save(path, &s)) {
@@ -1453,6 +1532,8 @@ static int shape_build(void * ctx) {
         g.blend_space.primaries = GCOL_PRIMARIES_SRGB;
         g.blend_space.transfer = GCOL_TRANSFER_LINEAR;
       }
+      g.isolation = it->nonisolated ? GSHSCENE_ISOLATION_NON_ISOLATED : GSHSCENE_ISOLATION_ISOLATED;
+      g.knockout = it->knockout ? 1u : 0u;
       if (it->mask) {
         g.soft_mask = e->mask_res[it->mask - 1];
         if (gshgeom_map_translate(2, it->mask_dx, it->mask_dy, 0.0, &g.soft_mask_map) != GSHGEOM_OK) {
