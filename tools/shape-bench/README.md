@@ -226,6 +226,20 @@ sink); Blend2D and Skia draw a bitmap that was rendered before timing, whose ren
 less work than the definition asks and the frame-time ratio is not a like-for-like speed of the same computation. The rotated scene is
 the general tier of shape-cpu for all but one lattice and a resampling of a bitmap for the references.
 
+**Where shape-cpu's time goes in `patterns`** (the aligned scene, one frame, measured as instructions under callgrind because the figures of a
+shared machine move by tens of percent from run to run; the count includes the one-time scene setup and the harness's own
+PAM write, 2.6 %). Two things were avoidable and are fixed. A scan for the sticky bit in `gshgeom_exact_sum_to_double` tested up to 25,000 bits
+one at a time for every lattice constraint of every use: 44 % of the frame; it is now read a word at a time (`shape-geometry`). The period tier
+reduced every pixel of a span to its window with three 64-bit divisions; it now steps the column along the row (`shape-cpu`), 6 % of the frame at that point. The frame was 1.26 G instructions before the two changes and is 0.67 G after them (the commit before the period tier: 2.50 G). What
+remains is the cost of the definition's arithmetic, and it is per pixel, not per copy: the span receiver that composes each covered pixel in
+`double` (26 %), the rounding of each pixel to the 8-bit target (16 %), the read of the lattice layer's pixel and its tint (12 %), the clearing of
+the layers (6 %), the layer's load and the write to the target (9 %), and the exact constraints that enumerate each use's copies (13 %, paid
+once for each of the 24 fills). **This is a different workload from the references' frame**: the reference drivers read a bitmap that was
+rendered before timing (`refs/bench-blend2d.cpp`, `refs/bench-skia.cpp`: each pattern's tile is drawn once at setup) and copy it through SIMD paths with an 8-bit
+pipeline, so what is timed there is a blit of 1.46 M pixels; shape-cpu is the scalar reference sink, which composes in `double` and is
+bit-identical on every host, and draws the lattice from the vector picture's period on every frame. A faster path for the same output would
+be a lean 8-bit tier for a pattern (the plain fill has one), which is a design of its own and not part of this scene.
+
 ## Non-isolated and knockout groups: a scene no reference draws
 
 The `groups` scene draws groups of PDF's two kinds: fifteen groups of three shapes on 1600x1000, three of each of five kinds in the
