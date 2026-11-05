@@ -24,6 +24,7 @@ would add edges to that library.
 | `primitives.png` | exact arcs (shape-exact-primitives stories A1 and A2) and named primitives: SVG 2's endpoint form with its four large-arc and sweep flag combinations, the radius correction (radii too small scaled up with their ratio kept, a zero radius a line, a rotation); the centre form (a full turn, a negative sweep, a rotated ellipse, one quarter turn in radians, degrees, gradians and turns); the tangent form (Canvas `arcTo`, a zero radius, three collinear points); an arc stroked under a non-uniform map with a local and a device width, and dashed, solid and as dots, under a map as well; `rect` and rounded rect (uniform and elliptical corners, radii that do not fit refused by the check and then scaled as CSS does); a rounded rect, a rect and an ellipse under each of the four flip cases (the dashes show the start and the direction); circles and ellipses, filled, stroked and dotted; and very large circles and ellipses (a radius of 100000) cut by a clip, filled, stroked and dashed. Chosen pixels are read back, printed under their tiles and logged |
 | `patterns.png` | patterns (masks-images-patterns story R2), a tile repeated on a lattice, in seven sections of four tiles: SVG's `patternUnits` (user space, `objectBoundingBox`) and `patternTransform` (a rotation, a skew); CSS `background-repeat` `space` (gapped cells), `repeat`, `space no-repeat` and `round`; PDF colored tiling patterns and uncolored ones with two tints and a translucent one; rotated, sheared and non-uniformly scaled lattices; overlapping cells (a step smaller than the cell, opaque and translucent, along one axis, rotated); nested patterns (a checker pattern inside a tile, the outer lattice rotated, gapped, and the inner one uncolored); and hatches of strokes that end at the cell edge or cross it and are cut by it, with the pixels either side of a seam read back and printed |
 | `clip-unions.png` | union clips (shape-exact-primitives story A3): two shapes abutting at a half pixel clipped as one union (no seam) beside the same two clipped separately (the 3/4 seam an alpha mask leaves); an icon sheet of twelve icons, each clipped to the union of a circle, a bar and a rounded square that do not overlap; a union inside a clip block (the product of the coverages); a union whose members have their own fill rules (an even-odd ring beside a nonzero square); and an overlapping union, refused (`union-overlap`, the pair printed) with nothing drawn inside its clip |
+| `hatches.png` | hatches (masks-images-patterns story H1), families of parallel lines trimmed to a region, dashed by one pattern that runs without a break and stroked: a single 45 degree family, a translucent crosshatch (one union, the crossings are not darker), dashes, dots under a round cap, a brick stagger, three nested squares under the rule, the outermost ring and everything inside the outer loop, a circle with an island under a hairline and thick pens of each cap, the hatch map rotated and stretched, and the item turned; the pixel at the center of the outermost-ring tile read back and printed |
 | `text.png` | DejaVu Sans 2.37 at eight sizes, a justified paragraph, a 6x zoom of hinted, unhinted and general-route glyphs, nine scripts, and `font`'s committed test fixtures |
 | `color-glyphs.png` | the COLR glyphs of `font`'s fixtures lowered into scene lists (gradients of every kind, blend modes, clip boxes and the plane, variable paints at the default instance), with the glyphs the lowering cannot express shown as placeholders: each is an item the render report names with its registered source and code (`colr:unbounded` for a paint no clip bounds in a glyph that states no clip box, `colr:walk-limit` for a glyph that names itself), and the page draws the box an application would from the item's own box |
 
@@ -46,7 +47,7 @@ closure of `font`'s and `shape-cpu`'s dependencies (cutil, security, unicode,
 compress, color, image, math, shape-geometry, shape-scene, shape-cpu and font,
 today). It installs each into `PREFIX` (`PREFIX=` on
 every make, so the rpath is set), builds `gallery.c` against them, fetches the
-pinned font by digest (`suite/tools/shape-success/fetch.sh`), renders the twelve
+pinned font by digest (`suite/tools/shape-success/fetch.sh`), renders the fourteen
 PNGs into `OUT` with `gallery.log`, and decode-checks every PNG. Build logs go to
 `OUT/logs/`. The result is the suite's only when it is built by the suite's
 compiler, so run it inside `ghoti-build:gcc16` (`suite/Containerfile.build`),
@@ -65,7 +66,7 @@ and the host's name into `OUT/host.txt`, for a record of where it ran.
 
 A run directory holds:
 
-- the twelve PNGs and `gallery.log`;
+- the fourteen PNGs and `gallery.log`;
 - `decode-check.txt`: every PNG's chunks, CRCs and image data checked by an
   independent reader;
 - `build.txt` (compiler, flags, the font's digest) and `gallery.exit`;

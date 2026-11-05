@@ -31,7 +31,7 @@
  *
  * FONTDIR is font's tests/data/fonts, DEJAVU the pinned DejaVuSans.ttf that
  * suite/tools/shape-success/fetch.sh fetches.  Writes shapes.png,
- * compositing.png, blend-modes.png, color.png, gradients.png, images.png, masks.png, strokes.png, primitives.png, patterns.png, clip-unions.png, text.png and color-glyphs.png
+ * compositing.png, blend-modes.png, color.png, gradients.png, images.png, masks.png, strokes.png, primitives.png, patterns.png, clip-unions.png, hatches.png, text.png and color-glyphs.png
  * into OUTDIR and a log on stdout: each render's result and its report entries
  * tallied by class and reason, the diagnostics of a few fixture fonts, and what
  * the color-glyph page refused.  Exits nonzero when any step failed.
@@ -3928,6 +3928,154 @@ static void image_clip_unions(void) {
   gimg_raster_destroy(R);
 }
 
+/* --- 14: hatches (masks-images-patterns story H1): families of lines trimmed to a region, dashed and stroked ---------------- */
+
+static const GSHSCENE_Resource * hpen(double width, int device, uint32_t cap) {
+  GSHSCENE_Stroke_Style st;
+  gshscene_stroke_style_init(&st);
+  st.width = width;
+  st.width_space = device ? GSHSCENE_STROKE_WIDTH_DEVICE : GSHSCENE_STROKE_WIDTH_LOCAL;
+  st.cap = cap;
+  const GSHSCENE_Resource * r = NULL;
+  if (gshscene_store_intern_stroke_style(g_store, &st, &r) != GSHSCENE_OK) {
+    fail("hatch pen");
+  }
+  return r;
+}
+
+/** A hatch of the families @p f over the pen, with the nesting and the ink; the families' elements are copied by the store. */
+static const GSHSCENE_Resource * hmake(const GSHSCENE_Resource * pen, uint32_t nesting, const GSHSCENE_Hatch_Family * f, size_t n,
+    GSHGEOM_Map map, GSHSCENE_Paint ink) {
+  GSHSCENE_Hatch h;
+  gshscene_hatch_init(&h);
+  h.style = pen;
+  h.nesting = nesting;
+  h.family_count = n;
+  h.families = f;
+  h.map = map;
+  h.ink = ink;
+  const GSHSCENE_Resource * r = NULL;
+  GSHSCENE_Result e = gshscene_store_intern_hatch(g_store, &h, &r);
+  if (e != GSHSCENE_OK) {
+    fprintf(stderr, "gallery: intern hatch: %s\n", gshscene_result_string(e));
+    g_failed = 1;
+  }
+  return r;
+}
+
+static GSHSCENE_Paint hpaint(const GSHSCENE_Resource * hatch, double alpha) {
+  GSHSCENE_Paint p;
+  memset(&p, 0, sizeof p);
+  p.kind = GSHSCENE_PAINT_HATCH;
+  p.resource = hatch;
+  p.rgba[3] = alpha;
+  return p;
+}
+
+/** The region of a hatch tile: a frame, and the shape moved to the tile. */
+static void hpanel(GSHSCENE_List * L, double x, double y, const char * caption, const GSHSCENE_Resource * region, GSHGEOM_Fill_Rule rule,
+    const GSHSCENE_Resource * hatch, double alpha, const GSHGEOM_Map * extra) {
+  pframe(L, x, y, x + 270, y + 190);
+  GSHGEOM_Map at;
+  gshgeom_map_translate(2, x + 10, y + 10, 0.0, &at);
+  if (extra) {
+    GSHGEOM_Map both;
+    gshgeom_map_compose(&at, extra, &both);
+    at = both;
+  }
+  gshscene_resource_retain(region); /* fill_map releases what it is given, and a region is used by several panels */
+  fill_map(L, region, &at, rule, hpaint(hatch, alpha));
+  label(L, caption, 11, x, y + 206, 0.15);
+}
+
+static const GSHSCENE_Resource * hrings(double w, double h, int levels) {
+  GSHGEOM_Path * p = path_new();
+  double d = 0.0;
+  for (int i = 0; i < levels; i++) {
+    const double a = d, b = d, e = w - d, f = h - d;
+    gshgeom_path_move_to(p, P(a, b));
+    if (i == 1) {
+      gshgeom_path_line_to(p, P(a, f));
+      gshgeom_path_line_to(p, P(e, f));
+      gshgeom_path_line_to(p, P(e, b));
+    } else {
+      gshgeom_path_line_to(p, P(e, b));
+      gshgeom_path_line_to(p, P(e, f));
+      gshgeom_path_line_to(p, P(a, f));
+    }
+    gshgeom_path_close(p);
+    d += 34.0;
+  }
+  return intern(p);
+}
+
+static void image_hatches(void) {
+  const int W = 1200, H = 960;
+  GIMG_Raster * R = raster_new(W, H);
+  GSHSCENE_List * L = list_new();
+  background(L, W, H, 0.97);
+  label(L, "hatches: families of lines trimmed to a region, dashed and stroked", 26, 30, 16, 0.1);
+  GSHGEOM_Map id;
+  gshgeom_map_identity(2, &id);
+  const GSHSCENE_Resource *box = rect(0, 0, 250, 170), *rings = hrings(250, 170, 3);
+  const GSHSCENE_Resource *thin = hpen(2.0, 0, GSHSCENE_STROKE_CAP_BUTT), *round = hpen(3.5, 0, GSHSCENE_STROKE_CAP_ROUND);
+  const GSHSCENE_Resource *square = hpen(3.0, 0, GSHSCENE_STROKE_CAP_SQUARE), *hairline = hpen(1.0, 1, GSHSCENE_STROKE_CAP_BUTT);
+  static const double dash[2] = {18.0, -8.0}, dots[2] = {0.0, -12.0}, brick[2] = {26.0, -6.0};
+  const GSHSCENE_Paint blue = solid(0.1, 0.25, 0.6, 1), red = solid(0.75, 0.12, 0.1, 1), green = solid(0.1, 0.5, 0.2, 1),
+                       ink = solid(0.1, 0.1, 0.1, 1), purple = solid(0.45, 0.15, 0.55, 1), amber = solid(0.85, 0.45, 0.0, 1);
+  const double x0 = 20, y0 = 56, dx = 295, dy = 218;
+  GSHSCENE_Hatch_Family one[1] = {{45.0, 0.0, 0.0, 0.0, 14.0, 0, NULL}};
+  GSHSCENE_Hatch_Family cross[2] = {{45.0, 0.0, 0.0, 0.0, 16.0, 0, NULL}, {135.0, 0.0, 0.0, 0.0, 16.0, 0, NULL}};
+  GSHSCENE_Hatch_Family dashed[1] = {{0.0, 0.0, 4.0, 0.0, 14.0, 2, dash}};
+  GSHSCENE_Hatch_Family dotted[1] = {{0.0, 0.0, 4.0, 0.0, 14.0, 2, dots}};
+  GSHSCENE_Hatch_Family bricks[1] = {{0.0, 0.0, 4.0, 16.0, 14.0, 2, brick}};
+  GSHSCENE_Hatch_Family flat[1] = {{0.0, 0.0, 0.0, 0.0, 17.0, 0, NULL}};
+  /* row 0: one family, a translucent crosshatch (one union: the crossings are not darker), dashes, dots */
+  hpanel(L, x0, y0, "one 45 degree family", box, GSHGEOM_FILL_NONZERO, hmake(thin, 0, one, 1, id, blue), 1.0, NULL);
+  hpanel(L, x0 + dx, y0, "a crosshatch at alpha 0.5: one union, no darker crossings", box, GSHGEOM_FILL_NONZERO,
+      hmake(thin, 0, cross, 2, id, red), 0.5, NULL);
+  hpanel(L, x0 + 2 * dx, y0, "dashes 18, -8 (the pattern runs without a break)", box, GSHGEOM_FILL_NONZERO, hmake(square, 0, dashed, 1, id, green), 1.0, NULL);
+  hpanel(L, x0 + 3 * dx, y0, "dots 0, -12 under a round cap", box, GSHGEOM_FILL_NONZERO, hmake(round, 0, dotted, 1, id, purple), 1.0, NULL);
+  /* row 1: a brick stagger, and the three nesting styles over three nested squares */
+  hpanel(L, x0, y0 + dy, "delta-x 16: a brick stagger", box, GSHGEOM_FILL_NONZERO, hmake(thin, 0, bricks, 1, id, ink), 1.0, NULL);
+  hpanel(L, x0 + dx, y0 + dy, "three nested squares, nonzero (a ring, a gap, a center)", rings, GSHGEOM_FILL_NONZERO, hmake(thin, 0, flat, 1, id, blue), 1.0, NULL);
+  hpanel(L, x0 + 2 * dx, y0 + dy, "the outermost ring only (DXF Outer)", rings, GSHGEOM_FILL_NONZERO, hmake(thin, 1, flat, 1, id, red), 1.0, NULL);
+  hpanel(L, x0 + 3 * dx, y0 + dy, "everything inside the outer loop (DXF Ignore)", rings, GSHGEOM_FILL_NONZERO, hmake(thin, 2, flat, 1, id, green), 1.0, NULL);
+  /* row 2: a curved boundary with an island and each pen */
+  GSHGEOM_Path * disc = path_new();
+  add_circle(disc, 125, 85, 80);
+  add_circle(disc, 125, 85, 30);
+  const GSHSCENE_Resource * ring = intern(disc);
+  GSHSCENE_Hatch_Family curved[1] = {{60.0, 0.0, 0.0, 0.0, 12.0, 0, NULL}};
+  const GSHSCENE_Resource * pens[4] = {hairline, hpen(5.0, 0, GSHSCENE_STROKE_CAP_BUTT), hpen(5.0, 0, GSHSCENE_STROKE_CAP_ROUND), hpen(5.0, 0, GSHSCENE_STROKE_CAP_SQUARE)};
+  const char * names[4] = {"a hairline (device width 1)", "thick, butt caps", "thick, round caps", "thick, square caps"};
+  for (int i = 0; i < 4; i++) {
+    hpanel(L, x0 + dx * i, y0 + 2 * dy, names[i], ring, GSHGEOM_FILL_EVEN_ODD, hmake(pens[i], 0, curved, 1, id, i == 0 ? ink : amber), 1.0, NULL);
+  }
+  /* row 3: a hatch under a rotation and under a non-uniform scale */
+  GSHGEOM_Map rot, wide;
+  gshgeom_map_rotate(GSHGEOM_ANGLE_DEGREES, 30.0, &rot);
+  gshgeom_map_scale(2, 1.0, 2.2, 1.0, &wide);
+  GSHSCENE_Hatch_Family fam2[2] = {{0.0, 0.0, 0.0, 0.0, 12.0, 2, dash}, {90.0, 0.0, 0.0, 0.0, 30.0, 0, NULL}};
+  hpanel(L, x0, y0 + 3 * dy, "the hatch map rotated 30 degrees", box, GSHGEOM_FILL_NONZERO, hmake(thin, 0, fam2, 2, rot, blue), 1.0, NULL);
+  hpanel(L, x0 + dx, y0 + 3 * dy, "the hatch map stretched 2.2 in y", box, GSHGEOM_FILL_NONZERO, hmake(thin, 0, fam2, 2, wide, red), 1.0, NULL);
+  GSHGEOM_Map item_rot, item_move;
+  gshgeom_map_rotate(GSHGEOM_ANGLE_DEGREES, 12.0, &item_rot);
+  gshgeom_map_translate(2, 20.0, 5.0, 0.0, &item_move);
+  GSHGEOM_Map item;
+  gshgeom_map_compose(&item_move, &item_rot, &item);
+  hpanel(L, x0 + 2 * dx, y0 + 3 * dy, "the item turned 12 degrees: the lines turn with it", box, GSHGEOM_FILL_NONZERO, hmake(thin, 0, one, 1, id, green), 1.0, &item);
+  hpanel(L, x0 + 3 * dx, y0 + 3 * dy, "a round-capped crosshatch at alpha 0.5 over the nested squares", rings, GSHGEOM_FILL_NONZERO, hmake(round, 0, cross, 2, id, purple), 0.5, NULL);
+  gshscene_resource_release(box);
+  gshscene_resource_release(rings);
+  gshscene_resource_release(ring);
+  render("hatches", L, R);
+  const unsigned char * hole = pixel(R, (int)(x0 + dx * 2 + 10 + 125), (int)(y0 + dy + 10 + 85));
+  printf("hatches: the center of the outermost-ring tile reads %d,%d,%d,%d\n", hole[0], hole[1], hole[2], hole[3]);
+  save_png(R, "hatches.png");
+  gimg_raster_destroy(R);
+}
+
 int main(int argc, char ** argv) {
   if (argc != 4) {
     fprintf(stderr, "usage: gallery FONTDIR DEJAVU OUTDIR\n");
@@ -3959,6 +4107,7 @@ int main(int argc, char ** argv) {
   image_primitives();
   image_patterns();
   image_clip_unions();
+  image_hatches();
   image_text(argv[1]);
   image_color_glyphs(argv[1]);
   printf("gallery: %s\n", g_failed ? "FAILED" : "ok");

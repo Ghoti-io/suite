@@ -765,16 +765,19 @@ gt_count=$(awk '$1=="lattice-count"{print $2}' "$GEOM/tests/corpus/geometry.hash
 # Union clips (shapes story A3): the device box section's pair (the lattice box of random paths of every verb under random maps).
 gd_hash=$(awk '$1=="devbox-hash"{print $2}' "$GEOM/tests/corpus/geometry.hash")
 gd_count=$(awk '$1=="devbox-count"{print $2}' "$GEOM/tests/corpus/geometry.hash")
+# Hatches: the hatch section's pair (the lines of the use, the pieces and the outline of their stroke).
+gx_hash=$(awk '$1=="hatch-hash"{print $2}' "$GEOM/tests/corpus/geometry.hash")
+gx_count=$(awk '$1=="hatch-count"{print $2}' "$GEOM/tests/corpus/geometry.hash")
 [ -n "$gh_hash" ] && [ -n "$gh_count" ] && [ -n "$gp_hash" ] && [ -n "$gp_count" ] && [ -n "$gv_hash" ] && [ -n "$gv_count" ] \
   && [ -n "$ga_hash" ] && [ -n "$ga_count" ] && [ -n "$gw_hash" ] && [ -n "$gw_count" ] && [ -n "$gk_hash" ] && [ -n "$gk_count" ] && [ -n "$gs_hash" ] && [ -n "$gs_count" ] \
-  && [ -n "$gl_hash" ] && [ -n "$gl_count" ] && [ -n "$gt_hash" ] && [ -n "$gt_count" ] && [ -n "$gd_hash" ] && [ -n "$gd_count" ] \
+  && [ -n "$gl_hash" ] && [ -n "$gl_count" ] && [ -n "$gt_hash" ] && [ -n "$gt_count" ] && [ -n "$gd_hash" ] && [ -n "$gd_count" ] && [ -n "$gx_hash" ] && [ -n "$gx_count" ] \
   || { echo "   FAIL  a pair is missing from $GEOM/tests/corpus/geometry.hash"; status=1; }
-gh_want="$gh_hash $gh_count $gp_hash $gp_count $gv_hash $gv_count $ga_hash $ga_count $gw_hash $gw_count $gk_hash $gk_count $gs_hash $gs_count $gl_hash $gl_count $gt_hash $gt_count $gd_hash $gd_count"
+gh_want="$gh_hash $gh_count $gp_hash $gp_count $gv_hash $gv_count $ga_hash $ga_count $gw_hash $gw_count $gk_hash $gk_count $gs_hash $gs_count $gl_hash $gl_count $gt_hash $gt_count $gd_hash $gd_count $gx_hash $gx_count"
 # Story 6: the rotation constructors call math's sine and cosine, so the probe is built with
 # math's sources too (section 4's generated header directory is $mg).
 GFLAGS="-std=c17 -O2 -pedantic-errors -Wall -Wextra -Werror -ffp-contract=off -DGSHGEOM_BUILD -DGMATH_BUILD -I$GEOM/include -I$gg/generated -I$MATH/include -I$mg/generated -I$HERE/shape-stubs"
 
-# geom_run TRIPLE CC QEMU TAG FLAGS... -> prints "HASH COUNT PREDICATE_HASH PREDICATE_COUNT VERTEX_HASH VERTEX_COUNT ARC_HASH ARC_COUNT ARC_VERTEX_HASH ARC_VERTEX_COUNT CONIC_HASH CONIC_COUNT SHAPES_HASH SHAPES_COUNT CLIP_HASH CLIP_COUNT LATTICE_HASH LATTICE_COUNT"
+# geom_run TRIPLE CC QEMU TAG FLAGS... -> prints "HASH COUNT PREDICATE_HASH PREDICATE_COUNT VERTEX_HASH VERTEX_COUNT ARC_HASH ARC_COUNT ARC_VERTEX_HASH ARC_VERTEX_COUNT CONIC_HASH CONIC_COUNT SHAPES_HASH SHAPES_COUNT CLIP_HASH CLIP_COUNT LATTICE_HASH LATTICE_COUNT HATCH_HASH HATCH_COUNT"
 geom_run() {
   local triple=$1 cc=$2 qemu=$3 tag=$4 out
   shift 4
@@ -791,7 +794,8 @@ geom_run() {
     /^shape-geometry.clip-hash/{lh=$2} /^shape-geometry.clip-count/{lc=$2}
     /^shape-geometry.lattice-hash/{th=$2} /^shape-geometry.lattice-count/{tc=$2}
     /^shape-geometry.devbox-hash/{dh=$2} /^shape-geometry.devbox-count/{dc=$2}
-    END{if (h != "" && ph != "" && vh != "" && ah != "" && wh != "" && kh != "" && sh != "" && lh != "" && th != "" && dh != "") print h, c, ph, pc, vh, vc, ah, ac, wh, wc, kh, kc, sh, sc, lh, lc, th, tc, dh, dc}' "$B/geom-$tag-$triple.txt"
+    /^shape-geometry.hatch-hash/{xh=$2} /^shape-geometry.hatch-count/{xc=$2}
+    END{if (h != "" && ph != "" && vh != "" && ah != "" && wh != "" && kh != "" && sh != "" && lh != "" && th != "" && dh != "" && xh != "") print h, c, ph, pc, vh, vc, ah, ac, wh, wc, kh, kc, sh, sc, lh, lc, th, tc, dh, dc, xh, xc}' "$B/geom-$tag-$triple.txt"
 }
 
 declare -A GOK GPLANT
@@ -1073,16 +1077,19 @@ sn_count=$(awk '$1=="pattern-count"{print $2}' "$SCENE/tests/corpus/scene.hash")
 # Union clips (shapes story A3): the clip-union section's pair (unions through the store, lists, verdicts and dispositions).
 su_hash=$(awk '$1=="clipunion-hash"{print $2}' "$SCENE/tests/corpus/scene.hash")
 su_count=$(awk '$1=="clipunion-count"{print $2}' "$SCENE/tests/corpus/scene.hash")
+# The hatch section's pair (hatch paints, the notice, the bounds and the test sink's lines and pieces).
+sy_hash=$(awk '$1=="hatch-hash"{print $2}' "$SCENE/tests/corpus/scene.hash")
+sy_count=$(awk '$1=="hatch-count"{print $2}' "$SCENE/tests/corpus/scene.hash")
 [ -n "$si_hash" ] && [ -n "$si_count" ] && [ -n "$sm_hash" ] && [ -n "$sm_count" ] && [ -n "$sx_hash" ] && [ -n "$sx_count" ] && [ -n "$sr_hash" ] && [ -n "$sr_count" ] \
-  && [ -n "$sn_hash" ] && [ -n "$sn_count" ] && [ -n "$su_hash" ] && [ -n "$su_count" ] \
+  && [ -n "$sn_hash" ] && [ -n "$sn_count" ] && [ -n "$su_hash" ] && [ -n "$su_count" ] && [ -n "$sy_hash" ] && [ -n "$sy_count" ] \
   || { echo "   FAIL  an image, mask, primitive or pattern pair is missing from $SCENE/tests/corpus/scene.hash"; status=1; }
-sh_want="$sh_hash $sh_count $st_hash $st_count $sp_hash $sp_count $sk_hash $sk_count $si_hash $si_count $sm_hash $sm_count $sx_hash $sx_count $sr_hash $sr_count $sn_hash $sn_count $su_hash $su_count"
+sh_want="$sh_hash $sh_count $st_hash $st_count $sp_hash $sp_count $sk_hash $sk_count $si_hash $si_count $sm_hash $sm_count $sx_hash $sx_count $sr_hash $sr_count $sn_hash $sn_count $su_hash $su_count $sy_hash $sy_count"
 # The probe is built with shape-scene's sources, shape-geometry's (the paths, the maps, the hash) and, because
 # those call math, math's, and cutil's real allocator.c and atomic.c (the scene's mutex is cutil's header-only GCU_MUTEX_T and its
 # reference counts are cutil's GCU_Atomic_Size, on every target; no stand-in is used here).
 SCFLAGS="-std=c17 -O2 -pedantic-errors -Wall -Wextra -Werror -ffp-contract=off -pthread -DGSHSCENE_BUILD -DGSHGEOM_BUILD -DGMATH_BUILD -DGCOL_BUILD -DGIMG_BUILD -I$SCENE/include -I$gsc/generated -I$GEOM/include -I$gg/generated -I$MATH/include -I$mg/generated -I$ROOT/libs/cutil/include -I$B/gen/cutil/include -I$ROOT/libs/color/include -I$B/gen/color/generated -I$ROOT/libs/image/include -I$B/gen/image/generated"
 
-# scene_run TRIPLE CC QEMU TAG FLAGS... -> prints "HASH COUNT STROKE_HASH STROKE_COUNT PLANE_HASH PLANE_COUNT PLACEHOLDER_HASH PLACEHOLDER_COUNT IMAGE_HASH IMAGE_COUNT IMAGE_PAINT_HASH IMAGE_PAINT_COUNT MASK_HASH MASK_COUNT PRIMITIVE_HASH PRIMITIVE_COUNT PATTERN_HASH PATTERN_COUNT"
+# scene_run TRIPLE CC QEMU TAG FLAGS... -> prints "HASH COUNT STROKE_HASH STROKE_COUNT PLANE_HASH PLANE_COUNT PLACEHOLDER_HASH PLACEHOLDER_COUNT IMAGE_HASH IMAGE_COUNT IMAGE_PAINT_HASH IMAGE_PAINT_COUNT MASK_HASH MASK_COUNT PRIMITIVE_HASH PRIMITIVE_COUNT PATTERN_HASH PATTERN_COUNT HATCH_HASH HATCH_COUNT"
 scene_run() {
   local triple=$1 cc=$2 qemu=$3 tag=$4 out
   shift 4
@@ -1100,7 +1107,8 @@ scene_run() {
        $1=="shape-scene.primitive-hash"{rh=$2} $1=="shape-scene.primitive-count"{rc=$2}
        $1=="shape-scene.pattern-hash"{nh=$2} $1=="shape-scene.pattern-count"{nc=$2}
        $1=="shape-scene.clipunion-hash"{uh=$2} $1=="shape-scene.clipunion-count"{uc=$2}
-       END{if (h != "" && sh != "" && ph != "" && kh != "" && ih != "" && mh != "" && xh != "" && rh != "" && nh != "" && uh != "") print h, c, sh, sc, ph, pc, kh, kc, ih, ic, mh, mc, xh, xc, rh, rc, nh, nc, uh, uc}' "$B/scene-$tag-$triple.txt"
+       $1=="shape-scene.hatch-hash"{yh=$2} $1=="shape-scene.hatch-count"{yc=$2}
+       END{if (h != "" && sh != "" && ph != "" && kh != "" && ih != "" && mh != "" && xh != "" && rh != "" && nh != "" && uh != "" && yh != "") print h, c, sh, sc, ph, pc, kh, kc, ih, ic, mh, mc, xh, xc, rh, rc, nh, nc, uh, uc, yh, yc}' "$B/scene-$tag-$triple.txt"
 }
 
 declare -A SOK SPLANT
