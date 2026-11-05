@@ -695,6 +695,15 @@ the container has no Python and mounts the tree read-only.
    general map; the composed maps and the damage are floating point, so the
    controls see them too.
 
+   The probe prints further pairs, each compared with its committed line in
+   `scene.hash` in the same run, with the same controls and plant: strokes,
+   planes, placeholders, images, image paints, masks, primitives and, last,
+   patterns (`pattern-hash`, `pattern-count`: pattern paints and their tiles).
+   Section 6's probe, `libs/shape-geometry/tools/corpus-hash.c`, likewise prints
+   its pairs (predicates, vertices, arcs, arc vertices, conics, shapes and, last,
+   clips and the lattice enumeration: `clip-hash`, `clip-count`, `lattice-hash`,
+   `lattice-count`) and the gate compares the whole line against `geometry.hash`.
+
 10. **The success scene** (story 16, the milestone's success signal).
    `libs/font/examples/font-scene.c`, built the way section 9 builds the font
    provider's probe, records one retained scene (a star under both fill rules,
