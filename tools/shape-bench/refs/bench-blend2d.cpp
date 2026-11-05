@@ -52,6 +52,15 @@
  *           is the direction Blend2D's angle runs on this y-down raster
  *           relative to the scene's (+x toward +y), as measured.
  *
+ * Patterns (the `patterns` and `patterns-rotated` scenes, README.md "Patterns"): Blend2D has no pattern that is a picture
+ * repeated on a lattice, only an image repeated.  The tile of each pattern is drawn once, before timing, into a BLImage of the
+ * cell's size in device pixels (the fills of the definition, in the tile's own colors, or the tint's with the tile's alpha for an
+ * uncolored pattern), and a fill is painted with BLPattern(image, BL_EXTEND_MODE_REPEAT, matrix) at the pattern quality
+ * BL_PATTERN_QUALITY_BILINEAR, the matrix being the pattern's map with its linear part divided by the image's scale (the map
+ * is a similarity, so the image is the cell at that scale rounded to whole pixels, which the scenes make exact) and its
+ * translation moved to the image's origin.  Where the map is a whole-pixel translation the image is copied as it is; under a
+ * rotation or a fractional translation it is resampled, which the definition does not do (the tile is vector there).
+ *
  * The pictures (README.md, "The pictures") add, by Blend2D's public API only:
  *
  *   radial     with a start circle of any radius: BLRadialGradientValues(x, y of the end circle, x, y of the start circle,
@@ -108,6 +117,8 @@ struct Engine {
   BLImage image;
   std::vector<BLPath> paths;                 // per item
   std::vector<BLGradient> gradients;         // per item, gradient fills
+  std::vector<BLImage> tiles;                // per pattern: its tile, pre-rendered
+  std::vector<BLPattern> patterns;           // per pattern: the repeat of that tile under the pattern's map
   std::vector<std::vector<uint32_t>> ids;    // per item, runs
   std::vector<std::vector<BLPoint>> places;  // per item, runs
   BLFontFace face;
@@ -242,6 +253,54 @@ int make_gradient(const SB_Scene & s, const SB_Gradient & g, BLGradient & out) {
   return 0;
 }
 
+// The pattern @p pt as Blend2D draws it: its tile (the fills of the definition, tinted when the pattern is uncolored) rendered once
+// into an image of the cell's size in device pixels, and BL_EXTEND_MODE_REPEAT over that image under the map.  Blend2D repeats an
+// image, so it can say only a lattice whose step is the cell and whose map is a similarity (a rotation, a uniform scale, a
+// translation): the image is the cell at the map's scale rounded to whole pixels, which the scene's scales make exact, and the
+// map's linear part is divided by that scale, so the image is resampled (bilinearly) only by the rotation and the translation.
+int make_pattern(Engine & e, const SB_Scene & s, const SB_Pattern & pt, BLImage & img, BLPattern & out) {
+  const double a = pt.map[0], b = pt.map[1], c = pt.map[2], d = pt.map[3];
+  const double sc = std::hypot(a, b);
+  const double iw = std::floor(pt.cell[2] * sc + 0.5), ih = std::floor(pt.cell[3] * sc + 0.5);
+  if (std::fabs(a - d) > 1e-9 || std::fabs(b + c) > 1e-9 || std::fabs(iw - pt.cell[2] * sc) > 1e-9 ||
+      std::fabs(ih - pt.cell[3] * sc) > 1e-9 || pt.step[0] != pt.cell[2] || pt.step[1] != pt.cell[3] || !pt.repeat[0] ||
+      !pt.repeat[1] || iw < 1 || ih < 1) {
+    std::fprintf(stderr, "bench-blend2d: a pattern that is not a repeat of a whole-pixel tile under a similarity\n");
+    return -1;
+  }
+  const double rx = iw / pt.cell[2];
+  if (img.create(int(iw), int(ih), BL_FORMAT_PRGB32) != BL_SUCCESS) {
+    return -1;
+  }
+  BLContext tc;
+  BLContextCreateInfo info{};
+  info.thread_count = 0;
+  if (tc.begin(img, info) != BL_SUCCESS) {
+    return -1;
+  }
+  tc.clear_all();
+  tc.set_comp_op(BL_COMP_OP_SRC_OVER);
+  tc.scale(rx, rx);
+  tc.translate(-pt.cell[0], -pt.cell[1]);
+  for (size_t k = 0; k < pt.n_items; k++) {
+    const SB_Item & it = s.items[pt.first_item + k];
+    const SB_Color col = pt.has_tint ? SB_Color{pt.tint.r, pt.tint.g, pt.tint.b, uint8_t(it.color.a * pt.tint.a / 255.0 + 0.5)} : it.color;
+    if (it.evenodd) {
+      tc.set_fill_rule(BL_FILL_RULE_EVEN_ODD);
+    }
+    tc.fill_path(e.paths[pt.first_item + k], BLRgba32(col.r, col.g, col.b, col.a));
+    tc.set_fill_rule(BL_FILL_RULE_NON_ZERO);
+  }
+  if (tc.end() != BL_SUCCESS) {
+    return -1;
+  }
+  // image pixel = rx (pattern - cell origin); device = map (pattern): the image's own matrix is the map over rx, moved to the origin
+  out = BLPattern(img, BL_EXTEND_MODE_REPEAT,
+      BLMatrix2D(a / rx, b / rx, c / rx, d / rx, pt.map[4] + a * pt.cell[0] + c * pt.cell[1],
+          pt.map[5] + b * pt.cell[0] + d * pt.cell[1]));
+  return 0;
+}
+
 int setup(Engine & e, const SB_Scene & s, const std::string & dir) {
   e.scene = &s;
   e.stride = size_t(s.width) * 4;
@@ -315,6 +374,13 @@ int setup(Engine & e, const SB_Scene & s, const std::string & dir) {
       }
     }
   }
+  e.tiles.resize(s.n_patterns);
+  e.patterns.resize(s.n_patterns);
+  for (size_t m = 0; m < s.n_patterns; m++) {
+    if (make_pattern(e, s, s.patterns[m], e.tiles[m], e.patterns[m])) {
+      return -1;
+    }
+  }
   return 0;
 }
 
@@ -362,6 +428,7 @@ int begin_ctx(BLContext & c, BLImage & img) {
   c.set_comp_op(BL_COMP_OP_SRC_OVER);
   c.set_fill_rule(BL_FILL_RULE_NON_ZERO);
   c.set_hint(BL_CONTEXT_HINT_GRADIENT_QUALITY, BL_GRADIENT_QUALITY_NEAREST);
+  c.set_hint(BL_CONTEXT_HINT_PATTERN_QUALITY, BL_PATTERN_QUALITY_BILINEAR);
   return 0;
 }
 
@@ -377,6 +444,10 @@ int draw_item(Engine & e, BLContext & c, size_t i) {
     if (it.gradient) {
       c.set_fill_alpha(it.color.a / 255.0);
       c.fill_path(e.paths[i], e.gradients[i]);
+      c.set_fill_alpha(1.0);
+    } else if (it.pattern) {
+      c.set_fill_alpha(it.color.a / 255.0);
+      c.fill_path(e.paths[i], e.patterns[it.pattern - 1]);
       c.set_fill_alpha(1.0);
     } else {
       c.fill_path(e.paths[i], color);
@@ -591,6 +662,11 @@ int submit(void * ctx) {
       break;
     case SB_MASK_END:
       break;
+    case SB_PATTERN_BEGIN:
+      i = it.count; // a pattern's tile is rendered once at setup, and drawn only through a fill that names it
+      break;
+    case SB_PATTERN_END:
+      break;
     default:
       if (draw_item(e, c, i)) {
         return 2;
@@ -608,7 +684,7 @@ int main(int argc, char ** argv) {
     std::fprintf(stderr, "usage: bench-blend2d DIR OUT [SCENE...]\n");
     return 2;
   }
-  static const char * const scenes[] = {"fill-rect", "fill-circle", "paths", "text", "ui", "gradients", "strokes", "masks"};
+  static const char * const scenes[] = {"fill-rect", "fill-circle", "paths", "text", "ui", "gradients", "strokes", "masks", "patterns", "patterns-rotated"};
   std::vector<const char *> names(scenes, scenes + sizeof scenes / sizeof scenes[0]);
   if (argc > 3) {
     names.assign(argv + 3, argv + argc);
@@ -642,6 +718,7 @@ int main(int argc, char ** argv) {
         sb_report(stdout, "blend2d", &s, &m, out.c_str(),
             std::strcmp(s.metric, "list") == 0 ? "immediate mode: no recorded list, the build step does not exist"
                 : std::strcmp(s.metric, "masks") == 0 ? "immediate mode, no build step; a masked group is a layer multiplied (BL_COMP_OP_DST_IN) by a mask layer drawn at its end; a luminance mask is converted by hand (Blend2D has no luminance filter): a check of the layer code only"
+                : s.n_patterns ? "immediate mode, no build step; a pattern is its tile pre-rendered once into a BLImage of the cell in device pixels and BL_EXTEND_MODE_REPEAT over it under the map, bilinear (a reference can repeat an image, not draw the lattice of vector copies the definition says)"
                 : std::strcmp(s.metric, "picture") == 0 ? "immediate mode, no build step; BLContext fill_path and stroke_path, paths and gradients built once; groups by BLImage layers blitted with the comp-op and alpha, path clips by a coverage layer (DST_IN); dashes by BLPath::add_stroked_path in the frame"
                 : std::strncmp(s.name, "strokes", 7) == 0 ? "stroke options on the context (width, join, caps, miter limit), Blend2D's own stroker, paths built once; no dashes (see README)"
                 : s.n_gradients ? "BLGradient objects built once; gradient quality hint BL_GRADIENT_QUALITY_NEAREST (undithered)"

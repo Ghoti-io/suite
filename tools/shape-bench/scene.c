@@ -39,6 +39,7 @@ void sb_scene_free(SB_Scene * scene) {
   free(scene->stops);
   free(scene->strokes);
   free(scene->masks);
+  free(scene->patterns);
   sb_scene_init(scene);
 }
 
@@ -126,6 +127,14 @@ int sb_scene_add_mask(SB_Scene * scene, const SB_Mask * mask) {
   return 0;
 }
 
+int sb_scene_add_pattern(SB_Scene * scene, const SB_Pattern * pattern) {
+  if (grow((void **)&scene->patterns, &scene->cap_patterns, scene->n_patterns + 1, sizeof *pattern)) {
+    return -1;
+  }
+  scene->patterns[scene->n_patterns++] = *pattern;
+  return 0;
+}
+
 static const char * const COEFF_NAMES[SB_COEFF_COUNT] = {"w3c", "rec709", "lum"};
 
 const char * sb_coefficients_name(SB_Coefficients c) {
@@ -166,8 +175,8 @@ static int gradient_arity(SB_Gradient_Kind kind) {
 size_t sb_scene_drawables(const SB_Scene * scene) {
   size_t n = 0;
   for (size_t i = 0; i < scene->n_items; i++) {
-    if (scene->items[i].kind == SB_MASK_BEGIN) {
-      i = scene->items[i].count; /* a mask's picture is not drawn where it stands */
+    if (scene->items[i].kind == SB_MASK_BEGIN || scene->items[i].kind == SB_PATTERN_BEGIN) {
+      i = scene->items[i].count; /* a mask's picture and a pattern's tile are not drawn where they stand */
       continue;
     }
     n += scene->items[i].kind == SB_FILL || scene->items[i].kind == SB_RUN || scene->items[i].kind == SB_STROKE;
@@ -222,6 +231,8 @@ int sb_scene_load(const char * path, SB_Scene * out, char * err, size_t errlen) 
   int status = 0;
   size_t pending = 0; /* 1 + the gradient the next record, a fill, paints with */
   size_t open_mask = 0; /* 1 + the mask whose definition is open */
+  size_t open_pattern = 0; /* 1 + the pattern whose definition is open */
+  size_t pending_pattern = 0; /* 1 + the pattern the next record, a fill, paints with */
   while (fgets(buf, sizeof buf, f)) {
     line++;
     char * nl = strchr(buf, '\n');
@@ -253,9 +264,21 @@ int sb_scene_load(const char * path, SB_Scene * out, char * err, size_t errlen) 
       status = fail(err, errlen, line, "a gradient not followed by a fill or a stroke");
       break;
     }
+    if (pending_pattern && strcmp(word, "fill") != 0 && strcmp(word, "fill-eo") != 0) {
+      status = fail(err, errlen, line, "a pattern paint not followed by a fill");
+      break;
+    }
+    if (open_pattern && strcmp(word, "fill") != 0 && strcmp(word, "fill-eo") != 0 && strcmp(word, "endpattern") != 0) {
+      status = fail(err, errlen, line, "a pattern's tile holds only fills");
+      break;
+    }
     if (open_mask && strcmp(word, "fill") != 0 && strcmp(word, "fill-eo") != 0 && strcmp(word, "gradient") != 0 &&
         strcmp(word, "endmask") != 0) {
       status = fail(err, errlen, line, "a mask's picture holds only fills");
+      break;
+    }
+    if (open_pattern && (!strcmp(word, "gradient") || !strcmp(word, "patternpaint"))) {
+      status = fail(err, errlen, line, "a pattern's tile holds solid fills only");
       break;
     }
     if (!strcmp(word, "name")) {
@@ -410,6 +433,80 @@ int sb_scene_load(const char * path, SB_Scene * out, char * err, size_t errlen) 
       }
       s.items[m->first_item - 1].count = end;
       open_mask = 0;
+    } else if (!strcmp(word, "pattern")) {
+      SB_Pattern pt;
+      SB_Item it;
+      memset(&pt, 0, sizeof pt);
+      memset(&it, 0, sizeof it);
+      int u = 0, tint_at = 0;
+      int got = sscanf(rest, " %lf %lf %lf %lf %lf %lf %d %d %lf %lf %lf %lf %lf %lf%n", &pt.cell[0], &pt.cell[1], &pt.cell[2],
+          &pt.cell[3], &pt.step[0], &pt.step[1], &pt.repeat[0], &pt.repeat[1], &pt.map[0], &pt.map[1], &pt.map[2], &pt.map[3],
+          &pt.map[4], &pt.map[5], &u);
+      int ok = got == 14;
+      for (int k = 0; ok && k < 4; k++) {
+        ok = isfinite(pt.cell[k]);
+      }
+      for (int k = 0; ok && k < 6; k++) {
+        ok = isfinite(pt.map[k]);
+      }
+      ok = ok && pt.cell[2] > 0 && pt.cell[3] > 0 && pt.step[0] > 0 && pt.step[1] > 0 &&
+          (pt.repeat[0] == 0 || pt.repeat[0] == 1) && (pt.repeat[1] == 0 || pt.repeat[1] == 1) &&
+          pt.map[0] * pt.map[3] - pt.map[1] * pt.map[2] != 0;
+      if (ok) {
+        char word2[16] = {0};
+        unsigned r, g, b, a;
+        int u2 = 0;
+        if (sscanf(rest + u, " %15s%n", word2, &u2) == 1) {
+          tint_at = u + u2;
+          if (!strcmp(word2, "tint") && sscanf(rest + tint_at, " %u %u %u %u %n", &r, &g, &b, &a, &u2) == 4 && r <= 255 &&
+              g <= 255 && b <= 255 && a <= 255 && rest[tint_at + u2] == 0) {
+            pt.has_tint = 1;
+            pt.tint.r = (uint8_t)r;
+            pt.tint.g = (uint8_t)g;
+            pt.tint.b = (uint8_t)b;
+            pt.tint.a = (uint8_t)a;
+          } else {
+            ok = 0;
+          }
+        }
+      }
+      if (!ok || open_pattern || open_mask || sb_scene_add_pattern(&s, &pt)) {
+        status = fail(err, errlen, line, open_pattern ? "patterns do not nest" : "bad pattern");
+        break;
+      }
+      it.kind = SB_PATTERN_BEGIN;
+      it.pattern = s.n_patterns;
+      if (sb_scene_add_item(&s, &it)) {
+        status = fail(err, errlen, line, "out of memory");
+        break;
+      }
+      s.patterns[s.n_patterns - 1].first_item = s.n_items;
+      open_pattern = s.n_patterns;
+    } else if (!strcmp(word, "endpattern")) {
+      SB_Item it;
+      memset(&it, 0, sizeof it);
+      it.kind = SB_PATTERN_END;
+      if (!open_pattern) {
+        status = fail(err, errlen, line, "endpattern without pattern");
+        break;
+      }
+      SB_Pattern * pt = &s.patterns[open_pattern - 1];
+      pt->n_items = s.n_items - pt->first_item;
+      it.pattern = open_pattern;
+      size_t end = s.n_items;
+      if (sb_scene_add_item(&s, &it)) {
+        status = fail(err, errlen, line, "out of memory");
+        break;
+      }
+      s.items[pt->first_item - 1].count = end;
+      open_pattern = 0;
+    } else if (!strcmp(word, "patternpaint")) {
+      unsigned long n = 0;
+      if (sscanf(rest, " %lu", &n) != 1 || n < 1 || n > s.n_patterns || open_pattern || open_mask || pending) {
+        status = fail(err, errlen, line, "bad patternpaint");
+        break;
+      }
+      pending_pattern = n;
     } else if (!strcmp(word, "endgroup")) {
       SB_Item it;
       memset(&it, 0, sizeof it);
@@ -468,6 +565,14 @@ int sb_scene_load(const char * path, SB_Scene * out, char * err, size_t errlen) 
         }
         it.gradient = pending;
         pending = 0;
+      }
+      if (it.kind == SB_FILL && pending_pattern) {
+        if (it.color.r || it.color.g || it.color.b) {
+          status = fail(err, errlen, line, "a pattern fill's color is not 0 0 0 a");
+          break;
+        }
+        it.pattern = pending_pattern;
+        pending_pattern = 0;
       }
       for (unsigned k = 0; k < count && status == 0; k++) {
         if (!fgets(buf, sizeof buf, f) || !strchr(buf, '\n')) {
@@ -646,6 +751,9 @@ int sb_scene_load(const char * path, SB_Scene * out, char * err, size_t errlen) 
   if (status == 0 && open_mask) {
     status = fail(err, errlen, line, "mask left open");
   }
+  if (status == 0 && (open_pattern || pending_pattern)) {
+    status = fail(err, errlen, line, "pattern left open or not followed by a fill");
+  }
   if (status == 0 && (!ended ||!s.name[0] || !s.metric[0] || !s.width || !s.work_unit[0])) {
     status = fail(err, errlen, line, "incomplete scene");
   }
@@ -657,9 +765,9 @@ int sb_scene_load(const char * path, SB_Scene * out, char * err, size_t errlen) 
   size_t depth = 0;
   for (size_t i = 0; status == 0 && i < s.n_items; i++) {
     SB_Kind k = s.items[i].kind;
-    if (k == SB_MASK_BEGIN) {
+    if (k == SB_MASK_BEGIN || k == SB_PATTERN_BEGIN) {
       if (depth != 0) {
-        status = fail(err, errlen, line, "a mask defined inside a clip or group");
+        status = fail(err, errlen, line, "a mask or pattern defined inside a clip or group");
       }
       i = s.items[i].count; /* its picture holds fills only (checked above) */
       continue;
@@ -733,6 +841,22 @@ int sb_scene_save(const char * path, const SB_Scene * s) {
     case SB_MASK_END:
       fprintf(f, "endmask\n");
       break;
+    case SB_PATTERN_BEGIN: {
+      const SB_Pattern * p = &s->patterns[it->pattern - 1];
+      fprintf(f, "pattern %.17g %.17g %.17g %.17g %.17g %.17g %d %d", p->cell[0], p->cell[1], p->cell[2], p->cell[3], p->step[0],
+          p->step[1], p->repeat[0], p->repeat[1]);
+      for (int j = 0; j < 6; j++) {
+        fprintf(f, " %.17g", p->map[j]);
+      }
+      if (p->has_tint) {
+        fprintf(f, " tint %u %u %u %u", p->tint.r, p->tint.g, p->tint.b, p->tint.a);
+      }
+      fputc('\n', f);
+      break;
+    }
+    case SB_PATTERN_END:
+      fprintf(f, "endpattern\n");
+      break;
     case SB_ENDGROUP:
       fprintf(f, "endgroup\n");
       break;
@@ -760,6 +884,9 @@ int sb_scene_save(const char * path, const SB_Scene * s) {
           const SB_Stop * st = &s->stops[g->first_stop + k];
           fprintf(f, "s %.6f %u %u %u %u\n", st->offset, st->color.r, st->color.g, st->color.b, st->color.a);
         }
+      }
+      if (it->pattern) {
+        fprintf(f, "patternpaint %zu\n", it->pattern);
       }
       fprintf(f, "%s %u %u %u %u %zu\n", it->evenodd ? "fill-eo" : "fill", c->r, c->g, c->b, c->a, it->count);
       for (size_t k = 0; k < it->count; k++) {

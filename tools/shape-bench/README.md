@@ -24,6 +24,8 @@ it. A figure quoted anywhere else is read from there, with its date and CPU.
 | `gradients` | fill rate | 12 opaque rectangles and circles overlapping on a 4x3 grid, each a gradient of 2 to 5 opaque stops: linear pad, repeat and reflect; radial concentric pad, repeat and reflect, and one focal pad; sweep over a whole turn (pad, and repeat from 30 degrees) and a third of a turn repeated, 1920x1080 |
 | `groups` | groups per second (shape-cpu only: no reference draws it) | fifteen groups of three shapes on 1600x1000, three each of a non-isolated multiply group, a knockout group, a knockout group around a non-isolated group around a knockout one, the multiply group isolated (the control) and a non-isolated knockout screen group |
 | `masks` | masked groups per second | 15 groups of three or four fills on 1600x1000, each multiplied by a mask the group places by a translation: four alpha masks (a ring with a translucent core, a linear fade, a radial spot, three translucent circles) and four luminance masks by Rec. 709's coefficients (a ramp, the three primaries, translucent shapes over a gray backdrop, black spots over a white one), source-over, multiply and screen at opacities of 0.6 to 1, over six large translucent shapes; Blend2D and Skia build each mask from layers ([Masks](#masks)) |
+| `patterns` | fill rate | 24 fills painted with a pattern on 1600x1000: twelve large shapes on a 4 by 3 grid and a smaller translucent one over each, every one with a pattern of its own (a checker, a hatch, dots, and an uncolored hatch under a tint; a cell of 8 or 16 pixels), every lattice axis aligned with steps of the cell's whole-pixel size at an integer translation ([Patterns](#patterns)) |
+| `patterns-rotated` | fill rate | the same 24 under rotations of 0 to 135 degrees, uniform scales of 1 to 2 and translations that are not whole pixels; one is a quarter turn at an integer translation |
 
 `bench-shape emit` writes the scenes once (`scene.h` gives the format); every
 driver reads the same files through the same reader (`scene.c`, compiled into
@@ -159,6 +161,70 @@ The record is `results/<date>-masks.json`, with the Markdown generated from it b
 (frame time, throughput in masked groups per second, the cross-check figures and the control) and the provenance this file states:
 the images and their IDs, the compilers and flags, the CPU model, architecture and CPUs online, the governor and boost, the pinned
 CPU and the load before and after each engine; it does not name the host.
+
+## Patterns
+
+The two pattern scenes fill shapes with shape-scene's pattern paint: a tile (a picture of fills in pattern space) repeated on a lattice
+(`scene.h` has the records: `pattern <cell> <steps> <repeats> <map> [tint r g b a]` up to `endpattern`, and `patternpaint <n>` before the
+fill that uses the n-th). The definition is the lattice of vector copies of the picture under the map, the area average over each pixel;
+shape-cpu draws that (a lattice of whole-pixel steps is the case its period tier is built for; the harness reads only the public API
+and so does not observe which tier drew a lattice, only the frame). Neither reference has a pattern of that kind, only an image that
+repeats, so each driver does what a caller of that library would: it renders the tile once, before timing, into a bitmap of the cell in
+device pixels with its own rasterizer (the fills of the definition, or in the tint's color with the tile's alpha for an uncolored
+pattern) and paints the fill with that bitmap repeated under the map, bilinearly sampled: Blend2D's `BLPattern` with
+`BL_EXTEND_MODE_REPEAT`, Skia's image shader with `kRepeat` and linear filtering. The map's linear part is divided by the bitmap's scale
+(a similarity, whose scale makes the cell a whole number of pixels, which the scenes arrange) and its translation is moved to the bitmap's
+origin, so the bitmap is resampled only by the rotation and the fraction.
+
+**`patterns`: the aligned frame, judged by the standard bound.** Every step is the cell's size, 8 or 16 pixels, and every map is a
+translation by whole pixels, so the picture a pattern paints is the tile rendered into a bitmap of the cell, repeated, which is also
+what a reference draws: no pixel lies across two cells' pictures and no resampling happens. What remains is each rasterizer's antialiasing
+of the edges inside the tile (the dots' circles, the hatch's diagonals) and of the filled shape's own edge, which every scene has. The bound
+is the standard one (mean at most 1.0, pixels more than 32 levels apart at most 0.1 %), measured on the first run (`results/2026-11-05-patterns.md`):
+Blend2D's mean is 0.155 with no such pixel, Skia's 0.109 with 12 (0.0008 %). The two references differ from each other by a mean of 0.154 and
+0.19 % of the pixels past 32, more than the bound's fraction, so the bound is tighter on shape-cpu than the references are of each other on
+this scene; each reference is inside it. Where the figures come from: the circles of the dots tile carry the largest mean per cell (about
+0.4 to 0.6 levels, the other kinds 0.00 to 0.14; read from the first run's frames, not part of the record). The control, every sixteenth drawable dropped counted from the topmost (two of the 24
+fills, both pattern fills), has a mean of 4.44 and 4.5 % of the pixels past 32 and exceeds the bound, so the check can see a wrong frame; a
+lattice error is also seen: one of the 24 patterns (the checker of the top-left shape, 7 % of the frame) moved by one pixel gives means
+of 1.22 and 1.18 and 0.9 % past 32 against the two references, outside the bound (this was run once for this record, from a scene file edited
+by hand, and is not part of the run).
+
+**`patterns-rotated`: a bound of its own, measured.** Here a reference cannot draw the definition: it resamples a bitmap of the tile
+bilinearly under a rotation or a fraction, where the definition draws the vector tile under the map and averages it over each pixel. A
+resampled hatch line a few pixels wide is blurred (lower at its center, wider at its edge), so the references differ from shape-cpu by
+more than the standard bound by construction, and most on the thin hatches (the cells with the highest means are the 8-pixel hatches
+under 22.5 and 75 degrees, about 5.5 levels, 6 % of their pixels past 32, read from the first run's frames and not part of the record). The two references agree with each other (mean 0.21,
+0.097 % past 32), which is what says the difference is the definition against a resampled bitmap and not either engine. The bound is the
+measured figures of the first run with half again as much room: mean at most 3.0 and pixels more than 32 levels apart at most 2.5 %
+(measured: Blend2D 2.06 and 1.57 %, Skia 2.05 and 1.62 %; maxima 62 and 68 levels). It is calibrated on that run, so it says that the
+frames are the same pictures to within what resampling costs, not that they are equal; the control (4.16 and 5.02 %) exceeds it, and so
+does one pattern of the 24 (an uncolored hatch of 8-pixel cells, at 37.5 degrees) turned by half a degree about the origin (mean 3.05, 3.9 % past 32; run once for this record, as above). It
+would not see an error smaller than that. `report.py` holds the bound (`SCENE_BOUNDS`) and the record says it beside the scene's table,
+with the references' agreement.
+
+**What the scenes leave out**, because a reference cannot say it by one definition: a step other than the cell's size (CSS `space`,
+PDF's steps smaller than the cell), a repeat along one axis alone, a cell that is not a whole number of pixels once scaled, a map that
+is not a similarity (a skew or a mirror), a tile holding a stroke, a gradient, a group or a pattern, and a tint with an alpha other
+than 1. (Blend2D and Skia could each be driven to draw some of these by a different construction, a bitmap tiled by hand; that would
+be the benchmark's own lattice code and not the reference's.) The tile's colors are straight 8-bit sRGB, composited in the target's
+encoded values as everywhere else here.
+
+**The control** is the usual one: shape-cpu with every sixteenth drawable dropped, the drawables being the 24 pattern fills, never a
+tile's fills (`sb_scene_drawables`).
+
+**Timing** is the documented two phases, limited to the two scenes, all three engines running them:
+
+```bash
+SHAPE_BENCH_CPU=8 SHAPE_BENCH_SCENES="patterns patterns-rotated" SHAPE_BENCH_TAG=patterns \
+    sh "$WORK/ws/suite/tools/shape-bench/run.sh" time "$WORK"
+cp "$WORK"/results/report/<date>-patterns.json "$WORK"/results/report/<date>-patterns.md tools/shape-bench/results/
+```
+
+What the figures compare: shape-cpu draws the lattice of vector copies from the picture on every frame (the scalar double reference
+sink); Blend2D and Skia draw a bitmap that was rendered before timing, whose rendering is not in their frame, so they are timed doing
+less work than the definition asks and the frame-time ratio is not a like-for-like speed of the same computation. The rotated scene is
+the general tier of shape-cpu for all but one lattice and a resampling of a bitmap for the references.
 
 ## Non-isolated and knockout groups: a scene no reference draws
 

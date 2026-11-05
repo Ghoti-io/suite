@@ -27,6 +27,10 @@ frame with every sixteenth drawable dropped - must exceed the bound for every
 scene, or the check could not have seen a wrong answer. An engine outside the
 bound on a scene is marked invalid there and not ranked.
 
+One scene has a bound of its own (SCENE_BOUNDS): `patterns-rotated`, where the references resample a raster tile under a
+rotation and so differ from shape-cpu's vector tile by construction.  Its bound is measured and stated beside the figures it
+comes from, in the table at the top of this file and in README.md; its control must exceed it too.
+
 The stroke scenes are judged by corroboration (Corey, 2026-10-22), because two references' antialiasing and curve
 approximation differ from each other as much as either differs from shape-cpu: a pixel where shape-cpu differs from a
 reference by more than 32 levels counts against shape-cpu only when a second, independent source also differs from
@@ -57,9 +61,30 @@ CONTROL_STRIDE = 16
 ENGINES = ["shape-cpu", "font", "blend2d", "skia"]
 CORROBORATED = ("strokes", "strokes-dashed")
 PERTURBED_PIXELS = 3000
-SCENES = ["fill-rect", "fill-circle", "paths", "text", "ui", "gradients", "strokes", "strokes-dashed", "masks"]
+SCENES = ["fill-rect", "fill-circle", "paths", "text", "ui", "gradients", "strokes", "strokes-dashed", "masks", "patterns",
+          "patterns-rotated"]
+# A scene whose bound is not the standard one has its own, stated here with the measurement it comes from (README.md, "Patterns").
+# `patterns-rotated`: a reference repeats a pre-rendered tile and resamples it bilinearly under a rotation, where the definition
+# draws the vector tile under the map, so the references differ from shape-cpu by more than the standard bound by construction
+# (measured 2.06 and 2.05 levels, 1.57 % and 1.62 % of the pixels past 32 on the first run, against 0.21 and 0.10 % between the two
+# references); the bound is that measurement with half again as much room, and the control must exceed it as for every scene.
+SCENE_BOUNDS = {"patterns-rotated": {"mean_abs_max": 3.0, "bad_fraction_max": 0.025}}
+# The scenes whose two references are also compared with each other, and the figure kept: it says how much of a reference's
+# difference from shape-cpu is the references' own way of drawing a pattern (they repeat a raster) and not shape-cpu's.
+AGREEMENT_SCENES = ("patterns", "patterns-rotated")
 # What a scene's cross-check does and does not say, carried into the record and the Markdown beside its figures.
 SCENE_NOTES = {
+    "patterns": [
+        "Aligned lattices: every step is the cell's whole-pixel size and the map is an integer translation, so each reference "
+        "repeats the tile it rendered itself into a bitmap of the cell (Blend2D: BL_EXTEND_MODE_REPEAT over a BLImage, Skia: an "
+        "image shader with kRepeat) and the figures are the standard bound.  The references antialias the edges inside the tile and "
+        "the edge of the filled shape by their own rasterizers, as in every scene; no pixel here straddles two cells.",
+    ],
+    "patterns-rotated": [
+        "Rotated and non-integer lattices: a reference resamples its pre-rendered tile bilinearly under the rotation and the "
+        "fraction, where shape-cpu draws the vector tile under the map, so the thin hatch lines, which the resampling blurs, "
+        "differ most; the bound is this scene's own (stated above and in README.md), measured and not the standard one.",
+    ],
     "masks": [
         "Alpha-mask groups are checked against both references, each by a layer multiplied by the mask's layer "
         "(Blend2D and Skia, DST_IN); luminance masks against Skia, whose luma filter uses Rec. 709's coefficients "
@@ -72,8 +97,15 @@ SCENE_NOTES = {
 }
 
 
-def within(d):
-    return d["mean_abs"] <= MEAN_ABS_MAX and d["bad_fraction"] <= BAD_FRACTION_MAX
+def bound_of(name):
+    """The bound a scene is judged by: the standard one unless SCENE_BOUNDS gives it its own."""
+    b = SCENE_BOUNDS.get(name, {})
+    return b.get("mean_abs_max", MEAN_ABS_MAX), b.get("bad_fraction_max", BAD_FRACTION_MAX)
+
+
+def within(d, name=None):
+    mean_max, bad_max = bound_of(name)
+    return d["mean_abs"] <= mean_max and d["bad_fraction"] <= bad_max
 
 
 def pamdiff(tool, a, b):
@@ -261,7 +293,7 @@ def main():
         if not base or not os.path.exists(ref):
             raise SystemExit("report.py: shape-cpu has no result for %s" % name)
         control = pamdiff(args.pamdiff, ref, os.path.join(frames, "shape-cpu.%s.control.pam" % name))
-        control["exceeds_bound"] = not within(control)
+        control["exceeds_bound"] = not within(control, name)
         corr = bool(args.corroborate) and name in CORROBORATED
         scene_file = os.path.join(root, "scenes", name + ".scene")
 
@@ -284,11 +316,11 @@ def main():
                 if not measures.get((engine, name)):
                     continue
                 v = counted_view(corroborate(args.corroborate, scene_file, cpath, frame_of(engine), second_of(engine)))
-                v["exceeds_bound"] = not within(v)
+                v["exceeds_bound"] = not within(v, name)
                 by_ref[engine] = v
                 p = corroborate(args.corroborate, scene_file, ref, frame_of(engine), second_of(engine), PERTURBED_PIXELS)
                 p["counted_view"] = counted_view(p)
-                p["exceeds_bound"] = not within(p["counted_view"])
+                p["exceeds_bound"] = not within(p["counted_view"], name)
                 perturbation[engine] = {k: p[k] for k in ("perturbed", "perturbed_counted", "perturbed_second_frame_disagrees",
                                                           "perturbed_oracle_disagrees", "counted", "counted_bad_fraction",
                                                           "counted_mean_abs", "exceeds_bound")}
@@ -301,7 +333,12 @@ def main():
             blind.append(name)
         entry = {k: base[k] for k in ("metric", "extent", "work_unit", "work")}
         entry["control"] = control
+        entry["bound"] = dict(zip(("mean_abs_max", "bad_fraction_max"), bound_of(name)))
         entry["perturbation"] = perturbation
+        if name in AGREEMENT_SCENES and all(measures.get((e2, name)) for e2 in ("blend2d", "skia")):
+            entry["references_agree"] = pamdiff(args.pamdiff, frame_of("blend2d"), frame_of("skia"))
+        else:
+            entry["references_agree"] = None
         entry["scene_notes"] = SCENE_NOTES.get(name, [])
         empty = measures.get(("shape-cpu-empty", name))
         entry["shape_cpu_empty_list"] = empty["frame"] if empty else None
@@ -323,7 +360,7 @@ def main():
                     d = counted_view(corroborate(args.corroborate, scene_file, ref, frame_of(engine), second_of(engine)))
                 else:
                     d = pamdiff(args.pamdiff, ref, os.path.join(home(engine), "frames", m["output"]))
-                d["within_bound"] = within(d)
+                d["within_bound"] = within(d, name)
                 r["cross_check"] = d
                 r["valid"] = d["within_bound"]
                 if not r["valid"]:
@@ -360,6 +397,7 @@ def main():
             "mean_abs_max": MEAN_ABS_MAX,
             "bad_threshold_levels": BAD_THRESHOLD,
             "bad_fraction_max": BAD_FRACTION_MAX,
+            "scenes_with_their_own": SCENE_BOUNDS,
             "control": "shape-cpu with every %dth drawable, counted from the topmost, dropped must exceed the bound"
                        % CONTROL_STRIDE,
             "corroboration": {
@@ -424,6 +462,11 @@ def write_markdown(rec, path, jname):
         L.append("## %s (%s; %s %s a frame, %dx%d)" % (name, s["metric"], "%.6g" % s["work"], s["work_unit"],
                                                        s["extent"][0], s["extent"][1]))
         L.append("")
+        if s["bound"]["mean_abs_max"] != rec["bound"]["mean_abs_max"] or s["bound"]["bad_fraction_max"] != rec["bound"]["bad_fraction_max"]:
+            L.append("**This scene's bound is its own, not the standard one:** mean at most %s, pixels more than %d levels apart "
+                     "at most %s %% (see the scene's notes below, and the README)." % (
+                         s["bound"]["mean_abs_max"], rec["bound"]["bad_threshold_levels"], s["bound"]["bad_fraction_max"] * 100))
+            L.append("")
         L.append("| engine | frame ms (median) | p25 to p75 ms | build ms | submit ms | throughput | vs shape-cpu "
                  "| mean abs diff | pixels > %d | valid |" % rec["bound"]["bad_threshold_levels"])
         L.append("| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |")
@@ -448,6 +491,11 @@ def write_markdown(rec, path, jname):
                          "%.4f %%: %s." % (engine, v["second_source"], v["mean_abs"], v["bad_threshold"],
                                            v["bad_fraction"] * 100,
                                            "exceeds the bound" if v["exceeds_bound"] else "**within the bound: blind**"))
+        if s.get("references_agree"):
+            ra = s["references_agree"]
+            L.append("")
+            L.append("Blend2D against Skia (each repeats its own pre-rendered tile): mean %.4f, pixels > %d %.4f %%." % (
+                ra["mean_abs"], ra["bad_threshold"], ra["bad_fraction"] * 100))
         for engine, r in s["results"].items():
             cc = r["cross_check"]
             if cc and cc.get("rule") == "corroborated":

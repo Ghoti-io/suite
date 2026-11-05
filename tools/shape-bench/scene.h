@@ -64,6 +64,19 @@
  *                                         own space, which a group's translation then places.  Nothing in it is drawn
  *                                         where it stands
  *     endmask                             end it
+ *     pattern <x> <y> <w> <h> <xstep> <ystep> <rx> <ry> <a> <b> <c> <d> <e> <f> [tint <r> <g> <b> <a>]
+ *                                         define a pattern (shape-scene's pattern.h, PT1) with the records up to the matching
+ *                                         `endpattern`: its tile, a picture of fills in pattern space.  The cell is the rectangle
+ *                                         [x, x + w] x [y, y + h] of that space, the copy (i, j) is the tile moved by (i xstep,
+ *                                         j ystep), <rx> and <ry> (0 or 1) say whether the lattice repeats along each axis, and the
+ *                                         map takes pattern space to the device by x' = a x + c y + e, y' = b x + d y + f (SVG's
+ *                                         matrix order).  With `tint` the pattern is uncolored (PDF's PaintType 2): its colors are
+ *                                         the tint's and its alpha the tile's, times the tint's alpha.  A definition stands at the
+ *                                         top level, outside every clip and group, and holds only `fill` and `fill-eo` records of
+ *                                         solid colors: nothing in it is drawn where it stands
+ *     endpattern                          end it
+ *     patternpaint <n>                    the paint of the fill that follows it, and nothing else: the n-th pattern defined above
+ *                                         (counted from 1).  That fill's color is then `0 0 0 a`, `a` the alpha multiplier
  *     fill <r> <g> <b> <a> <count>        a path filled non-zero, then <count> commands:
  *     M x y | L x y | Q x1 y1 x y | C x1 y1 x2 y2 x y | Z
  *     fill-eo <r> <g> <b> <a> <count>     as `fill`, by the even-odd rule
@@ -137,7 +150,9 @@ typedef enum SB_Kind {
   SB_ENDGROUP = 7,
   SB_CLIPPATH = 8,
   SB_MASK_BEGIN = 9, ///< a mask definition's start; `count` is the index of its matching SB_MASK_END, `mask` its index
-  SB_MASK_END = 10
+  SB_MASK_END = 10,
+  SB_PATTERN_BEGIN = 11, ///< a pattern definition's start; `count` is the index of its matching SB_PATTERN_END, `pattern` its index
+  SB_PATTERN_END = 12
 } SB_Kind;
 
 typedef enum SB_Join {
@@ -249,6 +264,17 @@ typedef struct SB_Mask {
   size_t first_item, n_items;
 } SB_Mask;
 
+/** A pattern's definition (pattern.h): its tile is the items [first_item, first_item + n_items) of SB_Scene.items, all solid fills. */
+typedef struct SB_Pattern {
+  double cell[4];  ///< x, y, w, h of the cell in pattern space
+  double step[2];  ///< x_step, y_step
+  int repeat[2];   ///< repeat_x, repeat_y
+  double map[6];   ///< a, b, c, d, e, f: x' = a x + c y + e, y' = b x + d y + f
+  int has_tint;    ///< uncolored: the tile's colors are replaced by the tint
+  SB_Color tint;
+  size_t first_item, n_items;
+} SB_Pattern;
+
 typedef struct SB_Item {
   SB_Kind kind;
   SB_Color color;  ///< fill, run; a gradient fill's is 0 0 0 and its alpha multiplier
@@ -257,6 +283,7 @@ typedef struct SB_Item {
   double rect[4];  ///< clip: x0, y0, x1, y1
   size_t gradient; ///< fill: 1 + the index of its paint in SB_Scene.gradients; 0 for a solid color
   size_t stroke;   ///< stroke: 1 + the index of its style in SB_Scene.strokes
+  size_t pattern;  ///< fill: 1 + the index of its pattern in SB_Scene.patterns; 0 for none.  SB_PATTERN_BEGIN: 1 + the index it defines
   int evenodd;     ///< fill: the even-odd rule (else non-zero)
   int composite;   ///< group: an SB_Composite
   double opacity;  ///< group: 0 to 1
@@ -290,6 +317,8 @@ typedef struct SB_Scene {
   size_t n_strokes, cap_strokes;
   SB_Mask * masks;
   size_t n_masks, cap_masks;
+  SB_Pattern * patterns;
+  size_t n_patterns, cap_patterns;
 } SB_Scene;
 
 /** Zero a scene. */
@@ -307,7 +336,9 @@ int sb_scene_add_stop(SB_Scene * scene, double offset, SB_Color color);
 int sb_scene_add_stroke(SB_Scene * scene, const SB_Stroke * stroke);
 /** Append a mask definition; 0 on success. */
 int sb_scene_add_mask(SB_Scene * scene, const SB_Mask * mask);
-/** Items that draw (fills, runs and strokes) and are not the picture of a mask: the control drops these. */
+/** Append a pattern definition; 0 on success. */
+int sb_scene_add_pattern(SB_Scene * scene, const SB_Pattern * pattern);
+/** Items that draw (fills, runs and strokes) and are not the picture of a mask or the tile of a pattern: the control drops these. */
 size_t sb_scene_drawables(const SB_Scene * scene);
 
 /** Read a scene file; 0 on success, else -1 with a message in err. */

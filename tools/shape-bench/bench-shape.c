@@ -32,7 +32,7 @@
  *
  * shape-cpu is driven as an application would drive it: path resources (and,
  * for text, one path a glyph and one glyph run a line; for a gradient fill,
- * its gradient; for a mask, its picture and the mask) interned once into a
+ * its gradient; for a mask, its picture and the mask; for a pattern, its tile and the pattern) interned once into a
  * shape-scene store; each frame records a list (the build) and renders it
  * through the CPU sink (the submit), strict, into a borrowed premultiplied
  * RGBA8 raster.
@@ -990,10 +990,164 @@ static int gen_groups(SB_Scene * s) {
   return 0;
 }
 
+/*
+ * Patterns (masks-images-patterns story R2): two scenes of 1600x1000, each 24 fills painted with a pattern, 12 large shapes on a 4 by 3
+ * grid of 400-pixel cells (a rectangle, a rounded rectangle and a circle in turn, edges off the pixel grid) and a smaller shape on top of
+ * each at an alpha multiplier of 0.55 to 0.85.  Every shape has a pattern of its own, so a scene holds 24 definitions: six kinds of tile
+ * in turn, a cell of 8 or 16 pixels.
+ *
+ *   checker   a background and two squares of the cell's quarters (opaque)
+ *   hatch     a diagonal band of the cell and the two corner triangles that carry it across the cell edges (unbroken lines), translucent
+ *   dots      a circle and a translucent square that overlaps it
+ *   uncolored a hatch of two colors and two alphas under a tint (PDF's PaintType 2): the tile's colors are discarded, its alpha kept
+ *
+ * `patterns` (aligned): every lattice is axis aligned, its steps are the cell's whole-pixel size and its map is an integer translation, so
+ * the picture a pattern paints is the tile rendered into w by h pixels, repeated.  That is the definition and also what a reference that
+ * repeats a pre-rendered tile of w by h pixels draws; the cross-check against Blend2D and Skia is bound to it.  This is the lattice the
+ * sink's period tier draws.
+ *
+ * `patterns-rotated`: the same kinds of tile under a rotation of 0 to 135 degrees, a uniform scale of 1 to 2 and a translation that is
+ * not whole pixels.  A reference repeats a pre-rendered tile and resamples it (bilinear) under the rotation: not the definition, which
+ * draws the vector tile under the map, so the cross-check there is a measured bound of its own (README.md, "Patterns"), and the
+ * lattices are the general tier's.  What neither scene holds, because a reference cannot say it by one definition: a step other than the
+ * cell's size (CSS `space`, PDF's overlapping steps), a cell of a size that is not a whole number of pixels once scaled, a map that is not
+ * a similarity (a skew, a mirror), one axis alone repeated, a tile with a stroke, a gradient, a group or a pattern in it, and a tint with
+ * alpha.
+ */
+static int pattern_begin(SB_Scene * s, double w, double h, const double * map, int has_tint, SB_Color tint) {
+  SB_Pattern pt;
+  SB_Item it;
+  memset(&pt, 0, sizeof pt);
+  memset(&it, 0, sizeof it);
+  pt.cell[2] = pt.step[0] = w;
+  pt.cell[3] = pt.step[1] = h;
+  pt.repeat[0] = pt.repeat[1] = 1;
+  memcpy(pt.map, map, sizeof pt.map);
+  pt.has_tint = has_tint;
+  pt.tint = tint;
+  it.kind = SB_PATTERN_BEGIN;
+  if (sb_scene_add_pattern(s, &pt)) {
+    return -1;
+  }
+  it.pattern = s->n_patterns;
+  if (sb_scene_add_item(s, &it)) {
+    return -1;
+  }
+  s->patterns[s->n_patterns - 1].first_item = s->n_items;
+  return 0;
+}
+
+static int pattern_end(SB_Scene * s) {
+  SB_Pattern * pt = &s->patterns[s->n_patterns - 1];
+  SB_Item it;
+  memset(&it, 0, sizeof it);
+  it.kind = SB_PATTERN_END;
+  it.pattern = s->n_patterns;
+  pt->n_items = s->n_items - pt->first_item;
+  size_t end = s->n_items;
+  if (sb_scene_add_item(s, &it)) {
+    return -1;
+  }
+  s->items[pt->first_item - 1].count = end;
+  return 0;
+}
+
+/** The fill added last is painted with the pattern defined last, at the alpha multiplier @p alpha. */
+static void pattern_paint_last(SB_Scene * s, int alpha) {
+  SB_Item * it = &s->items[s->n_items - 1];
+  it->pattern = s->n_patterns;
+  it->color.r = it->color.g = it->color.b = 0;
+  it->color.a = (uint8_t)alpha;
+}
+
+/** A tile of kind @p kind (0 to 5) of @p n by @p n pixels under @p map, and the fills of its picture. */
+static int gen_tile(SB_Scene * s, int kind, double n, const double * map) {
+  const SB_Color none = {0, 0, 0, 0};
+  const double h = n / 2, bw = n / 4;
+  const SB_Color cream = {250, 244, 222, 255}, navy = {40, 60, 120, 255}, red = {200, 40, 40, 255}, white = {255, 255, 255, 255};
+  const SB_Color green = {30, 90, 60, 210}, rust = {150, 60, 20, 255}, teal = {20, 120, 160, 255}, amber = {240, 180, 0, 170};
+  const SB_Color pink = {180, 30, 120, 255}, ink = {10, 10, 10, 255}, blue = {20, 40, 200, 140};
+  const double band[12] = {0, 0, bw, 0, n, n - bw, n, n, n - bw, n, 0, bw};
+  const double tri1[6] = {n - bw, 0, n, 0, n, bw}, tri2[6] = {0, n - bw, bw, n, 0, n};
+  int rc = pattern_begin(s, n, n, map, kind == 5, kind == 5 ? pink : none);
+  switch (kind) {
+  case 0:
+  case 1: {
+    const SB_Color bg = kind == 0 ? cream : white, fg = kind == 0 ? navy : red;
+    rc = rc || rect(s, bg, 0, 0, n, n) || rect(s, fg, 0, 0, h, h) || rect(s, fg, h, h, n, n);
+    break;
+  }
+  case 2:
+    rc = rc || polygon(s, green, band, 6) || polygon(s, green, tri1, 3) || polygon(s, green, tri2, 3);
+    break;
+  case 3:
+    rc = rc || polygon(s, rust, band, 6) || polygon(s, rust, tri1, 3) || polygon(s, rust, tri2, 3);
+    break;
+  case 4:
+    rc = rc || circle(s, teal, h, h, n * 0.34) || rect(s, amber, n / 8, n / 8, n * 0.375, n * 0.375);
+    break;
+  default:
+    rc = rc || polygon(s, ink, band, 6) || polygon(s, blue, tri1, 3) || polygon(s, blue, tri2, 3);
+    break;
+  }
+  return rc || pattern_end(s);
+}
+
+static int gen_patterns(SB_Scene * s, int rotated) {
+  begin(s, rotated ? "patterns-rotated" : "patterns", "fill", 1600, 1000, "pixels");
+  s->background.r = 236;
+  s->background.g = 238;
+  s->background.b = 240;
+  /* The maps of the rotated scene, one a shape: the angle in degrees and the uniform scale (a whole number of pixels to the cell). */
+  static const double ANGLE[12] = {0, 7.5, 15, 22.5, 30, 37.5, 45, 52.5, 60, 75, 90, 135};
+  static const double SCALE[12] = {1, 1, 1.5, 1, 2, 1, 1, 1.25, 1, 1, 1, 1};
+  for (int layer = 0; layer < 2; layer++) {
+    for (int k = 0; k < 12; k++) {
+      const double x0 = 400.0 * (k % 4), y0 = 4.0 + 330.0 * (k / 4);
+      const int kind = (k + 3 * layer) % 6;
+      const double n = (k + layer) % 2 ? 8 : 16;
+      double map[6] = {1, 0, 0, 1, (double)((7 * k + 3 * layer) % 16), (double)((5 * k + 2 * layer) % 16)};
+      if (rotated) {
+        const int which = (k + 5 * layer) % 12;
+        const double a = ANGLE[which] * 3.14159265358979323846 / 180.0, sc = SCALE[which];
+        /* a quarter turn is exact (an integer lattice, which the sink's period tier draws); the other angles are rounded to a double */
+        const int quarter = which == 10;
+        map[0] = map[3] = quarter ? 0.0 : sc * cos(a);
+        map[1] = quarter ? 1.0 : sc * sin(a);
+        map[2] = quarter ? -1.0 : -sc * sin(a);
+        map[4] = quarter ? 5.0 : q64(2.0 + 3.375 * k + 0.25 * layer);
+        map[5] = quarter ? 3.0 : q64(1.0 + 2.625 * k + 0.5 * layer);
+      }
+      if (gen_tile(s, kind, n, map)) {
+        return -1;
+      }
+      SB_Color paint = {0, 0, 0, 255};
+      const int alpha = layer ? 140 + 15 * (k % 5) : 255;
+      if (layer == 0) {
+        const double ax0 = x0 + 12.25, ay0 = y0 + 12.5, ax1 = x0 + 387.75, ay1 = y0 + 317.5;
+        const int shape = k % 3;
+        if (shape == 0 ? rect(s, paint, ax0, ay0, ax1, ay1)
+                : shape == 1 ? round_rect(s, paint, ax0, ay0, ax1, ay1, 40)
+                             : circle(s, paint, x0 + 200.25, y0 + 165.5, 150.5)) {
+          return -1;
+        }
+        s->work += shape == 2 ? 3.14159265358979323846 * 150.5 * 150.5 : (ax1 - ax0) * (ay1 - ay0);
+      } else if (k % 2 ? rect(s, paint, x0 + 110.5, y0 + 90.25, x0 + 289.75, y0 + 240.5)
+                       : circle(s, paint, x0 + 200.25, y0 + 165.5, 72.75)) {
+        return -1;
+      } else {
+        s->work += k % 2 ? (289.75 - 110.5) * (240.5 - 90.25) : 3.14159265358979323846 * 72.75 * 72.75;
+      }
+      pattern_paint_last(s, alpha);
+    }
+  }
+  return 0;
+}
+
 /* The gradients scene, and the strokes scene after it, come last, so that the generator's random stream, and with it every earlier scene, is as
  * it was before they existed (the gradients scene draws nothing from that stream; the strokes scene draws from it last).  The masks scene
  * follows them and seeds a stream of its own. */
-static const char * const SCENES[] = {"fill-rect", "fill-circle", "paths", "text", "ui", "gradients", "strokes", "strokes-dashed", "masks", "groups"};
+static const char * const SCENES[] = {"fill-rect", "fill-circle", "paths", "text", "ui", "gradients", "strokes", "strokes-dashed", "masks", "groups", "patterns", "patterns-rotated"};
 #define N_SCENES (sizeof SCENES / sizeof SCENES[0])
 
 static int emit(const char * dir, const char * font_path) {
@@ -1009,7 +1163,9 @@ static int emit(const char * dir, const char * font_path) {
         : i == 6    ? gen_strokes(&s, 0)
         : i == 7    ? gen_strokes(&s, 1)
         : i == 8    ? gen_masks(&s)
-                    : gen_groups(&s);
+        : i == 9    ? gen_groups(&s)
+        : i == 10   ? gen_patterns(&s, 0)
+                    : gen_patterns(&s, 1);
     char path[1024];
     snprintf(path, sizeof path, "%s/%s.scene", dir, SCENES[i]);
     if (rc || sb_scene_save(path, &s)) {
@@ -1046,6 +1202,7 @@ typedef struct Shape {
   const GSHSCENE_Resource ** grad; ///< per item: a gradient fill's gradient
   const GSHSCENE_Resource ** style; ///< per item: a stroke's style
   const GSHSCENE_Resource ** mask_res; ///< per mask: the mask resource (its picture is retained by it)
+  const GSHSCENE_Resource ** pat_res;  ///< per pattern: the pattern resource (its tile is retained by it)
 } Shape;
 
 static GSHGEOM_Point pt(double x, double y) {
@@ -1254,6 +1411,7 @@ static int shape_setup(Shape * e, const SB_Scene * s, const char * dir, int cont
   e->grad = calloc(s->n_items ? s->n_items : 1, sizeof *e->grad);
   e->style = calloc(s->n_items ? s->n_items : 1, sizeof *e->style);
   e->mask_res = calloc(s->n_masks ? s->n_masks : 1, sizeof *e->mask_res);
+  e->pat_res = calloc(s->n_patterns ? s->n_patterns : 1, sizeof *e->pat_res);
   sb_background_bytes(s, 0, e->bg);
   GIMG_Pixel_Format format = GIMG_PIXEL_RGBA8;
   format.alpha_form = GIMG_ALPHA_PREMULTIPLIED;
@@ -1288,7 +1446,7 @@ static int shape_setup(Shape * e, const SB_Scene * s, const char * dir, int cont
       executor.wait = bench_wait;
     }
   }
-  if (!e->pixels || !e->res || !e->paint || !e->grad || !e->style || !e->mask_res || gshscene_store_create(NULL, NULL, &e->store) != GSHSCENE_OK ||
+  if (!e->pixels || !e->res || !e->paint || !e->grad || !e->style || !e->mask_res || !e->pat_res || gshscene_store_create(NULL, NULL, &e->store) != GSHSCENE_OK ||
       gshscene_list_create(NULL, NULL, e->store, &e->list) != GSHSCENE_OK ||
       gshcpu_sink_create_with_executor(NULL, NULL, &limits, &executor, &e->sink) != GSHCPU_OK ||
       gshscene_report_create(NULL, NULL, &e->report) != GSHSCENE_OK ||
@@ -1456,6 +1614,69 @@ static int shape_setup(Shape * e, const SB_Scene * s, const char * dir, int cont
       status = -1;
     }
   }
+  /* The patterns: each tile is the solid fills of its definition (interned above with every other item), frozen into a picture
+   * resource, and the pattern over it is interned once; a fill that names one is painted with it (pattern.h: PT1, PT4). */
+  for (size_t m = 0; m < s->n_patterns && status == 0; m++) {
+    const SB_Pattern * sp = &s->patterns[m];
+    GSHSCENE_List * tile_list = NULL;
+    const GSHSCENE_Resource * tile = NULL;
+    GSHSCENE_Result r = gshscene_list_create(NULL, NULL, e->store, &tile_list);
+    for (size_t k = 0; k < sp->n_items && r == GSHSCENE_OK; k++) {
+      size_t at = sp->first_item + k;
+      r = gshscene_list_fill(tile_list, e->res[at], NULL, s->items[at].evenodd ? GSHGEOM_FILL_EVEN_ODD : GSHGEOM_FILL_NONZERO,
+          &e->paint[at], 0, 0.0);
+    }
+    if (r == GSHSCENE_OK) {
+      r = gshscene_list_close(tile_list);
+    }
+    if (r == GSHSCENE_OK) {
+      r = gshscene_store_intern_picture(e->store, tile_list, &tile);
+    }
+    if (r == GSHSCENE_OK) {
+      GSHSCENE_Pattern gp;
+      gshscene_pattern_init(&gp);
+      gp.tile = tile;
+      gp.x = sp->cell[0];
+      gp.y = sp->cell[1];
+      gp.w = sp->cell[2];
+      gp.h = sp->cell[3];
+      gp.x_step = sp->step[0];
+      gp.y_step = sp->step[1];
+      gp.repeat_x = (uint32_t)sp->repeat[0];
+      gp.repeat_y = (uint32_t)sp->repeat[1];
+      const double lin[4] = {sp->map[0], sp->map[2], sp->map[1], sp->map[3]}, tr[2] = {sp->map[4], sp->map[5]};
+      if (gshgeom_map_from_matrix(2, lin, tr, &gp.map) != GSHGEOM_OK) {
+        r = GSHSCENE_ERR_INVALID;
+      }
+      if (sp->has_tint) {
+        gp.has_tint = 1;
+        gp.tint.kind = GSHSCENE_PAINT_SOLID;
+        gp.tint.rgba[0] = sp->tint.r / 255.0;
+        gp.tint.rgba[1] = sp->tint.g / 255.0;
+        gp.tint.rgba[2] = sp->tint.b / 255.0;
+        gp.tint.rgba[3] = sp->tint.a / 255.0;
+      }
+      if (r == GSHSCENE_OK) {
+        r = gshscene_store_intern_pattern(e->store, &gp, &e->pat_res[m]);
+      }
+    }
+    gshscene_resource_release(tile);
+    gshscene_list_destroy(tile_list);
+    if (r != GSHSCENE_OK) {
+      fprintf(stderr, "bench-shape: cannot intern pattern %zu of %s: %s\n", m + 1, s->name, gshscene_result_string(r));
+      status = -1;
+    }
+  }
+  for (size_t i = 0; i < s->n_items && status == 0; i++) {
+    const SB_Item * it = &s->items[i];
+    if (it->kind == SB_FILL && it->pattern) {
+      GSHSCENE_Paint * p = &e->paint[i];
+      p->kind = GSHSCENE_PAINT_PATTERN;
+      p->rgba[0] = p->rgba[1] = p->rgba[2] = 0.0;
+      p->rgba[3] = it->color.a / 255.0;
+      p->resource = e->pat_res[it->pattern - 1];
+    }
+  }
   gfnt_face_free(face);
   gfnt_blob_destroy(blob);
   return status;
@@ -1469,6 +1690,9 @@ static void shape_teardown(Shape * e) {
   }
   for (size_t m = 0; e->mask_res && m < e->scene->n_masks; m++) {
     gshscene_resource_release(e->mask_res[m]);
+  }
+  for (size_t m = 0; e->pat_res && m < e->scene->n_patterns; m++) {
+    gshscene_resource_release(e->pat_res[m]);
   }
   for (size_t i = 0; i < e->n_glyph_paths; i++) {
     gshscene_resource_release(e->glyph_paths[i]);
@@ -1484,6 +1708,7 @@ static void shape_teardown(Shape * e) {
   free(e->grad);
   free(e->style);
   free(e->mask_res);
+  free(e->pat_res);
   free(e->pixels);
   memset(e, 0, sizeof *e);
 }
@@ -1547,6 +1772,11 @@ static int shape_build(void * ctx) {
       i = it->count; /* a mask's picture is interned with the masks, and drawn only through a group's mask */
       break;
     case SB_MASK_END:
+      break;
+    case SB_PATTERN_BEGIN:
+      i = it->count; /* a pattern's tile is interned with the patterns, and drawn only through a fill that names it */
+      break;
+    case SB_PATTERN_END:
       break;
     case SB_ENDGROUP:
       r = gshscene_list_group_pop(e->list);
@@ -1718,6 +1948,9 @@ static int run(const char * dir, const char * out) {
           !strcmp(s.metric, "text") ? "glyph outlines from font, decoded and interned once; one outline glyph run a line"
               : !strncmp(s.name, "strokes", 7) ? "styles and paths interned once; the expansion of each stroke is cached by the sink "
                                              "across frames (warm after the first), its coverage composed per frame"
+              : s.n_patterns        ? "pattern tiles and patterns interned once with the paths; each frame records the pattern fills and "
+                                      "renders them: the lattice of copies of each tile, as shape-scene defines it (the period tier where "
+                                      "the steps are whole pixels)"
               : s.n_masks           ? "mask pictures and masks interned once with the paths; each frame records the masked groups and "
                                       "renders them: the mask drawn over each group's pop region at the pop, its value in double"
               : s.n_gradients       ? "gradients interned once with the paths; evaluated per pixel in double at the pixel "

@@ -71,6 +71,14 @@
  *              limit, the nearest Skia has.
  *   gradients  on strokes as on fills (the shader on the stroking paint).
  *
+ * The `patterns` and `patterns-rotated` scenes (README.md, "Patterns"): Skia has no pattern that is a picture repeated on a lattice,
+ * only an image shader.  The tile of each pattern is drawn once, before timing, into a bitmap of the cell's size in device pixels (the
+ * fills of the definition in the tile's own colors, or in the tint's with the tile's alpha for an uncolored pattern), and a fill is
+ * painted by that bitmap as an image shader with kRepeat tiling and SkFilterMode::kLinear under a local matrix, the pattern's map with
+ * its linear part divided by the bitmap's scale (the map is a similarity, so the bitmap is the cell at that scale rounded to whole
+ * pixels, which the scenes make exact) and its translation moved to the bitmap's origin.  Where the map is a whole-pixel translation
+ * the bitmap is copied as it is; under a rotation or a fractional translation it is resampled, which the definition does not do.
+ *
  * The `masks` scene (README.md, "Masks") adds, by Skia's own public API: Skia has no mask on a group, so at a masked group's
  * end, before its layer is restored, the mask's picture is drawn into a layer of its own (saveLayer, translated by the
  * group's placement, over the opaque backdrop first for a luminance mask) whose paint has the blend mode kDstIn, which
@@ -81,12 +89,16 @@
  * Rec. 709's (2126, 7152, 722) / 10000, the set the scene's luminance masks name.
  */
 
+#include "include/core/SkBitmap.h"
 #include "include/core/SkCanvas.h"
 #include "include/core/SkColor.h"
 #include "include/core/SkColorFilter.h"
 #include "include/core/SkFont.h"
 #include "include/core/SkFontMgr.h"
+#include "include/core/SkImage.h"
 #include "include/core/SkImageInfo.h"
+#include "include/core/SkMatrix.h"
+#include "include/core/SkSamplingOptions.h"
 #include "include/core/SkPaint.h"
 #include "include/core/SkPath.h"
 #include "include/core/SkPathBuilder.h"
@@ -102,6 +114,7 @@
 #include "include/effects/SkLumaColorFilter.h"
 #include "include/ports/SkFontMgr_empty.h"
 
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -120,6 +133,7 @@ struct Engine {
   sk_sp<SkSurface> surface;
   std::vector<SkPath> paths;              // per item
   std::vector<SkPaint> paints;            // per item
+  std::vector<sk_sp<SkShader>> patterns;  // per pattern: its tile, pre-rendered, repeated under the pattern's map
   std::vector<sk_sp<SkTextBlob>> blobs;   // per item, runs
   sk_sp<SkFontMgr> fonts;
   sk_sp<SkTypeface> typeface;
@@ -194,6 +208,11 @@ void draw(Engine & e, SkCanvas * c) {
       break;
     case SB_MASK_END:
       break;
+    case SB_PATTERN_BEGIN:
+      i = it.count;  // a pattern's tile is rendered once at setup, and drawn only through a fill that names it
+      break;
+    case SB_PATTERN_END:
+      break;
     }
   }
 }
@@ -260,6 +279,47 @@ sk_sp<SkShader> make_gradient(const SB_Scene & s, const SB_Gradient & g) {
     return SkShaders::SweepGradient(SkPoint::Make(v(0), v(1)), v(2), v(3), grad, nullptr);
   }
   return nullptr;
+}
+
+// The pattern @p pt as Skia draws it: its tile (the fills of the definition, tinted when the pattern is uncolored) rendered once
+// into a bitmap of the cell's size in device pixels, and an image shader with kRepeat tiling and linear filtering over it under the
+// map.  Skia repeats an image, so it can say only a lattice whose step is the cell and whose map is a similarity: the bitmap is the
+// cell at the map's scale rounded to whole pixels (the scenes make it exact), and the shader's local matrix is the map with its
+// linear part divided by that scale and its translation moved to the image's origin.
+sk_sp<SkShader> make_pattern(Engine & e, const SB_Scene & s, const SB_Pattern & pt) {
+  const double a = pt.map[0], b = pt.map[1], c = pt.map[2], d = pt.map[3];
+  const double sc = std::hypot(a, b);
+  const double iw = std::floor(pt.cell[2] * sc + 0.5), ih = std::floor(pt.cell[3] * sc + 0.5);
+  if (std::fabs(a - d) > 1e-9 || std::fabs(b + c) > 1e-9 || std::fabs(iw - pt.cell[2] * sc) > 1e-9 ||
+      std::fabs(ih - pt.cell[3] * sc) > 1e-9 || pt.step[0] != pt.cell[2] || pt.step[1] != pt.cell[3] || !pt.repeat[0] ||
+      !pt.repeat[1] || iw < 1 || ih < 1) {
+    std::fprintf(stderr, "bench-skia: a pattern that is not a repeat of a whole-pixel tile under a similarity\n");
+    return nullptr;
+  }
+  const double rx = iw / pt.cell[2];
+  SkBitmap bm;
+  if (!bm.tryAllocPixels(SkImageInfo::Make(int(iw), int(ih), kRGBA_8888_SkColorType, kPremul_SkAlphaType))) {
+    return nullptr;
+  }
+  bm.eraseColor(SK_ColorTRANSPARENT);
+  SkCanvas canvas(bm);
+  canvas.scale(SkScalar(rx), SkScalar(rx));
+  canvas.translate(SkScalar(-pt.cell[0]), SkScalar(-pt.cell[1]));
+  for (size_t k = 0; k < pt.n_items; k++) {
+    SkPaint p = e.paints[pt.first_item + k];
+    if (pt.has_tint) {
+      const SB_Item & it = s.items[pt.first_item + k];
+      p.setColor(SkColorSetARGB(uint8_t(it.color.a * pt.tint.a / 255.0 + 0.5), pt.tint.r, pt.tint.g, pt.tint.b));
+    }
+    canvas.drawPath(e.paths[pt.first_item + k], p);
+  }
+  sk_sp<SkImage> image = bm.asImage();
+  if (!image) {
+    return nullptr;
+  }
+  SkMatrix m = SkMatrix::MakeAll(SkScalar(a / rx), SkScalar(c / rx), SkScalar(pt.map[4] + a * pt.cell[0] + c * pt.cell[1]),
+      SkScalar(b / rx), SkScalar(d / rx), SkScalar(pt.map[5] + b * pt.cell[0] + d * pt.cell[1]), 0, 0, 1);
+  return image->makeShader(SkTileMode::kRepeat, SkTileMode::kRepeat, SkSamplingOptions(SkFilterMode::kLinear), m);
 }
 
 int setup(Engine & e, const SB_Scene & s, const std::string & dir) {
@@ -366,6 +426,21 @@ int setup(Engine & e, const SB_Scene & s, const std::string & dir) {
       }
     }
   }
+  // The patterns, after every path is built (a tile's fills are items of the scene): a fill that names one is painted by its
+  // shader, its color `0 0 0 a` being the alpha multiplier as it is for a gradient.
+  e.patterns.resize(s.n_patterns);
+  for (size_t m = 0; m < s.n_patterns; m++) {
+    e.patterns[m] = make_pattern(e, s, s.patterns[m]);
+    if (!e.patterns[m]) {
+      std::fprintf(stderr, "bench-skia: cannot make pattern %zu\n", m + 1);
+      return -1;
+    }
+  }
+  for (size_t i = 0; i < s.n_items; i++) {
+    if (s.items[i].kind == SB_FILL && s.items[i].pattern) {
+      e.paints[i].setShader(e.patterns[s.items[i].pattern - 1]);
+    }
+  }
   return 0;
 }
 
@@ -402,7 +477,7 @@ int main(int argc, char ** argv) {
     std::fprintf(stderr, "usage: bench-skia DIR OUT [SCENE...]\n");
     return 2;
   }
-  static const char * const scenes[] = {"fill-rect", "fill-circle", "paths", "text", "ui", "gradients", "strokes", "strokes-dashed", "masks"};
+  static const char * const scenes[] = {"fill-rect", "fill-circle", "paths", "text", "ui", "gradients", "strokes", "strokes-dashed", "masks", "patterns", "patterns-rotated"};
   // Scenes named after the two directories are the only ones drawn; none named is the benchmark's own.
   std::vector<const char *> names(scenes, scenes + sizeof scenes / sizeof scenes[0]);
   if (argc > 3) {
@@ -437,6 +512,7 @@ int main(int argc, char ** argv) {
         sb_report(stdout, "skia", &s, &m, out.c_str(),
             e.record                              ? "build: SkPictureRecorder; submit: drawPicture"
                 : std::strcmp(s.metric, "text") == 0 ? "SkTextBlob built once; glyph masks cached by Skia's strike cache; text contrast 0 and gamma 1 (linear coverage)"
+                : s.n_patterns ? "SkCanvas drawPath, paths built once; a pattern is its tile pre-rendered once into a bitmap of the cell in device pixels and an image shader (kRepeat, linear filtering) over it under the map (a reference can repeat an image, not draw the lattice of vector copies the definition says)"
                 : std::strcmp(s.metric, "masks") == 0 ? "SkCanvas drawPath and saveLayer, paths and shaders built once; a masked group's layer is multiplied by a mask layer (blend mode kDstIn) drawn at its end; a luminance mask through SkLumaColorFilter, Rec. 709 by probe"
                 : std::strcmp(s.metric, "picture") == 0 ? "SkCanvas drawPath and saveLayer/clipPath, paths and shaders built once; Skia's own stroker and dasher; groups and clips by saveLayer and clipPath in encoded values"
                 : std::strncmp(s.name, "strokes", 7) == 0 ? "SkPaint stroke style (width, join, cap, miter limit) and SkDashPathEffect, Skia's own stroker and dasher, paths built once"
