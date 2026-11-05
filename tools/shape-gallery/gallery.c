@@ -21,7 +21,7 @@
 /**
  * @file gallery.c
  *
- * A gallery of eleven PNGs drawn entirely by the suite's own libraries, for a
+ * A gallery of twelve PNGs drawn entirely by the suite's own libraries, for a
  * person to look at (README.md says what each shows).  Every pixel comes from
  * shape-cpu rendering shape-scene lists; text is font's paragraph layout and
  * shaping, its glyphs reaching the scene through font's glyph path provider;
@@ -31,7 +31,7 @@
  *
  * FONTDIR is font's tests/data/fonts, DEJAVU the pinned DejaVuSans.ttf that
  * suite/tools/shape-success/fetch.sh fetches.  Writes shapes.png,
- * compositing.png, blend-modes.png, color.png, gradients.png, images.png, masks.png, strokes.png, primitives.png, text.png and color-glyphs.png
+ * compositing.png, blend-modes.png, color.png, gradients.png, images.png, masks.png, strokes.png, primitives.png, patterns.png, text.png and color-glyphs.png
  * into OUTDIR and a log on stdout: each render's result and its report entries
  * tallied by class and reason, the diagnostics of a few fixture fonts, and what
  * the color-glyph page refused.  Exits nonzero when any step failed.
@@ -3450,6 +3450,363 @@ static void image_primitives(void) {
   gimg_raster_destroy(R);
 }
 
+/* --- 12: patterns (masks-images-patterns story R2): a tile repeated on a lattice ------------------------------------- */
+
+/** The map with the linear part R(deg) [[1, kx], [0, 1]] diag(sx, sy) and the translation (tx, ty): a scale, a skew along x, a
+ *  rotation, in that order, then a move. */
+static GSHGEOM_Map pmap(double tx, double ty, double deg, double kx, double sx, double sy) {
+  const double c = cos(deg * M_PI / 180), s = sin(deg * M_PI / 180);
+  const double m[4] = {c * sx, c * kx * sy - s * sy, s * sx, s * kx * sy + c * sy}, t[2] = {tx, ty};
+  GSHGEOM_Map out;
+  if (gshgeom_map_from_matrix(2, m, t, &out) != GSHGEOM_OK) {
+    fail("pattern map");
+  }
+  return out;
+}
+
+/** A pattern over @p tile with the cell (0, 0, w, h), the steps @p xs and @p ys, the repeats and the map; a tint makes it uncolored. */
+static const GSHSCENE_Resource * pat_make(const GSHSCENE_Resource * tile, double w, double h, double xs, double ys, int rx, int ry,
+    GSHGEOM_Map map, const GSHSCENE_Paint * tint) {
+  GSHSCENE_Pattern p;
+  gshscene_pattern_init(&p);
+  p.tile = tile;
+  p.w = w;
+  p.h = h;
+  p.x_step = xs;
+  p.y_step = ys;
+  p.repeat_x = (uint32_t)rx;
+  p.repeat_y = (uint32_t)ry;
+  p.map = map;
+  if (tint) {
+    p.has_tint = 1;
+    p.tint = *tint;
+  }
+  const GSHSCENE_Resource * r = NULL;
+  GSHSCENE_Result e = gshscene_store_intern_pattern(g_store, &p, &r);
+  if (e != GSHSCENE_OK) {
+    fprintf(stderr, "gallery: intern pattern: %s\n", gshscene_result_string(e));
+    g_failed = 1;
+  }
+  return r;
+}
+
+/** The paint of @p pat at the alpha multiplier @p alpha. */
+static GSHSCENE_Paint pat_paint(const GSHSCENE_Resource * pat, double alpha) {
+  GSHSCENE_Paint p;
+  memset(&p, 0, sizeof p);
+  p.kind = GSHSCENE_PAINT_PATTERN;
+  p.resource = pat;
+  p.rgba[3] = alpha;
+  return p;
+}
+
+/** Fill @p shape with @p pat (the list keeps its own reference, so the caller's is released). */
+static void pat_fill(GSHSCENE_List * L, const GSHSCENE_Resource * shape, const GSHSCENE_Resource * pat, double alpha) {
+  fill(L, shape, pat_paint(pat, alpha));
+  gshscene_resource_release(pat);
+}
+
+/** An asymmetric motif in a @p w by @p h cell, so that a rotation or a skew shows: a disc, a square and a bar, over a cell-filling
+ *  background when @p background is set. */
+static const GSHSCENE_Resource * tile_motif(double w, double h, int background) {
+  GSHSCENE_List * T = list_new();
+  if (background) {
+    fill_rect(T, 0, 0, w, h, solid(0.99, 0.95, 0.78, 1));
+  }
+  fill(T, circle(0.3 * w, 0.3 * h, 0.17 * fmin(w, h)), solid(0.9, 0.35, 0.15, 1));
+  fill_rect(T, 0.55 * w, 0.55 * h, 0.9 * w, 0.9 * h, solid(0.15, 0.3, 0.7, 1));
+  fill_rect(T, 0.1 * w, 0.66 * h, 0.42 * w, 0.76 * h, solid(0.1, 0.6, 0.3, 1));
+  return picture_of(T);
+}
+
+/** A star, a disc and four translucent dots in an @p n cell, in colors a tint discards. */
+static const GSHSCENE_Resource * tile_star(double n) {
+  GSHSCENE_List * T = list_new();
+  fill(T, star(0.5 * n, 0.55 * n, 0.44 * n), solid(0.45, 0.2, 0.65, 1));
+  fill(T, circle(0.5 * n, 0.55 * n, 0.12 * n), solid(1, 0.85, 0.1, 1));
+  const double q[4][2] = {{0.12, 0.12}, {0.88, 0.12}, {0.12, 0.88}, {0.88, 0.88}};
+  for (int i = 0; i < 4; i++) {
+    fill(T, circle(q[i][0] * n, q[i][1] * n, 0.07 * n), solid(0.1, 0.5, 0.8, 0.5));
+  }
+  return picture_of(T);
+}
+
+/** Two discs that fill their cell, at @p alpha, the bigger one under the smaller. */
+static const GSHSCENE_Resource * tile_disc(double n, double alpha) {
+  GSHSCENE_List * T = list_new();
+  fill(T, circle(0.5 * n, 0.5 * n, 0.5 * n), solid(0.2, 0.5, 0.8, alpha));
+  fill(T, circle(0.5 * n, 0.5 * n, 0.25 * n), solid(0.95, 0.8, 0.2, alpha));
+  return picture_of(T);
+}
+
+/** Two squares of a checker in a cell of @p n, in @p a and @p b. */
+static const GSHSCENE_Resource * tile_check(double n, GSHSCENE_Paint a, GSHSCENE_Paint b) {
+  GSHSCENE_List * T = list_new();
+  fill_rect(T, 0, 0, n, n, a);
+  fill_rect(T, 0, 0, 0.5 * n, 0.5 * n, b);
+  fill_rect(T, 0.5 * n, 0.5 * n, n, n, b);
+  return picture_of(T);
+}
+
+/** The frame of a positioning area, one pixel wide. */
+static void pframe(GSHSCENE_List * L, double x0, double y0, double x1, double y1) {
+  const GSHSCENE_Paint c = solid(0.45, 0.45, 0.5, 1);
+  fill_rect(L, x0 - 1, y0 - 1, x1 + 1, y0, c);
+  fill_rect(L, x0 - 1, y1, x1 + 1, y1 + 1, c);
+  fill_rect(L, x0 - 1, y0, x0, y1, c);
+  fill_rect(L, x1, y0, x1 + 1, y1, c);
+}
+
+static void image_patterns(void) {
+  const int W = 1200, H = 2200;
+  GIMG_Raster * R = raster_new(W, H);
+  GSHSCENE_List * L = list_new();
+  background(L, W, H, 0.97);
+  label(L, "patterns: a tile repeated on a lattice, drawn by shape-cpu", 26, 30, 18, 0.1);
+  g_py = 64;
+  g_nplab = g_nppr = 0;
+  const double TH = 190; /* every tile here is 270 by 190; its positioning area is the 250 by 170 inside a 10-pixel margin */
+  const GSHSCENE_Paint steel = solid(0.1, 0.2, 0.45, 1);
+
+  /* A. SVG: patternUnits and patternTransform. */
+  {
+    double top = psec(L, "SVG patterns: userSpaceOnUse, objectBoundingBox, patternTransform rotate and skewX", TH);
+    for (int k = 0; k < 4; k++) {
+      double ox = ptile(L, k, top, TH), bx = ox + 10, by = top + 10;
+      const GSHSCENE_Resource * pat = NULL;
+      const GSHSCENE_Resource * tile = NULL;
+      const GSHSCENE_Resource * shape = rect(bx, by, bx + 250, by + 170);
+      if (k == 0) {
+        tile = tile_motif(40, 40, 1);
+        pat = pat_make(tile, 40, 40, 40, 40, 1, 1, pmap(0, 0, 0, 0, 1, 1), NULL);
+        pcap(ox + PTW / 2, top + TH, 0, "patternUnits=userSpaceOnUse, 40 x 40");
+        pcap(ox + PTW / 2, top + TH, 1, "anchored at the origin, not the shape");
+      } else if (k == 1) {
+        tile = tile_motif(62.5, 40, 1);
+        pat = pat_make(tile, 62.5, 40, 62.5, 40, 1, 1, pmap(bx, by, 0, 0, 1, 1), NULL);
+        shape = rect(bx, by, bx + 250, by + 160);
+        pcap(ox + PTW / 2, top + TH, 0, "objectBoundingBox, width 0.25 height 0.25");
+        pcap(ox + PTW / 2, top + TH, 1, "4 x 4 cells of 62.5 x 40 fit the shape");
+      } else if (k == 2) {
+        tile = tile_motif(40, 40, 1);
+        pat = pat_make(tile, 40, 40, 40, 40, 1, 1, pmap(ox + 135, top + 95, 20, 0, 1, 1), NULL);
+        shape = circle(ox + 135, top + 95, 82);
+        pcap(ox + PTW / 2, top + TH, 0, "patternTransform=rotate(20)");
+        pcap(ox + PTW / 2, top + TH, 1, "about the circle's center");
+      } else {
+        tile = tile_motif(40, 40, 1);
+        pat = pat_make(tile, 40, 40, 40, 40, 1, 1, pmap(bx, by, 0, tan(25 * M_PI / 180), 1.1, 1.1), NULL);
+        shape = rounded_rect(bx, by, bx + 250, by + 170, 28);
+        pcap(ox + PTW / 2, top + TH, 0, "patternTransform=skewX(25) scale(1.1)");
+        pcap(ox + PTW / 2, top + TH, 1, "the cells are parallelograms");
+      }
+      gshscene_resource_release(tile);
+      pat_fill(L, shape, pat, 1);
+    }
+  }
+
+  /* B. CSS background-repeat. */
+  {
+    double top = psec(L, "CSS background-repeat: space, repeat, space no-repeat and round, in a 250 x 170 positioning area", TH);
+    for (int k = 0; k < 4; k++) {
+      double ox = ptile(L, k, top, TH), bx = ox + 10, by = top + 10;
+      const GSHSCENE_Resource * tile = tile_motif(52, 52, 1);
+      const GSHSCENE_Resource * pat = NULL;
+      if (k == 0) {
+        /* 4 whole tiles across 250 leave 42, shared by 3 gaps (14); 3 down 170 leave 14, shared by 2 (7) */
+        pat = pat_make(tile, 52, 52, 66, 59, 1, 1, pmap(bx, by, 0, 0, 1, 1), NULL);
+        pcap(ox + PTW / 2, top + TH, 0, "space space: 4 x 3 tiles of 52");
+        pcap(ox + PTW / 2, top + TH, 1, "gaps of 14 and 7 between them");
+      } else if (k == 1) {
+        pat = pat_make(tile, 52, 52, 52, 52, 1, 1, pmap(bx, by, 0, 0, 1, 1), NULL);
+        pcap(ox + PTW / 2, top + TH, 0, "repeat repeat: tiles of 52 abut");
+        pcap(ox + PTW / 2, top + TH, 1, "the last ones are cut by the area");
+      } else if (k == 2) {
+        pat = pat_make(tile, 52, 52, 66, 52, 1, 0, pmap(bx, by, 0, 0, 1, 1), NULL);
+        pcap(ox + PTW / 2, top + TH, 0, "space no-repeat: one row, gapped");
+        pcap(ox + PTW / 2, top + TH, 1, "repeat_y 0 draws index 0 only");
+      } else {
+        pat = pat_make(tile, 52, 52, 52, 52, 1, 1, pmap(bx, by, 0, 0, 50.0 / 52, (170.0 / 3) / 52), NULL);
+        pcap(ox + PTW / 2, top + TH, 0, "round round: 5 x 3 tiles stretched");
+        pcap(ox + PTW / 2, top + TH, 1, "to 50 x 56.7 so that they fit");
+      }
+      gshscene_resource_release(tile);
+      pat_fill(L, rect(bx, by, bx + 250, by + 170), pat, 1);
+      pframe(L, bx, by, bx + 250, by + 170);
+    }
+  }
+
+  /* C. PDF tiling patterns. */
+  {
+    double top = psec(L, "PDF tiling patterns: PaintType 1 (colored) and PaintType 2 (uncolored) with two tints and a translucent one", TH);
+    const GSHSCENE_Resource * tile = tile_star(36);
+    const GSHSCENE_Paint tint[3] = {solid(0.85, 0.1, 0.1, 1), solid(0.1, 0.35, 0.85, 1), solid(0.1, 0.5, 0.2, 0.5)};
+    for (int k = 0; k < 4; k++) {
+      double ox = ptile(L, k, top, TH), bx = ox + 10, by = top + 10;
+      if (k == 3) {
+        checker(L, bx, by, bx + 250, by + 170, 10);
+      }
+      const GSHSCENE_Resource * pat =
+          pat_make(tile, 36, 36, 36, 36, 1, 1, pmap(bx, by, 0, 0, 1, 1), k ? &tint[k - 1] : NULL);
+      pat_fill(L, rounded_rect(bx, by, bx + 250, by + 170, 24), pat, 1);
+      if (k == 0) {
+        pcap(ox + PTW / 2, top + TH, 0, "PaintType 1: the tile's own colors");
+        pcap(ox + PTW / 2, top + TH, 1, "star, disc and translucent dots");
+      } else if (k == 3) {
+        pcap(ox + PTW / 2, top + TH, 0, "PaintType 2, tint (0.1, 0.5, 0.2) at 0.5");
+        pcap(ox + PTW / 2, top + TH, 1, "the tile's alpha under the tint's");
+      } else {
+        pcap(ox + PTW / 2, top + TH, 0, "PaintType 2, the same tile");
+        pcap(ox + PTW / 2, top + TH, 1, k == 1 ? "tint (0.85, 0.1, 0.1)" : "tint (0.1, 0.35, 0.85)");
+      }
+    }
+    gshscene_resource_release(tile);
+  }
+
+  /* D. Rotated and skewed lattices. */
+  {
+    double top = psec(L, "Rotated, sheared and scaled lattices (cells of whole units, maps that are not whole pixels)", TH);
+    for (int k = 0; k < 4; k++) {
+      double ox = ptile(L, k, top, TH), bx = ox + 10, by = top + 10;
+      const double n = k == 3 ? 12 : 24;
+      const GSHSCENE_Resource * tile = tile_motif(n, n, 1);
+      GSHGEOM_Map map = k == 0 ? pmap(bx + 125, by + 85, 30, 0, 1, 1)
+          : k == 1             ? pmap(bx, by, 0, 0.5, 1, 1)
+          : k == 2             ? pmap(bx + 125, by + 85, 20, 0, 1.6, 0.7)
+                               : pmap(bx + 125, by + 85, 7, 0, 1, 1);
+      const GSHSCENE_Resource * pat = pat_make(tile, n, n, n, n, 1, 1, map, NULL);
+      gshscene_resource_release(tile);
+      pat_fill(L, rect(bx, by, bx + 250, by + 170), pat, 1);
+      pframe(L, bx, by, bx + 250, by + 170);
+      static const char * const line0[4] = {"rotate 30", "shear x' = x + y / 2", "scale 1.6 x 0.7, then rotate 20", "rotate 7, cells of 12"};
+      static const char * const line1[4] = {"cells of 24 about the middle", "steps (24, 0) and (12, 24)", "cells are rectangles, turned", "many small cells, no seam"};
+      pcap(ox + PTW / 2, top + TH, 0, "%s", line0[k]);
+      pcap(ox + PTW / 2, top + TH, 1, "%s", line1[k]);
+    }
+  }
+
+  /* E. Overlapping cells. */
+  {
+    double top = psec(L, "Overlapping cells (a step smaller than the cell): the copies are composited in lattice order, later over earlier", TH);
+    for (int k = 0; k < 4; k++) {
+      double ox = ptile(L, k, top, TH), bx = ox + 10, by = top + 10;
+      const GSHSCENE_Resource * tile = tile_disc(44, k == 1 ? 0.5 : k == 3 ? 0.7 : 1);
+      const GSHSCENE_Resource * pat = NULL;
+      if (k == 0 || k == 1) {
+        pat = pat_make(tile, 44, 44, 28, 28, 1, 1, pmap(bx, by, 0, 0, 1, 1), NULL);
+      } else if (k == 2) {
+        pat = pat_make(tile, 44, 44, 26, 44, 1, 1, pmap(bx, by, 0, 0, 1, 1), NULL);
+      } else {
+        pat = pat_make(tile, 44, 44, 30, 30, 1, 1, pmap(bx + 125, by + 85, 25, 0, 1, 1), NULL);
+      }
+      gshscene_resource_release(tile);
+      pat_fill(L, rect(bx, by, bx + 250, by + 170), pat, 1);
+      pframe(L, bx, by, bx + 250, by + 170);
+      static const char * const line0[4] = {"cell 44, step 28 x 28", "the same, discs at alpha 0.5", "cell 44, step 26 x 44", "step 30, rotate 25, alpha 0.7"};
+      static const char * const line1[4] = {"each copy over the one before", "the overlaps are darker", "overlap along x only", "lattice order follows the map"};
+      pcap(ox + PTW / 2, top + TH, 0, "%s", line0[k]);
+      pcap(ox + PTW / 2, top + TH, 1, "%s", line1[k]);
+    }
+  }
+
+  /* F. Nested patterns. */
+  {
+    double top = psec(L, "Nested patterns: a pattern painted inside a tile is evaluated for each copy of the outer one", TH);
+    const GSHSCENE_Paint dark = solid(0.15, 0.25, 0.55, 1), light = solid(0.9, 0.93, 1, 1);
+    const GSHSCENE_Resource * check_tile = tile_check(12, dark, light);
+    const GSHSCENE_Paint blue_tint = solid(0.1, 0.4, 0.9, 1);
+    for (int k = 0; k < 4; k++) {
+      double ox = ptile(L, k, top, TH), bx = ox + 10, by = top + 10;
+      /* the inner pattern, in the outer tile's space */
+      const GSHSCENE_Resource * inner = pat_make(check_tile, 12, 12, 12, 12, 1, 1, pmap(0, 0, 0, 0, 1, 1), k == 3 ? &blue_tint : NULL);
+      GSHSCENE_List * T = list_new();
+      pat_fill(T, rounded_rect(4, 4, 56, 56, 9), inner, 1);
+      fill(T, circle(30, 30, 13), solid(0.9, 0.3, 0.2, 1));
+      fill(T, star(30, 30, 9), solid(1, 0.9, 0.3, 1));
+      const GSHSCENE_Resource * tile = picture_of(T);
+      const GSHSCENE_Resource * pat = NULL;
+      if (k == 2) {
+        pat = pat_make(tile, 60, 60, 76, 76, 1, 1, pmap(bx + 4, by + 4, 0, 0, 1, 1), NULL);
+      } else {
+        pat = pat_make(tile, 60, 60, 60, 60, 1, 1, k == 1 ? pmap(bx + 125, by + 85, 25, 0, 1, 1) : pmap(bx, by, 0, 0, 1, 1), NULL);
+      }
+      gshscene_resource_release(tile);
+      pat_fill(L, rect(bx, by, bx + 250, by + 170), pat, 1);
+      pframe(L, bx, by, bx + 250, by + 170);
+      static const char * const line0[4] = {"a checker inside a cell of 60", "the outer lattice rotated 25", "the outer cells 60, step 76", "the inner pattern uncolored"};
+      static const char * const line1[4] = {"under a disc and a star", "the inner one turns with it", "gaps between whole cells", "tint (0.1, 0.4, 0.9)"};
+      pcap(ox + PTW / 2, top + TH, 0, "%s", line0[k]);
+      pcap(ox + PTW / 2, top + TH, 1, "%s", line1[k]);
+    }
+    gshscene_resource_release(check_tile);
+  }
+
+  /* G. Hatch: strokes at the cell edge. */
+  {
+    double top = psec(L, "Hatch: a stroke that ends at the cell edge, or crosses it and is cut by it, leaves no seam", TH);
+    for (int k = 0; k < 4; k++) {
+      double ox = ptile(L, k, top, TH), bx = ox + 10, by = top + 10;
+      static const double cell[4] = {14.3, 12.7, 16, 20};
+      const double n = cell[k];
+      GSHSCENE_List * T = list_new();
+      if (k == 0) {
+        pline(T, 0, n / 2, n, n / 2, 3, steel);
+      } else if (k == 1) {
+        pline(T, -4, n + 4, n + 4, -4, 2.4, solid(0.7, 0.2, 0.1, 1));
+      } else if (k == 2) {
+        pline(T, -4, n + 4, n + 4, -4, 2, solid(0.1, 0.5, 0.25, 1));
+        pline(T, -4, -4, n + 4, n + 4, 2, solid(0.1, 0.5, 0.25, 1));
+      } else {
+        GSHGEOM_Path * p = path_new();
+        add_rect(p, 0, 0, n, n);
+        GSHSCENE_Stroke_Style st = style_new(3, GSHSCENE_STROKE_JOIN_MITER, GSHSCENE_STROKE_CAP_BUTT);
+        stroke_map(T, intern(p), NULL, &st, solid(0.35, 0.35, 0.5, 1));
+        fill(T, circle(n / 2, n / 2, 3), solid(0.9, 0.35, 0.15, 1));
+      }
+      const GSHSCENE_Resource * tile = picture_of(T);
+      const GSHSCENE_Resource * pat = pat_make(tile, n, n, n, n, 1, 1, pmap(bx, by, 0, 0, 1, 1), NULL);
+      gshscene_resource_release(tile);
+      pat_fill(L, rect(bx, by, bx + 250, by + 170), pat, 1);
+      pframe(L, bx, by, bx + 250, by + 170);
+      static const char * const line0[4] = {"horizontal lines, cell 14.3", "diagonals across the edge, 12.7", "crosshatch, cell 16", "lines on the cell edges, cell 20"};
+      static const char * const line1[4] = {"butt ends meet on the shared edge", "each stroke is cut by its cell", "two strokes in one tile", "half a line per cell, the halves meet"};
+      pcap(ox + PTW / 2, top + TH, 0, "%s", line0[k]);
+      pcap(ox + PTW / 2, top + TH, 1, "%s", line1[k]);
+      if (k == 0) {
+        const double seam = bx + 3 * n, row = by + 2.5 * n;
+        pprobe(ox + PTW / 2, top + TH, 0, "seam left", seam - 1, row);
+        pprobe(ox + PTW / 2, top + TH, 1, "seam right", seam + 1, row);
+        pprobe(ox + PTW / 2, top + TH, 2, "mid cell", seam + 7, row);
+      } else if (k == 3) {
+        const double row = by + 2.5 * n;
+        pprobe(ox + PTW / 2, top + TH, 0, "on the edge", bx + 3 * n - 1, row);
+        pprobe(ox + PTW / 2, top + TH, 1, "on the edge", bx + 3 * n, row);
+        pprobe(ox + PTW / 2, top + TH, 2, "inside", bx + 3 * n + 8, row);
+      }
+    }
+  }
+
+  render("patterns", L, R);
+
+  /* The captions, and the pixels at the probes read back from what was drawn. */
+  L = list_new();
+  for (size_t i = 0; i < g_nplab; i++) {
+    label_c(L, g_plab[i].text, 11, g_plab[i].cx, g_plab[i].y, 0.15);
+  }
+  for (size_t i = 0; i < g_nppr; i++) {
+    const struct PProbe * p = &g_ppr[i];
+    const unsigned char * c = pixel(R, p->px, p->py);
+    char buf[64];
+    snprintf(buf, sizeof buf, "%s %d,%d,%d,%d", p->tag, c[0], c[1], c[2], c[3]);
+    label_c(L, buf, 11, p->cx, p->y, 0.4);
+    printf("patterns probe (%d,%d) %s: %d,%d,%d,%d\n", p->px, p->py, p->tag, c[0], c[1], c[2], c[3]);
+  }
+  render("patterns (labels)", L, R);
+  printf("patterns: page ends at y=%g of %d\n", g_py, H);
+  save_png(R, "patterns.png");
+  gimg_raster_destroy(R);
+}
+
 int main(int argc, char ** argv) {
   if (argc != 4) {
     fprintf(stderr, "usage: gallery FONTDIR DEJAVU OUTDIR\n");
@@ -3479,6 +3836,7 @@ int main(int argc, char ** argv) {
   image_masks();
   image_strokes();
   image_primitives();
+  image_patterns();
   image_text(argv[1]);
   image_color_glyphs(argv[1]);
   printf("gallery: %s\n", g_failed ? "FAILED" : "ok");

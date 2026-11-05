@@ -1,6 +1,6 @@
 # Shape gallery
 
-Eleven PNGs drawn entirely by the suite's own libraries, for a person to look at,
+Twelve PNGs drawn entirely by the suite's own libraries, for a person to look at,
 and a way to see what changed in them since the last time. Every pixel comes
 from `shape-cpu` rendering `shape-scene` lists; text is `font`'s paragraph
 layout and shaping, its glyphs reaching the scene through `font`'s glyph path
@@ -22,6 +22,7 @@ would add edges to that library.
 | `masks.png` | masks (a group's layer multiplied by a value rendered from a picture), one subject in thirty-five tiles over a checkerboard: SVG's luminance (W3C coefficients) and alpha masks, and a picture of overlapping translucent discs rendered in linear light and read in sRGB, rendered and read in sRGB, and rendered and read in linear light; PDF's luminosity masks over a nonblack backdrop with the identity, an exponential, a table and a stitching transfer, and over a black one; CSS's `mask-composite` stack, each operator (add SRC_OVER, subtract SRC_OUT, intersect SRC_IN, exclude XOR) between a circle and a luminance layer converted to alpha first (an opaque fill in a group masked by that layer's luminance mask), and all four in one stack, bottom layer first; a mask of a mask (stripes in a group masked by a spot); an alpha ramp acting on the opacity and on the shape of a disc composited DEST_IN (which differ) and SRC_OVER (which agree); one picture put in a tile by the group's mask map as a translation, a rotation, scalings, a shear with a mirror, and a singular map; and the outside value, where the picture draws nothing, with `TR(0)` of 0.4, a luminance backdrop and a table. Each tile's pixels at chosen points are read back, printed under it and logged |
 | `strokes.png` | joins (miter, round, bevel) on a zigzag, caps (butt, round, square), dashes (a pattern, round dots, dash-dot with an offset), local and device widths under a non-uniform map, device-width hairlines, inside, outside and centered alignment on a star, and a gradient as a stroke's paint, and translucent strokes whose pieces overlap (square-cap dashes with short gaps, 44 on and 10 off, and with long ones, 20 on and 30 off, which show what a square cap is; a tight zigzag; a thin inside stroke), which are no darker where they overlap, and stroked text (strokes story S5): an outlined line, a wide translucent stroke that is one union across the line, a stroke painted under the fill, a gradient across the line, dashes along each contour, and a hinted fill under the stroke that is never hinted |
 | `primitives.png` | exact arcs (shape-exact-primitives stories A1 and A2) and named primitives: SVG 2's endpoint form with its four large-arc and sweep flag combinations, the radius correction (radii too small scaled up with their ratio kept, a zero radius a line, a rotation); the centre form (a full turn, a negative sweep, a rotated ellipse, one quarter turn in radians, degrees, gradians and turns); the tangent form (Canvas `arcTo`, a zero radius, three collinear points); an arc stroked under a non-uniform map with a local and a device width, and dashed, solid and as dots, under a map as well; `rect` and rounded rect (uniform and elliptical corners, radii that do not fit refused by the check and then scaled as CSS does); a rounded rect, a rect and an ellipse under each of the four flip cases (the dashes show the start and the direction); circles and ellipses, filled, stroked and dotted; and very large circles and ellipses (a radius of 100000) cut by a clip, filled, stroked and dashed. Chosen pixels are read back, printed under their tiles and logged |
+| `patterns.png` | patterns (masks-images-patterns story R2), a tile repeated on a lattice, in seven sections of four tiles: SVG's `patternUnits` (user space, `objectBoundingBox`) and `patternTransform` (a rotation, a skew); CSS `background-repeat` `space` (gapped cells), `repeat`, `space no-repeat` and `round`; PDF colored tiling patterns and uncolored ones with two tints and a translucent one; rotated, sheared and non-uniformly scaled lattices; overlapping cells (a step smaller than the cell, opaque and translucent, along one axis, rotated); nested patterns (a checker pattern inside a tile, the outer lattice rotated, gapped, and the inner one uncolored); and hatches of strokes that end at the cell edge or cross it and are cut by it, with the pixels either side of a seam read back and printed |
 | `text.png` | DejaVu Sans 2.37 at eight sizes, a justified paragraph, a 6x zoom of hinted, unhinted and general-route glyphs, nine scripts, and `font`'s committed test fixtures |
 | `color-glyphs.png` | the COLR glyphs of `font`'s fixtures lowered into scene lists (gradients of every kind, blend modes, clip boxes and the plane, variable paints at the default instance), with the glyphs the lowering cannot express shown as placeholders: each is an item the render report names with its registered source and code (`colr:unbounded` for a paint no clip bounds in a glyph that states no clip box, `colr:walk-limit` for a glyph that names itself), and the page draws the box an application would from the item's own box |
 
@@ -44,7 +45,7 @@ closure of `font`'s and `shape-cpu`'s dependencies (cutil, security, unicode,
 compress, color, image, math, shape-geometry, shape-scene, shape-cpu and font,
 today). It installs each into `PREFIX` (`PREFIX=` on
 every make, so the rpath is set), builds `gallery.c` against them, fetches the
-pinned font by digest (`suite/tools/shape-success/fetch.sh`), renders the eleven
+pinned font by digest (`suite/tools/shape-success/fetch.sh`), renders the twelve
 PNGs into `OUT` with `gallery.log`, and decode-checks every PNG. Build logs go to
 `OUT/logs/`. The result is the suite's only when it is built by the suite's
 compiler, so run it inside `ghoti-build:gcc16` (`suite/Containerfile.build`),
@@ -63,7 +64,7 @@ and the host's name into `OUT/host.txt`, for a record of where it ran.
 
 A run directory holds:
 
-- the eleven PNGs and `gallery.log`;
+- the twelve PNGs and `gallery.log`;
 - `decode-check.txt`: every PNG's chunks, CRCs and image data checked by an
   independent reader;
 - `build.txt` (compiler, flags, the font's digest) and `gallery.exit`;
