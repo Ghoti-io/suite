@@ -114,12 +114,16 @@ geom_clip_hash=$(awk '$1=="clip-hash"{print $2}' "$GEOM/tests/corpus/geometry.ha
 geom_clip_count=$(awk '$1=="clip-count"{print $2}' "$GEOM/tests/corpus/geometry.hash")
 geom_lattice_hash=$(awk '$1=="lattice-hash"{print $2}' "$GEOM/tests/corpus/geometry.hash")
 geom_lattice_count=$(awk '$1=="lattice-count"{print $2}' "$GEOM/tests/corpus/geometry.hash")
+geom_devbox_hash=$(awk '$1=="devbox-hash"{print $2}' "$GEOM/tests/corpus/geometry.hash")
+geom_devbox_count=$(awk '$1=="devbox-count"{print $2}' "$GEOM/tests/corpus/geometry.hash")
 SCENE="$ROOT/libs/shape-scene"
 prim_hash=$(awk '$1=="primitive-hash"{print $2}' "$SCENE/tests/corpus/scene.hash")
 prim_count=$(awk '$1=="primitive-count"{print $2}' "$SCENE/tests/corpus/scene.hash")
 pattern_hash=$(awk '$1=="pattern-hash"{print $2}' "$SCENE/tests/corpus/scene.hash")
 pattern_count=$(awk '$1=="pattern-count"{print $2}' "$SCENE/tests/corpus/scene.hash")
-[ -n "$geom_clip_hash" ] && [ -n "$geom_clip_count" ] && [ -n "$geom_lattice_hash" ] && [ -n "$geom_lattice_count" ] && [ -n "$pattern_hash" ] && [ -n "$pattern_count" ] \
+clipunion_hash=$(awk '$1=="clipunion-hash"{print $2}' "$SCENE/tests/corpus/scene.hash")
+clipunion_count=$(awk '$1=="clipunion-count"{print $2}' "$SCENE/tests/corpus/scene.hash")
+[ -n "$geom_clip_hash" ] && [ -n "$geom_clip_count" ] && [ -n "$geom_lattice_hash" ] && [ -n "$geom_lattice_count" ] && [ -n "$pattern_hash" ] && [ -n "$pattern_count" ] && [ -n "$geom_devbox_hash" ] && [ -n "$geom_devbox_count" ] && [ -n "$clipunion_hash" ] && [ -n "$clipunion_count" ] \
   || { echo "shape.sh: no committed shape-geometry clip or lattice pair, or shape-scene pattern pair" >&2; exit 2; }
 [ -n "$geom_shapes_hash" ] && [ -n "$geom_shapes_count" ] && [ -n "$prim_hash" ] && [ -n "$prim_count" ] \
   || { echo "shape.sh: no committed shapes or primitive pair" >&2; exit 2; }
@@ -248,4 +252,4 @@ font_stroke_hash=$(awk '$1=="stroke-hash"{print $2}' "$FONT/tests/data/golden/sc
 font_stroke_count=$(awk '$1=="stroke-count"{print $2}' "$FONT/tests/data/golden/scene.hash")
 [ -n "$font_stroke_hash" ] && [ -n "$font_stroke_count" ] || { echo "shape.sh: no committed font stroked-text pair" >&2; exit 2; }
 echo "committed font provider hash: $font_hash over $font_count renders; stroked text $font_stroke_hash over $font_stroke_count"
-"$HERE/m1-win.sh" "$W" "bash /tools/xwin/shape-win.sh $want $math_hash $math_count $geom_hash $geom_count $cpu_hash $cpu_count $scene_hash $scene_count $render_hash $render_count $font_hash $font_count $stroke_hash $stroke_count $plane_hash $plane_count $placeholder_hash $placeholder_count $dense_hash $dense_count $font_stroke_hash $font_stroke_count $geom_pred_hash $geom_pred_count $fast_hash $fast_count $image_hash $image_count $image_paint_hash $image_paint_count $geom_vertex_hash $geom_vertex_count $mask_hash $mask_count $geom_arc_hash $geom_arc_count $geom_arc_vertex_hash $geom_arc_vertex_count $geom_conic_hash $geom_conic_count $geom_shapes_hash $geom_shapes_count $prim_hash $prim_count $geom_clip_hash $geom_clip_count $geom_lattice_hash $geom_lattice_count $pattern_hash $pattern_count"
+"$HERE/m1-win.sh" "$W" "bash /tools/xwin/shape-win.sh $want $math_hash $math_count $geom_hash $geom_count $cpu_hash $cpu_count $scene_hash $scene_count $render_hash $render_count $font_hash $font_count $stroke_hash $stroke_count $plane_hash $plane_count $placeholder_hash $placeholder_count $dense_hash $dense_count $font_stroke_hash $font_stroke_count $geom_pred_hash $geom_pred_count $fast_hash $fast_count $image_hash $image_count $image_paint_hash $image_paint_count $geom_vertex_hash $geom_vertex_count $mask_hash $mask_count $geom_arc_hash $geom_arc_count $geom_arc_vertex_hash $geom_arc_vertex_count $geom_conic_hash $geom_conic_count $geom_shapes_hash $geom_shapes_count $prim_hash $prim_count $geom_clip_hash $geom_clip_count $geom_lattice_hash $geom_lattice_count $pattern_hash $pattern_count $geom_devbox_hash $geom_devbox_count $clipunion_hash $clipunion_count"

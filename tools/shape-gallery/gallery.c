@@ -31,7 +31,7 @@
  *
  * FONTDIR is font's tests/data/fonts, DEJAVU the pinned DejaVuSans.ttf that
  * suite/tools/shape-success/fetch.sh fetches.  Writes shapes.png,
- * compositing.png, blend-modes.png, color.png, gradients.png, images.png, masks.png, strokes.png, primitives.png, patterns.png, text.png and color-glyphs.png
+ * compositing.png, blend-modes.png, color.png, gradients.png, images.png, masks.png, strokes.png, primitives.png, patterns.png, clip-unions.png, text.png and color-glyphs.png
  * into OUTDIR and a log on stdout: each render's result and its report entries
  * tallied by class and reason, the diagnostics of a few fixture fonts, and what
  * the color-glyph page refused.  Exits nonzero when any step failed.
@@ -245,6 +245,15 @@ static void render(const char * what, GSHSCENE_List * L, GIMG_Raster * raster) {
   for (size_t k = 0; k < nt; k++) {
     printf("  entry %s %s x%zu\n", gshscene_entry_class_string((GSHSCENE_Entry_Class)tally[k].c),
         gshscene_reason_string((GSHSCENE_Reason)tally[k].r), tally[k].n);
+  }
+  /* A refused union clip names the first pair of members it could not separate in `second` (clip_union.h, CU13). */
+  for (size_t i = 0; i < gshscene_report_count(g_report); i++) {
+    GSHSCENE_Report_Entry e;
+    gshscene_report_entry(g_report, i, &e);
+    if (e.reason == GSHSCENE_REASON_UNION_OVERLAP) {
+      printf("  union overlap at item %zu: members %u and %u\n", e.chain_count ? e.chain[0] : (size_t)0, (unsigned)(e.second >> 16),
+          (unsigned)(e.second & 0xffffu));
+    }
   }
   /* A placeholder's entry names its source and code in `second`; the registry prints them without the front end. */
   for (size_t i = 0; i < gshscene_report_count(g_report); i++) {
@@ -3807,6 +3816,118 @@ static void image_patterns(void) {
   gimg_raster_destroy(R);
 }
 
+
+/* --- 13: union clips (shapes story A3): the region of several shapes, summed in exact area ------------------------------------ */
+
+/** A union of @p n members (each released here: the union holds its own references), under the rules @p rules. */
+static const GSHSCENE_Resource * union_of(const GSHSCENE_Resource ** res, const int * rules, size_t n) {
+  GSHSCENE_Clip_Member m[16];
+  memset(m, 0, sizeof m);
+  for (size_t i = 0; i < n && i < 16; i++) {
+    m[i].resource = res[i];
+    m[i].rule = rules ? (GSHGEOM_Fill_Rule)rules[i] : GSHGEOM_FILL_NONZERO;
+  }
+  const GSHSCENE_Resource * u = NULL;
+  if (gshscene_store_intern_clip_union(g_store, m, n, &u) != GSHSCENE_OK) {
+    fail("intern clip union");
+    exit(1);
+  }
+  for (size_t i = 0; i < n; i++) {
+    gshscene_resource_release(res[i]);
+  }
+  return u;
+}
+
+/** A fill of @p what under the clip @p u (the union keeps its reference for the next use). */
+static void clipped(GSHSCENE_List * L, const GSHSCENE_Resource * u, const GSHSCENE_Resource * what, GSHSCENE_Paint paint) {
+  if (gshscene_list_clip_push(L, u, NULL, GSHGEOM_FILL_NONZERO, 0, 0.0) != GSHSCENE_OK) {
+    fail("clip push of a union");
+    return;
+  }
+  fill(L, what, paint);
+  if (gshscene_list_clip_pop(L) != GSHSCENE_OK) {
+    fail("clip pop");
+  }
+}
+
+static void image_clip_unions(void) {
+  const int W = 1200, H = 760;
+  GIMG_Raster * R = raster_new(W, H);
+  GSHSCENE_List * L = list_new();
+  background(L, W, H, 0.97);
+  label(L, "union clips: the exact area of the union, quantized once", 26, 30, 18, 0.1);
+  const GSHSCENE_Paint ink = solid(0.1, 0.2, 0.45, 1);
+  const GSHSCENE_Paint hot = solid(0.85, 0.2, 0.15, 1);
+  const GSHSCENE_Paint green = solid(0.1, 0.55, 0.25, 1);
+  /* A. The seam: two shapes share an edge at x = 100.5.  As the union of one clip the shared pixel column is whole; as two
+   * separate clips (the way an alpha mask of the two would compose them) the column carries a seam of 3/4. */
+  {
+    label(L, "A. abutting at x = 100.5: one union clip (left), two clips (right)", 14, 30, 60, 0.2);
+    const GSHSCENE_Resource * halves[2] = {rect(30, 90, 100.5, 190), rect(100.5, 90, 170, 190)};
+    const GSHSCENE_Resource * u = union_of(halves, NULL, 2);
+    clipped(L, u, rect(20, 80, 180, 200), ink);
+    gshscene_resource_release(u);
+    for (int k = 0; k < 2; k++) {
+      const GSHSCENE_Resource * one[1] = {k ? rect(100.5 + 250, 90, 170 + 250, 190) : rect(30 + 250, 90, 100.5 + 250, 190)};
+      const GSHSCENE_Resource * su = union_of(one, NULL, 1);
+      clipped(L, su, rect(270, 80, 430, 200), ink);
+      gshscene_resource_release(su);
+    }
+    label(L, "no seam", 12, 100, 215, 0.3);
+    label(L, "a 3/4 seam at the join", 12, 350, 215, 0.3);
+  }
+  /* B. An icon sheet: each icon is clipped to a union of a circle, a rectangle and a rounded rectangle that do not overlap. */
+  {
+    label(L, "B. icons: a circle, a bar and a rounded square, apart, clipped as one", 14, 560, 60, 0.2);
+    for (int i = 0; i < 12; i++) {
+      const double ox = 545 + 105 * (i % 6), oy = 85 + 105 * (i / 6);
+      const GSHSCENE_Resource * parts[3] = {circle(ox + 20, oy + 20, 15), rect(ox + 45, oy + 8, ox + 90, oy + 22), rounded_rect(ox + 8, oy + 52, ox + 70, oy + 92, 9)};
+      const GSHSCENE_Resource * u = union_of(parts, NULL, 3);
+      clipped(L, u, rect(ox, oy, ox + 100, oy + 100), solid(0.2 + 0.06 * i, 0.35, 0.8 - 0.05 * i, 1));
+      gshscene_resource_release(u);
+    }
+  }
+  /* C. Nested: a union inside a circle's clip block. */
+  {
+    label(L, "C. a union inside a clip block: the product of the coverages", 14, 30, 270, 0.2);
+    const GSHSCENE_Resource * parts[3] = {rect(30, 300, 130, 400), rect(130, 300, 230, 400), rect(230, 300, 330, 400)};
+    const GSHSCENE_Resource * u = union_of(parts, NULL, 3);
+    const GSHSCENE_Resource * ring = circle(180, 350, 78);
+    if (gshscene_list_clip_push(L, ring, NULL, GSHGEOM_FILL_NONZERO, 0, 0.0) != GSHSCENE_OK) {
+      fail("outer clip");
+    }
+    gshscene_resource_release(ring);
+    clipped(L, u, rect(20, 290, 340, 410), green);
+    gshscene_list_clip_pop(L);
+    gshscene_resource_release(u);
+  }
+  /* D. Each member under its own rule: a nonzero star and an even-odd ring, apart. */
+  {
+    label(L, "D. each member by its own rule: a ring (even-odd) beside a plain square", 14, 30, 450, 0.2);
+    GSHGEOM_Path * ringp = path_new();
+    add_circle(ringp, 110, 540, 60);
+    add_circle(ringp, 110, 540, 32);
+    const GSHSCENE_Resource * parts[2] = {intern(ringp), rect(200, 480, 300, 600)};
+    const int rules[2] = {GSHGEOM_FILL_EVEN_ODD, GSHGEOM_FILL_NONZERO};
+    const GSHSCENE_Resource * u = union_of(parts, rules, 2);
+    clipped(L, u, rect(30, 470, 320, 610), hot);
+    gshscene_resource_release(u);
+  }
+  /* E. An overlapping union: the sink draws only disjoint unions, so it is refused and nothing inside is drawn. */
+  {
+    label(L, "E. members that overlap: refused (union-overlap), nothing drawn inside the clip", 14, 540, 330, 0.2);
+    fill_rect(L, 550, 360, 700, 480, solid(0.5, 0.5, 0.55, 0.25)); /* the two members, drawn plainly, so that what is refused can be seen */
+    fill_rect(L, 650, 420, 800, 540, solid(0.5, 0.5, 0.55, 0.25));
+    const GSHSCENE_Resource * parts[2] = {rect(550, 360, 700, 480), rect(650, 420, 800, 540)};
+    const GSHSCENE_Resource * u = union_of(parts, NULL, 2);
+    clipped(L, u, rect(540, 350, 820, 560), hot);
+    gshscene_resource_release(u);
+  }
+  render("clip unions", L, R);
+  save_png(R, "clip-unions.png");
+  gimg_raster_destroy(R);
+}
+
 int main(int argc, char ** argv) {
   if (argc != 4) {
     fprintf(stderr, "usage: gallery FONTDIR DEJAVU OUTDIR\n");
@@ -3837,6 +3958,7 @@ int main(int argc, char ** argv) {
   image_strokes();
   image_primitives();
   image_patterns();
+  image_clip_unions();
   image_text(argv[1]);
   image_color_glyphs(argv[1]);
   printf("gallery: %s\n", g_failed ? "FAILED" : "ok");
