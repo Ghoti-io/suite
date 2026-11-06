@@ -20,7 +20,13 @@
  * The cases: an icon sheet (1500 icons, each clipped to a union of 2 to 12 shapes), a text-like clip of 64 small rectangles in a row,
  * and one large union of 256 members.  The default path (the "plain" case, a list of the sheet's fills with no clip at all) is the
  * number to compare across commits.
+ *
+ * Shape-exact-primitives story A3b adds the general tier (members whose boxes overlap, which the exact step makes exact in the
+ * pixels they share): the icon sheet again with its members overlapping ("overlap"), and one union of n members in a chain of
+ * overlapping rectangles against the same n members apart, which is the cost of a member of each tier.
  */
+
+#define _POSIX_C_SOURCE 200809L
 
 #include <ghoti.io/image/raster.h>
 #include <ghoti.io/shape-cpu/shape-cpu.h>
@@ -74,7 +80,7 @@ static const GSHSCENE_Resource * make_union(const GSHSCENE_Resource ** parts, si
 }
 
 /* Which structure of list a case is: 0 no clip, 1 one union clip per icon, 2 a nest of single clips per icon. */
-static GSHSCENE_List * build(int mode, size_t icons, size_t members, size_t cols, double pitch) {
+static GSHSCENE_List * build(int mode, size_t icons, size_t members, size_t cols, double pitch, size_t * total_members) {
   GSHSCENE_List * l = NULL;
   gshscene_list_create(NULL, NULL, g_store, &l);
   GSHSCENE_Paint paint;
@@ -86,12 +92,14 @@ static GSHSCENE_List * build(int mode, size_t icons, size_t members, size_t cols
   for (size_t i = 0; i < icons; i++) {
     const double ox = (double)(i % cols) * pitch + 2.25, oy = (double)(i / cols) * pitch + 2.5;
     const size_t k = 2 + i % (members - 1);
+    const double step = mode == 3 ? 2.5 : 4.0; /* mode 3: each member overlaps the next by 0.9 */
     const GSHSCENE_Resource * parts[16];
+    *total_members += k;
     for (size_t j = 0; j < k && j < 16; j++) {
-      parts[j] = rect(ox + (double)j * 4.0, oy, ox + (double)j * 4.0 + 3.4, oy + 9.0);
+      parts[j] = rect(ox + (double)j * step, oy, ox + (double)j * step + 3.4, oy + 9.0);
     }
     const GSHSCENE_Resource * big = rect(ox - 1, oy - 1, ox + 4.0 * (double)k + 1, oy + 10);
-    if (mode == 1) {
+    if (mode == 1 || mode == 3) {
       const GSHSCENE_Resource * u = make_union(parts, k);
       gshscene_list_clip_push(l, u, NULL, GSHGEOM_FILL_NONZERO, 0, 0.0);
       gshscene_list_fill(l, big, NULL, GSHGEOM_FILL_NONZERO, &paint, 0, 0.0);
@@ -175,12 +183,14 @@ int main(int argc, char ** argv) {
   };
   for (int c = 0; c < 1; c++) {
     const struct Case * k = &cases[c];
-    const char * modes[3] = {"plain  ", "union  ", "nested "};
-    for (int mode = 0; mode < (argc > 2 ? 1 : 3); mode++) {
-      GSHSCENE_List * l = build(mode, k->icons, k->members, k->cols, k->pitch);
+    const char * modes[4] = {"plain  ", "union  ", "nested ", "overlap"};
+    for (int mode = 0; mode < (argc > 2 ? 1 : 4); mode++) {
+      size_t members = 0;
+      GSHSCENE_List * l = build(mode, k->icons, k->members, k->cols, k->pitch, &members);
       const double ms = time_frame(l, k->w, k->h, frames, NULL, NULL);
       const double per = ms * 1e3 / (double)k->icons;
-      printf("%-42s %s frame %9.3f ms  %8.2f us per icon\n", k->name, modes[mode], ms, per);
+      printf("%-42s %s frame %9.3f ms  %8.2f us per icon  %6.2f us per member\n", k->name, modes[mode], ms, per,
+          members ? ms * 1e3 / (double)members : 0.0);
       gshscene_list_destroy(l);
     }
   }
@@ -212,6 +222,35 @@ int main(int argc, char ** argv) {
     gshscene_list_destroy(l);
     gshscene_resource_release(u);
     gshscene_resource_release(big);
+  }
+  /* The general tier: n rectangles in a chain, each overlapping the next by 1.5 pixels, against the same n apart. */
+  for (size_t n = 8; n <= 256; n *= 4) {
+    for (int overlapping = 0; overlapping < 2; overlapping++) {
+      GSHSCENE_List * l = NULL;
+      gshscene_list_create(NULL, NULL, g_store, &l);
+      const GSHSCENE_Resource * parts[256];
+      const double pitch = overlapping ? 14.0 : 17.0;
+      for (size_t j = 0; j < n; j++) {
+        parts[j] = rect(2.0 + (double)j * pitch, 2.0, 2.0 + (double)j * pitch + 15.5, 17.5);
+      }
+      const int w = (int)(2.0 + (double)n * pitch + 16.0);
+      const GSHSCENE_Resource * u = make_union(parts, n);
+      const GSHSCENE_Resource * big = rect(0, 0, (double)w, 20);
+      GSHSCENE_Paint paint;
+      memset(&paint, 0, sizeof paint);
+      paint.kind = GSHSCENE_PAINT_SOLID;
+      paint.rgba[3] = 1.0;
+      gshscene_list_clip_push(l, u, NULL, GSHGEOM_FILL_NONZERO, 0, 0.0);
+      gshscene_list_fill(l, big, NULL, GSHGEOM_FILL_NONZERO, &paint, 0, 0.0);
+      gshscene_list_clip_pop(l);
+      gshscene_list_close(l);
+      const double ms = time_frame(l, w, 20, frames, NULL, NULL);
+      printf("a chain of %-4zu members %-12s %5dx20        frame %9.3f ms  %8.2f us per member\n", n, overlapping ? "overlapping" : "apart", w, ms,
+          ms * 1e3 / (double)n);
+      gshscene_list_destroy(l);
+      gshscene_resource_release(u);
+      gshscene_resource_release(big);
+    }
   }
   gshscene_sink_destroy(g_cpu);
   gshscene_store_destroy(g_store);

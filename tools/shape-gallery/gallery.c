@@ -3913,10 +3913,10 @@ static void image_clip_unions(void) {
     clipped(L, u, rect(30, 470, 320, 610), hot);
     gshscene_resource_release(u);
   }
-  /* E. An overlapping union: the sink draws only disjoint unions, so it is refused and nothing inside is drawn. */
+  /* E. An overlapping union (story A3b): the sink draws it, exactly, the pixels the members share once. */
   {
-    label(L, "E. members that overlap: refused (union-overlap), nothing drawn inside the clip", 14, 540, 330, 0.2);
-    fill_rect(L, 550, 360, 700, 480, solid(0.5, 0.5, 0.55, 0.25)); /* the two members, drawn plainly, so that what is refused can be seen */
+    label(L, "E. members that overlap: one union, the shared pixels drawn once", 14, 540, 330, 0.2);
+    fill_rect(L, 550, 360, 700, 480, solid(0.5, 0.5, 0.55, 0.25)); /* the two members, drawn plainly, so that the union drawn over them can be compared */
     fill_rect(L, 650, 420, 800, 540, solid(0.5, 0.5, 0.55, 0.25));
     const GSHSCENE_Resource * parts[2] = {rect(550, 360, 700, 480), rect(650, 420, 800, 540)};
     const GSHSCENE_Resource * u = union_of(parts, NULL, 2);

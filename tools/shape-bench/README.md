@@ -240,6 +240,14 @@ pipeline, so what is timed there is a blit of 1.46 M pixels; shape-cpu is the sc
 bit-identical on every host, and draws the lattice from the vector picture's period on every frame. A faster path for the same output would
 be a lean 8-bit tier for a pattern (the plain fill has one), which is a design of its own and not part of this scene.
 
+## Union clips: what each tier costs
+
+`build/clip-unions [frames [plain]]` (shape-cpu only: no reference draws a union clip in one call) times an icon sheet of 1500 icons each
+clipped to a union of 2 to 12 shapes, as a union of members apart (the fast tier), as nested clips, and with the members overlapping (the
+general tier, the exact step in the pixels the members share), then one union of n members in a chain, apart and overlapping, which is the
+cost of a member of each tier. A run is one process on whatever machine it is on; the numbers are only comparable with the same program's
+on the same machine and load.
+
 ## Non-isolated and knockout groups: a scene no reference draws
 
 The `groups` scene draws groups of PDF's two kinds: fifteen groups of three shapes on 1600x1000, three of each of five kinds in the

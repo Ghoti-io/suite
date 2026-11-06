@@ -29,7 +29,7 @@ endif
 
 BENCH_CFLAGS := -std=c17 -O2 -g -Wall -Wextra -Werror -ffp-contract=off
 
-all: $(BUILD_DIR)/bench-shape $(BUILD_DIR)/pamdiff $(BUILD_DIR)/corroborate $(BUILD_DIR)/stroke-text
+all: $(BUILD_DIR)/bench-shape $(BUILD_DIR)/pamdiff $(BUILD_DIR)/corroborate $(BUILD_DIR)/stroke-text $(BUILD_DIR)/clip-unions
 
 $(BUILD_DIR)/bench-shape: bench-shape.c scene.c scene.h Makefile
 	@mkdir -p $(@D)
@@ -39,6 +39,11 @@ $(BUILD_DIR)/bench-shape: bench-shape.c scene.c scene.h Makefile
 $(BUILD_DIR)/stroke-text: stroke-text.c Makefile
 	@mkdir -p $(@D)
 	$(CC) $(BENCH_CFLAGS) $(PKG_CFLAGS) -o $@ stroke-text.c $(PKG_LIBS) $(RPATH) -lm
+
+# What a union clip costs on shape-cpu, each tier (clip-unions.c; shape-exact-primitives stories A3 and A3b).
+$(BUILD_DIR)/clip-unions: clip-unions.c Makefile
+	@mkdir -p $(@D)
+	$(CC) $(BENCH_CFLAGS) $(PKG_CFLAGS) -o $@ clip-unions.c $(PKG_LIBS) $(RPATH) -lm
 
 $(BUILD_DIR)/pamdiff: pamdiff.c Makefile
 	@mkdir -p $(@D)
