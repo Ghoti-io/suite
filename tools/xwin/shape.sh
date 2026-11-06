@@ -71,7 +71,7 @@ cp -r "$MATH/include" "$W/math/include"
 cp -r "$MATH/src/elementary" "$W/math/src/elementary"
 cp -r "$MATH/src/decimal" "$W/math/src/decimal" # the probe prints the decimal conversions' hashes too (outside the total)
 cp "$MATH/tools/corpus-hash.c" "$W/math/tools/"
-cp "$MATH/tests/corpus_hash.h" "$W/math/tests/"
+cp "$MATH"/tests/*.h "$W/math/tests/" # the probe includes corpus_hash.h and the long_double_*_native.h headers
 cp -r "$MATH/tests/corpus" "$W/math/tests/corpus"
 make -s -C "$MATH" libver-gen BUILD_DIR="$W/math/gen" > "$W/logs/math-libver.log" 2>&1 || { echo "shape.sh: libver-gen failed (see $W/logs/math-libver.log)" >&2; exit 2; }
 math_hash=$(awk '$1=="hash"{print $2}' "$MATH/tests/corpus/trig.hash")
