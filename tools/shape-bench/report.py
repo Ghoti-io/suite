@@ -62,13 +62,18 @@ ENGINES = ["shape-cpu", "font", "blend2d", "skia"]
 CORROBORATED = ("strokes", "strokes-dashed")
 PERTURBED_PIXELS = 3000
 SCENES = ["fill-rect", "fill-circle", "paths", "text", "ui", "gradients", "strokes", "strokes-dashed", "masks", "patterns",
-          "patterns-rotated"]
+          "patterns-rotated", "clip-unions"]
 # A scene whose bound is not the standard one has its own, stated here with the measurement it comes from (README.md, "Patterns").
 # `patterns-rotated`: a reference repeats a pre-rendered tile and resamples it bilinearly under a rotation, where the definition
 # draws the vector tile under the map, so the references differ from shape-cpu by more than the standard bound by construction
 # (measured 2.06 and 2.05 levels, 1.57 % and 1.62 % of the pixels past 32 on the first run, against 0.21 and 0.10 % between the two
 # references); the bound is that measurement with half again as much room, and the control must exceed it as for every scene.
-SCENE_BOUNDS = {"patterns-rotated": {"mean_abs_max": 3.0, "bad_fraction_max": 0.025}}
+# `clip-unions`: each cell is clipped through the engine's own coverage of a path of up to six overlapping subpaths, and Blend2D multiplies a layer by
+# a second layer's coverage (DST_IN), which rounds the clip's edge once more than shape-cpu and Skia do (measured on the first run, 2026-11-06: 0.50 and 0.27
+# levels mean, 0.263 % and 0.026 % of the pixels past 32, against 0.37 % between the two references); the pixels bound is that measurement with half again
+# as much room, the mean keeps the standard one, and the control must exceed both as for every scene.
+SCENE_BOUNDS = {"patterns-rotated": {"mean_abs_max": 3.0, "bad_fraction_max": 0.025},
+                "clip-unions": {"mean_abs_max": 1.0, "bad_fraction_max": 0.004}}
 # The scenes whose two references are also compared with each other, and the figure kept: it says how much of a reference's
 # difference from shape-cpu is the references' own way of drawing a pattern (they repeat a raster) and not shape-cpu's.
 AGREEMENT_SCENES = ("patterns", "patterns-rotated")
@@ -84,6 +89,13 @@ SCENE_NOTES = {
         "Rotated and non-integer lattices: a reference resamples its pre-rendered tile bilinearly under the rotation and the "
         "fraction, where shape-cpu draws the vector tile under the map, so the thin hatch lines, which the resampling blurs, "
         "differ most; the bound is this scene's own (stated above and in README.md), measured and not the standard one.",
+    ],
+    "clip-unions": [
+        "Each cell is clipped to a union of 3 to 6 members that the scene writes as one path of same-wound subpaths: shape-cpu interns them as the "
+        "members of a clip union (the general tier draws the cells whose members overlap, exactly), and each reference clips to the path itself "
+        "(Skia: clipPath, kIntersect, anti-aliased; Blend2D: the path filled into a layer whose coverage multiplies the cell's content), which "
+        "is the same set under non-zero winding.  The edge pixels of a union differ by each engine's own rounding of a coverage, as in every "
+        "scene; where two members overlap inside a pixel a reference has the winding's coverage and shape-cpu the union's exact area.",
     ],
     "masks": [
         "Alpha-mask groups are checked against both references, each by a layer multiplied by the mask's layer "

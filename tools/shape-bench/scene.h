@@ -35,7 +35,11 @@
  *     work <unit> <amount>                what one frame does (pixels, paths, glyphs, items)
  *     font <file> <size>                  text only: the font file (beside the scene) and the em size in pixels
  *     clip <x0> <y0> <x1> <y1>            push a rectangular clip
- *     clippath <count>                    push the clip of a path (anti-aliased, non-zero), then <count> commands as a fill's
+ *     clippath <count> [union]            push the clip of a path (anti-aliased, non-zero), then <count> commands as a fill's.
+ *                                         With `union` the path is a union of members, its closed subpaths, every one wound the
+ *                                         same way so that non-zero is their union: shape-cpu interns each subpath as a member
+ *                                         of a clip union (shape-scene's clip_union.h, CU1) and a reference clips to the path
+ *                                         itself, which is the same set
  *     unclip                              pop the innermost clip
  *     group <composite> <opacity> [linear] [mask <n> <dx> <dy>]
  *                                         begin an isolated group: what follows, up to the matching `endgroup`, is drawn on
@@ -285,6 +289,7 @@ typedef struct SB_Item {
   size_t stroke;   ///< stroke: 1 + the index of its style in SB_Scene.strokes
   size_t pattern;  ///< fill: 1 + the index of its pattern in SB_Scene.patterns; 0 for none.  SB_PATTERN_BEGIN: 1 + the index it defines
   int evenodd;     ///< fill: the even-odd rule (else non-zero)
+  int union_clip;  ///< clippath: the subpaths are the members of a union (all wound one way)
   int composite;   ///< group: an SB_Composite
   double opacity;  ///< group: 0 to 1
   int linear;      ///< group: composites in linear light (sRGB primaries)

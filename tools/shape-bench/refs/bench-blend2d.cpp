@@ -76,7 +76,8 @@
  *              differences of the picture, reported with the scene's mismatches.
  *   clippath   Blend2D clips to rectangles only: the clipped content is drawn into a layer as a group is, the path is
  *              filled opaque into a second layer, and the first is multiplied by the second's coverage (BL_COMP_OP_DST_IN)
- *              before it is blitted source-over.
+ *              before it is blitted source-over.  A `union` clippath (the `clip-unions` scene) is the same: its subpaths are wound one
+ *              way, so the path's non-zero fill is their union.
  *   joins      SVG 2's miter-clip is BL_STROKE_JOIN_MITER_CLIP; arcs has no Blend2D join and is drawn BL_STROKE_JOIN_MITER_BEVEL.
  *   mask       the `masks` scene (README.md, "Masks"): Blend2D has no mask on a group.  The group is a layer, as above; at
  *              its end the mask's picture is drawn into a spare layer of its own (translated by the group's placement, over
@@ -684,7 +685,7 @@ int main(int argc, char ** argv) {
     std::fprintf(stderr, "usage: bench-blend2d DIR OUT [SCENE...]\n");
     return 2;
   }
-  static const char * const scenes[] = {"fill-rect", "fill-circle", "paths", "text", "ui", "gradients", "strokes", "masks", "patterns", "patterns-rotated"};
+  static const char * const scenes[] = {"fill-rect", "fill-circle", "paths", "text", "ui", "gradients", "strokes", "masks", "patterns", "patterns-rotated", "clip-unions"};
   std::vector<const char *> names(scenes, scenes + sizeof scenes / sizeof scenes[0]);
   if (argc > 3) {
     names.assign(argv + 3, argv + argc);

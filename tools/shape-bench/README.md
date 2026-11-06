@@ -26,6 +26,7 @@ it. A figure quoted anywhere else is read from there, with its date and CPU.
 | `masks` | masked groups per second | 15 groups of three or four fills on 1600x1000, each multiplied by a mask the group places by a translation: four alpha masks (a ring with a translucent core, a linear fade, a radial spot, three translucent circles) and four luminance masks by Rec. 709's coefficients (a ramp, the three primaries, translucent shapes over a gray backdrop, black spots over a white one), source-over, multiply and screen at opacities of 0.6 to 1, over six large translucent shapes; Blend2D and Skia build each mask from layers ([Masks](#masks)) |
 | `patterns` | fill rate | 24 fills painted with a pattern on 1600x1000: twelve large shapes on a 4 by 3 grid and a smaller translucent one over each, every one with a pattern of its own (a checker, a hatch, dots, and an uncolored hatch under a tint; a cell of 8 or 16 pixels), every lattice axis aligned with steps of the cell's whole-pixel size at an integer translation ([Patterns](#patterns)) |
 | `patterns-rotated` | fill rate | the same 24 under rotations of 0 to 135 degrees, uniform scales of 1 to 2 and translations that are not whole pixels; one is a quarter turn at an integer translation |
+| `clip-unions` | path count (fills of the cells per second) | 720 cells on 1600x1000, each clipped to a union of 3 to 6 rectangles, circles and triangles placed at random in the cell (some overlap, some stand apart) around a translucent rectangle and a translucent circle; the union is one path of same-wound subpaths, the clip of a reference, and a clip union of its members for shape-cpu |
 
 `bench-shape emit` writes the scenes once (`scene.h` gives the format); every
 driver reads the same files through the same reader (`scene.c`, compiled into
@@ -417,3 +418,14 @@ from. A run from before a scene existed has no reference figures for it, so
 that scene's table then shows `shape-cpu` alone. `--tag` keeps a second run on
 one date from overwriting the first. `report.py --markdown RECORD.json` writes
 a record's Markdown again from the record alone.
+
+## Clip unions
+
+The `clip-unions` scene (shape shown in the table above) writes each union as one `clippath ... union` record whose closed subpaths all wind one way, so
+that non-zero winding is their union. shape-cpu interns each subpath as a member of a clip union (the general tier draws the cells whose members overlap, exactly);
+Skia clips to the path (`clipPath`, intersect, anti-aliased) and Blend2D fills the path into a layer whose coverage multiplies the cell's content. The three agree
+on the set and differ at its edge by each engine's rounding of a coverage. The first run (2026-11-06, one machine, all three offline in the pinned images) measured
+shape-cpu against Skia at 0.27 levels mean and 0.026 % of the pixels past 32, and against Blend2D at 0.50 and 0.263 %: Blend2D's layer is multiplied by a second
+layer's coverage, one more rounding at every edge, so this scene's bound for the pixels past 32 is its own (`report.py`, `SCENE_BOUNDS`, 0.4 %), measured and not
+the standard one. Drawn as a plain non-zero clip, shape-cpu differs from its own union by 0.03 levels and 0.046 % (the pixels where two members overlap inside a
+pixel); that is what the union adds to the exact answer.

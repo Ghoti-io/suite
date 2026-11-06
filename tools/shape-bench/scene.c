@@ -520,10 +520,13 @@ int sb_scene_load(const char * path, SB_Scene * out, char * err, size_t errlen) 
       memset(&it, 0, sizeof it);
       it.kind = SB_CLIPPATH;
       unsigned long count = 0;
-      if (sscanf(rest, " %lu", &count) != 1 || count == 0) {
+      char option[16] = "";
+      int got_count = sscanf(rest, " %lu %15s", &count, option);
+      if (got_count < 1 || count == 0 || (got_count == 2 && strcmp(option, "union") != 0)) {
         status = fail(err, errlen, line, "bad clippath");
         break;
       }
+      it.union_clip = got_count == 2;
       it.first = s.n_cmds;
       it.count = count;
       for (unsigned long k = 0; k < count && status == 0; k++) {
@@ -861,7 +864,7 @@ int sb_scene_save(const char * path, const SB_Scene * s) {
       fprintf(f, "endgroup\n");
       break;
     case SB_CLIPPATH:
-      fprintf(f, "clippath %zu\n", it->count);
+      fprintf(f, "clippath %zu%s\n", it->count, it->union_clip ? " union" : "");
       for (size_t k = 0; k < it->count; k++) {
         const SB_Cmd * m = &s->cmds[it->first + k];
         int n = cmd_arity(m->op);

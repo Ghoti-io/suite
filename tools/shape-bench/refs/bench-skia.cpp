@@ -65,7 +65,8 @@
  *              the scene says composites `linear` is still composited in encoded values here (the surface has no color
  *              space, and an 8-bit layer is not made linear): that is a difference of the picture, and is reported in the
  *              scene's mismatch list, not here.
- *   clippath   clipPath(path, kIntersect, antialias), restored at the matching unclip.
+ *   clippath   clipPath(path, kIntersect, antialias), restored at the matching unclip.  A `union` clippath (the `clip-unions` scene) is the same
+ *              call: its subpaths are wound one way, so the path's non-zero fill is their union.
  *   fill-eo    SkPathFillType::kEvenOdd.
  *   joins      miterclip and arcs (SVG 2) have no Skia join: both are drawn as kMiter_Join, which is a bevel past the
  *              limit, the nearest Skia has.
@@ -477,7 +478,7 @@ int main(int argc, char ** argv) {
     std::fprintf(stderr, "usage: bench-skia DIR OUT [SCENE...]\n");
     return 2;
   }
-  static const char * const scenes[] = {"fill-rect", "fill-circle", "paths", "text", "ui", "gradients", "strokes", "strokes-dashed", "masks", "patterns", "patterns-rotated"};
+  static const char * const scenes[] = {"fill-rect", "fill-circle", "paths", "text", "ui", "gradients", "strokes", "strokes-dashed", "masks", "patterns", "patterns-rotated", "clip-unions"};
   // Scenes named after the two directories are the only ones drawn; none named is the benchmark's own.
   std::vector<const char *> names(scenes, scenes + sizeof scenes / sizeof scenes[0]);
   if (argc > 3) {

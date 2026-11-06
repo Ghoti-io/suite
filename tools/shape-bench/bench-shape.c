@@ -330,6 +330,66 @@ static int gen_ui(SB_Scene * s) {
   return 0;
 }
 
+/* The clip-unions scene (shape-exact-primitives story A3 and A3b).  A sheet of 720 cells of 44 by 50 pixels on 1600x1000; each cell is clipped to a
+ * union of 3 to 6 members (rectangles, circles and triangles placed at random in the cell, so that some overlap and some stand apart) and holds
+ * two translucent fills across the whole cell.  The union is a `clippath ... union`: its closed subpaths all wind one way (clockwise on this y-down raster),
+ * so that non-zero winding is their union, which is what Blend2D's layer and Skia's `clipPath` draw from the path itself; shape-cpu interns each
+ * subpath as a member of a clip union.  Every engine's clip is anti-aliased coverage, so the boundary pixels differ by each engine's own rounding
+ * and the cross-check's bound is the family's (README.md, "The cross-check"). */
+static int sub_rect(SB_Scene * s, double x0, double y0, double x1, double y1) {
+  return cmd(s, 'M', x0, y0, 0, 0, 0, 0) || cmd(s, 'L', x1, y0, 0, 0, 0, 0) || cmd(s, 'L', x1, y1, 0, 0, 0, 0) ||
+      cmd(s, 'L', x0, y1, 0, 0, 0, 0) || cmd(s, 'Z', 0, 0, 0, 0, 0, 0);
+}
+
+static int sub_circle(SB_Scene * s, double cx, double cy, double r) {
+  double k = r * KAPPA;
+  return cmd(s, 'M', cx + r, cy, 0, 0, 0, 0) || cmd(s, 'C', cx + r, cy + k, cx + k, cy + r, cx, cy + r) ||
+      cmd(s, 'C', cx - k, cy + r, cx - r, cy + k, cx - r, cy) || cmd(s, 'C', cx - r, cy - k, cx - k, cy - r, cx, cy - r) ||
+      cmd(s, 'C', cx + k, cy - r, cx + r, cy - k, cx + r, cy) || cmd(s, 'Z', 0, 0, 0, 0, 0, 0);
+}
+
+static int sub_triangle(SB_Scene * s, double x, double y, double w, double h) {
+  /* top, bottom right, bottom left: clockwise on the raster */
+  return cmd(s, 'M', x + 0.5 * w, y, 0, 0, 0, 0) || cmd(s, 'L', x + w, y + h, 0, 0, 0, 0) || cmd(s, 'L', x, y + h, 0, 0, 0, 0) ||
+      cmd(s, 'Z', 0, 0, 0, 0, 0, 0);
+}
+
+static int gen_clip_unions(SB_Scene * s) {
+  begin(s, "clip-unions", "paths", 1600, 1000, "paths");
+  s->background.r = 244;
+  s->background.g = 242;
+  s->background.b = 236;
+  rng_state = 0x636c6970756e696full; /* a stream of its own, so that no earlier scene depends on it */
+  for (int row = 0; row < 20; row++) {
+    for (int col = 0; col < 36; col++) {
+      const double x0 = 4 + col * 44.0, y0 = 0 + row * 50.0, w = 40.0, h = 46.0;
+      SB_Item it;
+      memset(&it, 0, sizeof it);
+      it.kind = SB_CLIPPATH;
+      it.union_clip = 1;
+      it.first = s->n_cmds;
+      const int members = 3 + (int)range(0, 4);
+      for (int m = 0; m < members; m++) {
+        const int kind = (int)range(0, 3);
+        const double mw = range(10, 26), mh = range(10, 28);
+        const double mx = x0 + range(0, w - mw), my = y0 + range(0, h - mh);
+        if (kind == 0 ? sub_rect(s, mx, my, mx + mw, my + mh)
+            : kind == 1 ? sub_circle(s, mx + 0.5 * mw, my + 0.5 * mh, 0.5 * (mw < mh ? mw : mh))
+                        : sub_triangle(s, mx, my, mw, mh)) {
+          return -1;
+        }
+      }
+      it.count = s->n_cmds - it.first;
+      if (sb_scene_add_item(s, &it) || rect(s, color(110, 230), x0, y0, x0 + w, y0 + h) ||
+          circle(s, color(110, 230), x0 + 0.5 * w, y0 + 0.5 * h, 0.5 * h) || unclip(s)) {
+        return -1;
+      }
+    }
+  }
+  s->work = (double)sb_scene_drawables(s);
+  return 0;
+}
+
 /* One gradient stop as the generator's table gives it: offset, then an opaque color. */
 typedef struct Gen_Stop {
   double offset;
@@ -1147,7 +1207,7 @@ static int gen_patterns(SB_Scene * s, int rotated) {
 /* The gradients scene, and the strokes scene after it, come last, so that the generator's random stream, and with it every earlier scene, is as
  * it was before they existed (the gradients scene draws nothing from that stream; the strokes scene draws from it last).  The masks scene
  * follows them and seeds a stream of its own. */
-static const char * const SCENES[] = {"fill-rect", "fill-circle", "paths", "text", "ui", "gradients", "strokes", "strokes-dashed", "masks", "groups", "patterns", "patterns-rotated"};
+static const char * const SCENES[] = {"fill-rect", "fill-circle", "paths", "text", "ui", "gradients", "strokes", "strokes-dashed", "masks", "groups", "patterns", "patterns-rotated", "clip-unions"};
 #define N_SCENES (sizeof SCENES / sizeof SCENES[0])
 
 static int emit(const char * dir, const char * font_path) {
@@ -1165,7 +1225,8 @@ static int emit(const char * dir, const char * font_path) {
         : i == 8    ? gen_masks(&s)
         : i == 9    ? gen_groups(&s)
         : i == 10   ? gen_patterns(&s, 0)
-                    : gen_patterns(&s, 1);
+        : i == 11   ? gen_patterns(&s, 1)
+                    : gen_clip_unions(&s);
     char path[1024];
     snprintf(path, sizeof path, "%s/%s.scene", dir, SCENES[i]);
     if (rc || sb_scene_save(path, &s)) {
@@ -1203,6 +1264,8 @@ typedef struct Shape {
   const GSHSCENE_Resource ** style; ///< per item: a stroke's style
   const GSHSCENE_Resource ** mask_res; ///< per mask: the mask resource (its picture is retained by it)
   const GSHSCENE_Resource ** pat_res;  ///< per pattern: the pattern resource (its tile is retained by it)
+  const GSHSCENE_Resource ** members;  ///< the paths of the members of the clip unions, kept until the teardown
+  size_t n_members;
 } Shape;
 
 static GSHGEOM_Point pt(double x, double y) {
@@ -1242,6 +1305,45 @@ static const GSHSCENE_Resource * intern_cmds(GSHSCENE_Store * store, const SB_Cm
   }
   gshgeom_path_destroy(path);
   return r;
+}
+
+/* A clip union of the closed subpaths of the commands @p c (each a member under the identity and the non-zero rule), or NULL.  The members' resources are
+ * kept in @c e->members until the teardown. */
+static const GSHSCENE_Resource * intern_union(Shape * e, const SB_Cmd * c, size_t n) {
+  size_t starts = 0;
+  for (size_t i = 0; i < n; i++) {
+    starts += c[i].op == 'M';
+  }
+  GSHSCENE_Clip_Member * members = calloc(starts ? starts : 1u, sizeof *members);
+  const GSHSCENE_Resource ** owned = realloc(e->members, (e->n_members + starts) * sizeof *owned);
+  if (!members || !owned) {
+    free(members);
+    return NULL;
+  }
+  e->members = owned;
+  size_t k = 0;
+  for (size_t i = 0; i < n;) {
+    size_t j = i + 1;
+    while (j < n && c[j].op != 'M') {
+      j++;
+    }
+    const GSHSCENE_Resource * r = intern_cmds(e->store, c + i, j - i);
+    if (!r) {
+      free(members);
+      return NULL;
+    }
+    e->members[e->n_members++] = r;
+    members[k].resource = r;
+    members[k].rule = GSHGEOM_FILL_NONZERO;
+    k++;
+    i = j;
+  }
+  const GSHSCENE_Resource * u = NULL;
+  if (gshscene_store_intern_clip_union(e->store, members, k, &u) != GSHSCENE_OK) {
+    u = NULL;
+  }
+  free(members);
+  return u;
 }
 
 /* A glyph's outline, scaled to pixels by font (26.6, as font renders it) and flipped to y down, as a path. */
@@ -1528,6 +1630,8 @@ static int shape_setup(Shape * e, const SB_Scene * s, const char * dir, int cont
     }
     if (it->kind == SB_FILL || it->kind == SB_STROKE) {
       e->res[i] = intern_cmds(e->store, s->cmds + it->first, it->count);
+    } else if (it->kind == SB_CLIPPATH && it->union_clip) {
+      e->res[i] = intern_union(e, s->cmds + it->first, it->count);
     } else if (it->kind == SB_CLIPPATH) {
       e->res[i] = intern_cmds(e->store, s->cmds + it->first, it->count);
     } else if (it->kind == SB_CLIP) {
@@ -1697,6 +1801,10 @@ static void shape_teardown(Shape * e) {
   for (size_t i = 0; i < e->n_glyph_paths; i++) {
     gshscene_resource_release(e->glyph_paths[i]);
   }
+  for (size_t i = 0; i < e->n_members; i++) {
+    gshscene_resource_release(e->members[i]);
+  }
+  free(e->members);
   gshscene_report_destroy(e->report);
   gshscene_sink_destroy(e->sink);
   gimg_raster_destroy(e->raster);
