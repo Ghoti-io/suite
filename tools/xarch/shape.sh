@@ -497,12 +497,13 @@ corpus_hint() {
   fi
 }
 
+# Only this test client needs the platform fenv routines; math production remains libm-free.
 # math_run TRIPLE CC QEMU TAG FLAGS... -> prints "HASH COUNT"; binary in $B/math-TAG-TRIPLE
 math_run() {
   local triple=$1 cc=$2 qemu=$3 tag=$4 out
   shift 4
   "$cc" $MFLAGS "$@" "$MATH/tools/corpus-hash.c" "$MATH"/src/elementary/*.c "$MATH"/src/decimal/*.c \
-    -o "$B/math-$tag-$triple" 2> "$B/math-$tag-$triple.err" || return 1
+    -o "$B/math-$tag-$triple" -lm 2> "$B/math-$tag-$triple.err" || return 1
   xarch_run "$triple" "$qemu" "$B/math-$tag-$triple" "$CORPUS" > "$B/math-$tag-$triple.txt" 2>> "$B/math-$tag-$triple.err" || return 1
   awk '/^math.trig.hash/{h=$2} /^math.trig.count/{c=$2} END{if (h != "") print h, c}' "$B/math-$tag-$triple.txt"
 }
