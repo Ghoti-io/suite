@@ -36,6 +36,15 @@
 #      arm64 object must be named as not x86 and refused when --require-x86
 #      is given.
 #
+#      Math's native `long double` is x87 on i686 by definition, so the objects built from
+#      libs/math/src/elementary/long_double_*.c legitimately hold fldt and friends; math's own gate for them
+#      is tools/check-long-double-abi.py (make check-no-x87 in libs/math), which needs Python and the
+#      container has none.  Those objects, and only those, are left out of the scan of math, by name,
+#      and the output lists them.  Controls: the excluded set is not empty and each name is a source
+#      file that exists, so it can neither silently grow nor go stale; planted: an x87 instruction in a
+#      math object that is not a long_double_* file is still refused, while the same object named
+#      long_double_* is the excluded kind.  Every other library is scanned in full.
+#
 #   4. The math corpus hash gate (CAP-1, AD-17).  libs/math/tools/corpus-hash.c,
 #      built with every libs/math/src/elementary/*.c (sin, cos, tan, atan2, exp,
 #      log, pow, hypot, sqrt, floor, ceil, trunc, round, rint, fabs, copysign,
@@ -372,6 +381,13 @@ export OBJDUMP=i686-linux-gnu-objdump
 SSE=$(xarch_fp_cflags i686-linux-gnu)
 GATE="$ROOT/libs/math/tools/check-no-x87.sh"
 
+# Math's native long double is x87 on i686 by definition: the objects of src/elementary/long_double_*.c are the one set
+# this section does not scan (math's own gate, tools/check-long-double-abi.py, covers them on a host with Python).
+math_x87_native() {
+  case "$(basename "$1")" in elementary_long_double_*.c.o) return 0 ;; esac
+  return 1
+}
+
 for l in $LIBS; do
   g="$B/gen/$l"
   mkdir -p "$g" "$B/obj/$l"
@@ -394,6 +410,25 @@ for l in $LIBS; do
     objs="$objs $o"
   done < <(find "$ROOT/libs/$l/src" -name '*.c' | sort)
   [ "$ok" -eq 1 ] || continue
+  if [ "$l" = math ]; then
+    scan=""; skipped=""
+    for o in $objs; do
+      if math_x87_native "$o"; then skipped="$skipped $(basename "$o")"; else scan="$scan $o"; fi
+    done
+    if [ -z "$skipped" ]; then
+      echo "   FAIL  math: no object of src/elementary/long_double_*.c, so the excluded set is empty (the exclusion is stale)"
+      status=1
+    fi
+    for n in $skipped; do
+      n=${n%.o}
+      if [ ! -f "$ROOT/libs/math/src/elementary/${n#elementary_}" ]; then
+        echo "   FAIL  math: excluded $n names no source file libs/math/src/elementary/${n#elementary_}"
+        status=1
+      fi
+    done
+    echo "   note  math: left out of the x87 scan, by name (native long double is x87 on i686 by definition; math's own gate, check-long-double-abi.py, covers them):$(echo "$skipped" | sed 's/\.c\.o//g')"
+    objs="$scan"
+  fi
   # shellcheck disable=SC2086
   if out=$("$ROOT/libs/$l/tools/check-no-x87.sh" --require-x86 $objs 2>&1); then
     echo "   ok    $l: $out"
@@ -452,6 +487,30 @@ elif echo "$out" | grep -q 'faddp'; then
 else
   echo "$out" | sed 's/^/   | /'
   echo "   FAIL  planted: faddp refused without naming the instruction"
+  status=1
+fi
+# The exclusion of math's long_double_* objects is by name and no wider: an x87 instruction in any other math object is refused,
+# and the same object under a long_double_* name is the excluded kind.
+mkdir -p "$B/obj/plant"
+cp "$B/x87-asm.o" "$B/obj/plant/elementary_plant_not_native.c.o"
+cp "$B/x87-asm.o" "$B/obj/plant/elementary_long_double_plant.c.o"
+if math_x87_native "$B/obj/plant/elementary_plant_not_native.c.o"; then
+  echo "   FAIL  planted: an object that is not a long_double_* file was excluded"
+  status=1
+elif out=$("$GATE" --require-x86 "$B/obj/plant/elementary_plant_not_native.c.o" 2>&1); then
+  echo "   FAIL  planted: an x87 instruction in a math object that is not a long_double_* file passed"
+  status=1
+elif echo "$out" | grep -q 'elementary_plant_not_native'; then
+  echo "   ok    planted: an x87 instruction in a math object that is not a long_double_* file is refused, naming it"
+else
+  echo "$out" | sed 's/^/   | /'
+  echo "   FAIL  planted: the non-native math object was refused without being named"
+  status=1
+fi
+if math_x87_native "$B/obj/plant/elementary_long_double_plant.c.o"; then
+  echo "   ok    control: the same object under a long_double_* name is the excluded kind (the exclusion is by name)"
+else
+  echo "   FAIL  control: a long_double_* object name was not excluded"
   status=1
 fi
 # An arm64 object: not judged without the flag, refused with it.
