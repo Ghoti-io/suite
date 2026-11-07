@@ -51,7 +51,11 @@ for t in ar ranlib nm objdump readelf strip objcopy; do
   ln -sf "$(command -v $TRIPLE-$t)" "$S/shim/$t"
 done
 export PATH="$S/shim:$PATH"
-CROSS=(CC=$TRIPLE-gcc CXX=$TRIPLE-g++)
+# A 32-bit x86 target computes a double in SSE, not in the x87 stack, whose 80-bit registers round a sum twice (the flags the
+# other cross gates take from xarch_fp_cflags in targets.sh); the makefile adds them only for a native 32-bit build.
+FPFLAGS=""
+[ "$ARCH" = i686 ] && FPFLAGS="-msse2 -mfpmath=sse"
+CROSS=(CC=$TRIPLE-gcc CXX=$TRIPLE-g++ "ARCH_FP_FLAGS=$FPFLAGS")
 export PKG_CONFIG_PATH="$P/share/pkgconfig:/opt/$ARCH/lib/pkgconfig"
 
 elf_ok() { # path
