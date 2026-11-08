@@ -18,7 +18,7 @@
 # readers) before it runs one; builds cutil, unicode, chron, regex, security, math and text for the target into a
 # prefix of its own in the scratch directory (cutil's float.h is made by running its generator under
 # qemu); builds every test program whose name matches $TEXT_XARCH_TESTS (default: Html, Xml, Xhtml,
-# Encoding, Markup, Quadratic, Css) and runs each with GTEXT_TEST_FULL=$TEXT_XARCH_FULL (default 0), a
+# Encoding, Markup, Quadratic, Css, Ini) and runs each with GTEXT_TEST_FULL=$TEXT_XARCH_FULL (default 0), a
 # time limit each (TEXT_XARCH_TIMEOUT, default 3600 s).  Every failure is reported at the end with the
 # program's name; a program that passes no tests is a failure; skips are listed by name.  On i686 it
 # also requires that the 32-bit source-map limit test (HtmlSourceMapLimit) ran and did not skip, and on
@@ -37,7 +37,7 @@ esac
 WORK="${WORK:-/work}"
 S="${SCRATCH:-/scratch}/$ARCH"
 JOBS="${JOBS:-$(nproc)}"
-FILTER="${TEXT_XARCH_TESTS:-^test(Html|Xml|Xhtml|Encoding|Markup|Quadratic|Css)}"
+FILTER="${TEXT_XARCH_TESTS:-^test(Html|Xml|Xhtml|Encoding|Markup|Quadratic|Css|Ini)}"
 FULL="${TEXT_XARCH_FULL:-0}"
 TMO="${TEXT_XARCH_TIMEOUT:-3600}"
 P="$S/prefix"

@@ -9,7 +9,7 @@
 # least one test.  The skips are listed by name (this script asserts none: a Windows skip is a finding to be read).
 set -u
 P=$WPREFIX
-FILTER=${TEXT_XWIN_TESTS:-^test(Html|Xml|Xhtml|Encoding|Markup|Quadratic|Css)}
+FILTER=${TEXT_XWIN_TESTS:-^test(Html|Xml|Xhtml|Encoding|Markup|Quadratic|Css|Ini)}
 mkdir -p /w/logs
 cd /w/text || exit 2
 names=$(echo 'print-%: ; @echo $($*)' | make -s --no-print-directory -f Makefile -f - PREFIX=$P print-TEST_NAMES 2>/dev/null)
