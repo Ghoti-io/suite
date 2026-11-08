@@ -85,6 +85,7 @@ mkdir -p "$W/geom/tools" "$W/geom/gen" "$W/geom/stubs"
 cp -r "$GEOM/include" "$W/geom/include"
 cp -r "$GEOM/src" "$W/geom/src"
 cp "$GEOM/tools/corpus-hash.c" "$W/geom/tools/"
+mkdir -p "$W/geom/tests" && cp "$GEOM/tests/grid_probe.h" "$W/geom/tests/"   # the grids the probe prints (tools/corpus-hash.c includes it)
 cp -r "$HERE/../xarch/shape-stubs/." "$W/geom/stubs/"
 make -s -C "$GEOM" libver-gen BUILD_DIR="$W/geom/gen" > "$W/logs/geom-libver.log" 2>&1 || { echo "shape.sh: libver-gen failed (see $W/logs/geom-libver.log)" >&2; exit 2; }
 geom_hash=$(awk '$1=="hash"{print $2}' "$GEOM/tests/corpus/geometry.hash")
@@ -126,6 +127,17 @@ clipunion_count=$(awk '$1=="clipunion-count"{print $2}' "$SCENE/tests/corpus/sce
 # Hatches: the hatch pairs of shape-geometry and shape-scene.
 geom_hatch_hash=$(awk '$1=="hatch-hash"{print $2}' "$GEOM/tests/corpus/geometry.hash")
 geom_hatch_count=$(awk '$1=="hatch-count"{print $2}' "$GEOM/tests/corpus/geometry.hash")
+geom_arcgrid_hash=$(awk '$1=="arc-grid-hash"{print $2}' "$GEOM/tests/corpus/geometry.hash")
+geom_arcgrid_count=$(awk '$1=="arc-grid-count"{print $2}' "$GEOM/tests/corpus/geometry.hash")
+geom_latgrid_hash=$(awk '$1=="lattice-grid-hash"{print $2}' "$GEOM/tests/corpus/geometry.hash")
+geom_latgrid_count=$(awk '$1=="lattice-grid-count"{print $2}' "$GEOM/tests/corpus/geometry.hash")
+geom_clipgrid_hash=$(awk '$1=="clip-grid-hash"{print $2}' "$GEOM/tests/corpus/geometry.hash")
+geom_clipgrid_count=$(awk '$1=="clip-grid-count"{print $2}' "$GEOM/tests/corpus/geometry.hash")
+geom_walkgrid_hash=$(awk '$1=="walk-grid-hash"{print $2}' "$GEOM/tests/corpus/geometry.hash")
+geom_walkgrid_count=$(awk '$1=="walk-grid-count"{print $2}' "$GEOM/tests/corpus/geometry.hash")
+geom_shapesgrid_hash=$(awk '$1=="shapes-grid-hash"{print $2}' "$GEOM/tests/corpus/geometry.hash")
+geom_shapesgrid_count=$(awk '$1=="shapes-grid-count"{print $2}' "$GEOM/tests/corpus/geometry.hash")
+[ -n "$geom_arcgrid_hash" ] && [ -n "$geom_arcgrid_count" ] && [ -n "$geom_latgrid_hash" ] && [ -n "$geom_latgrid_count" ] && [ -n "$geom_clipgrid_hash" ] && [ -n "$geom_clipgrid_count" ] || { echo "shape.sh: no committed grid pairs" >&2; exit 2; }
 scene_hatch_hash=$(awk '$1=="hatch-hash"{print $2}' "$SCENE/tests/corpus/scene.hash")
 scene_hatch_count=$(awk '$1=="hatch-count"{print $2}' "$SCENE/tests/corpus/scene.hash")
 [ -n "$geom_hatch_hash" ] && [ -n "$geom_hatch_count" ] && [ -n "$scene_hatch_hash" ] && [ -n "$scene_hatch_count" ] || { echo "shape.sh: no committed hatch pair" >&2; exit 2; }
@@ -258,4 +270,4 @@ font_stroke_hash=$(awk '$1=="stroke-hash"{print $2}' "$FONT/tests/data/golden/sc
 font_stroke_count=$(awk '$1=="stroke-count"{print $2}' "$FONT/tests/data/golden/scene.hash")
 [ -n "$font_stroke_hash" ] && [ -n "$font_stroke_count" ] || { echo "shape.sh: no committed font stroked-text pair" >&2; exit 2; }
 echo "committed font provider hash: $font_hash over $font_count renders; stroked text $font_stroke_hash over $font_stroke_count"
-"$HERE/m1-win.sh" "$W" "bash /tools/xwin/shape-win.sh $want $math_hash $math_count $geom_hash $geom_count $cpu_hash $cpu_count $scene_hash $scene_count $render_hash $render_count $font_hash $font_count $stroke_hash $stroke_count $plane_hash $plane_count $placeholder_hash $placeholder_count $dense_hash $dense_count $font_stroke_hash $font_stroke_count $geom_pred_hash $geom_pred_count $fast_hash $fast_count $image_hash $image_count $image_paint_hash $image_paint_count $geom_vertex_hash $geom_vertex_count $mask_hash $mask_count $geom_arc_hash $geom_arc_count $geom_arc_vertex_hash $geom_arc_vertex_count $geom_conic_hash $geom_conic_count $geom_shapes_hash $geom_shapes_count $prim_hash $prim_count $geom_clip_hash $geom_clip_count $geom_lattice_hash $geom_lattice_count $pattern_hash $pattern_count $geom_devbox_hash $geom_devbox_count $clipunion_hash $clipunion_count $geom_hatch_hash $geom_hatch_count $scene_hatch_hash $scene_hatch_count"
+"$HERE/m1-win.sh" "$W" "bash /tools/xwin/shape-win.sh $want $math_hash $math_count $geom_hash $geom_count $cpu_hash $cpu_count $scene_hash $scene_count $render_hash $render_count $font_hash $font_count $stroke_hash $stroke_count $plane_hash $plane_count $placeholder_hash $placeholder_count $dense_hash $dense_count $font_stroke_hash $font_stroke_count $geom_pred_hash $geom_pred_count $fast_hash $fast_count $image_hash $image_count $image_paint_hash $image_paint_count $geom_vertex_hash $geom_vertex_count $mask_hash $mask_count $geom_arc_hash $geom_arc_count $geom_arc_vertex_hash $geom_arc_vertex_count $geom_conic_hash $geom_conic_count $geom_shapes_hash $geom_shapes_count $prim_hash $prim_count $geom_clip_hash $geom_clip_count $geom_lattice_hash $geom_lattice_count $pattern_hash $pattern_count $geom_devbox_hash $geom_devbox_count $clipunion_hash $clipunion_count $geom_hatch_hash $geom_hatch_count $scene_hatch_hash $scene_hatch_count $geom_arcgrid_hash $geom_arcgrid_count $geom_latgrid_hash $geom_latgrid_count $geom_clipgrid_hash $geom_clipgrid_count $geom_walkgrid_hash $geom_walkgrid_count $geom_shapesgrid_hash $geom_shapesgrid_count"

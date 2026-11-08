@@ -828,11 +828,25 @@ gd_count=$(awk '$1=="devbox-count"{print $2}' "$GEOM/tests/corpus/geometry.hash"
 # Hatches: the hatch section's pair (the lines of the use, the pieces and the outline of their stroke).
 gx_hash=$(awk '$1=="hatch-hash"{print $2}' "$GEOM/tests/corpus/geometry.hash")
 gx_count=$(awk '$1=="hatch-count"{print $2}' "$GEOM/tests/corpus/geometry.hash")
+# The grids of tests/grid_probe.h (arcs, lattices and clips over special and ordinary arguments): one pair each.  The unit tests of the grids
+# compare the host's hashes with the same lines; the probe prints them on every target.
+gga_hash=$(awk '$1=="arc-grid-hash"{print $2}' "$GEOM/tests/corpus/geometry.hash")
+gga_count=$(awk '$1=="arc-grid-count"{print $2}' "$GEOM/tests/corpus/geometry.hash")
+ggl_hash=$(awk '$1=="lattice-grid-hash"{print $2}' "$GEOM/tests/corpus/geometry.hash")
+ggl_count=$(awk '$1=="lattice-grid-count"{print $2}' "$GEOM/tests/corpus/geometry.hash")
+ggc_hash=$(awk '$1=="clip-grid-hash"{print $2}' "$GEOM/tests/corpus/geometry.hash")
+ggc_count=$(awk '$1=="clip-grid-count"{print $2}' "$GEOM/tests/corpus/geometry.hash")
+ggw_hash=$(awk '$1=="walk-grid-hash"{print $2}' "$GEOM/tests/corpus/geometry.hash")
+ggw_count=$(awk '$1=="walk-grid-count"{print $2}' "$GEOM/tests/corpus/geometry.hash")
+ggs_hash=$(awk '$1=="shapes-grid-hash"{print $2}' "$GEOM/tests/corpus/geometry.hash")
+ggs_count=$(awk '$1=="shapes-grid-count"{print $2}' "$GEOM/tests/corpus/geometry.hash")
 [ -n "$gh_hash" ] && [ -n "$gh_count" ] && [ -n "$gp_hash" ] && [ -n "$gp_count" ] && [ -n "$gv_hash" ] && [ -n "$gv_count" ] \
   && [ -n "$ga_hash" ] && [ -n "$ga_count" ] && [ -n "$gw_hash" ] && [ -n "$gw_count" ] && [ -n "$gk_hash" ] && [ -n "$gk_count" ] && [ -n "$gs_hash" ] && [ -n "$gs_count" ] \
   && [ -n "$gl_hash" ] && [ -n "$gl_count" ] && [ -n "$gt_hash" ] && [ -n "$gt_count" ] && [ -n "$gd_hash" ] && [ -n "$gd_count" ] && [ -n "$gx_hash" ] && [ -n "$gx_count" ] \
+  && [ -n "$gga_hash" ] && [ -n "$gga_count" ] && [ -n "$ggl_hash" ] && [ -n "$ggl_count" ] && [ -n "$ggc_hash" ] && [ -n "$ggc_count" ] \
+  && [ -n "$ggw_hash" ] && [ -n "$ggw_count" ] && [ -n "$ggs_hash" ] && [ -n "$ggs_count" ] \
   || { echo "   FAIL  a pair is missing from $GEOM/tests/corpus/geometry.hash"; status=1; }
-gh_want="$gh_hash $gh_count $gp_hash $gp_count $gv_hash $gv_count $ga_hash $ga_count $gw_hash $gw_count $gk_hash $gk_count $gs_hash $gs_count $gl_hash $gl_count $gt_hash $gt_count $gd_hash $gd_count $gx_hash $gx_count"
+gh_want="$gh_hash $gh_count $gp_hash $gp_count $gv_hash $gv_count $ga_hash $ga_count $gw_hash $gw_count $gk_hash $gk_count $gs_hash $gs_count $gl_hash $gl_count $gt_hash $gt_count $gd_hash $gd_count $gx_hash $gx_count $gga_hash $gga_count $ggl_hash $ggl_count $ggc_hash $ggc_count $ggw_hash $ggw_count $ggs_hash $ggs_count"
 # Story 6: the rotation constructors call math's sine and cosine, so the probe is built with
 # math's sources too (section 4's generated header directory is $mg).
 GFLAGS="-std=c17 -O2 -pedantic-errors -Wall -Wextra -Werror -ffp-contract=off -DGSHGEOM_BUILD -DGMATH_BUILD -I$GEOM/include -I$gg/generated -I$MATH/include -I$mg/generated -I$HERE/shape-stubs"
@@ -855,7 +869,12 @@ geom_run() {
     /^shape-geometry.lattice-hash/{th=$2} /^shape-geometry.lattice-count/{tc=$2}
     /^shape-geometry.devbox-hash/{dh=$2} /^shape-geometry.devbox-count/{dc=$2}
     /^shape-geometry.hatch-hash/{xh=$2} /^shape-geometry.hatch-count/{xc=$2}
-    END{if (h != "" && ph != "" && vh != "" && ah != "" && wh != "" && kh != "" && sh != "" && lh != "" && th != "" && dh != "" && xh != "") print h, c, ph, pc, vh, vc, ah, ac, wh, wc, kh, kc, sh, sc, lh, lc, th, tc, dh, dc, xh, xc}' "$B/geom-$tag-$triple.txt"
+    /^shape-geometry.arc-grid-hash/{gah=$2} /^shape-geometry.arc-grid-count/{gac=$2}
+    /^shape-geometry.lattice-grid-hash/{glh=$2} /^shape-geometry.lattice-grid-count/{glc=$2}
+    /^shape-geometry.clip-grid-hash/{gch=$2} /^shape-geometry.clip-grid-count/{gcc=$2}
+    /^shape-geometry.walk-grid-hash/{gwh=$2} /^shape-geometry.walk-grid-count/{gwc=$2}
+    /^shape-geometry.shapes-grid-hash/{gsh=$2} /^shape-geometry.shapes-grid-count/{gsc=$2}
+    END{if (h != "" && ph != "" && vh != "" && ah != "" && wh != "" && kh != "" && sh != "" && lh != "" && th != "" && dh != "" && xh != "" && gah != "" && glh != "" && gch != "" && gwh != "" && gsh != "") print h, c, ph, pc, vh, vc, ah, ac, wh, wc, kh, kc, sh, sc, lh, lc, th, tc, dh, dc, xh, xc, gah, gac, glh, glc, gch, gcc, gwh, gwc, gsh, gsc}' "$B/geom-$tag-$triple.txt"
 }
 
 declare -A GOK GPLANT
