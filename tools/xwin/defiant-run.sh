@@ -22,8 +22,9 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 ROOT=$(cd "$HERE/../../.." && pwd)
 SRC=${M1_SRC:-$ROOT}
 W=${1:-/tmp/xwin-defiant}
-# source directory:installed DLL name (ctang installs as "tang")
-DEPS="cutil:cutil unicode:unicode chron:chron regex:regex math:math text:text ctang:tang security:security compress:compress archive:archive http:http vendor-sqlite:vendor-sqlite runtime-core:runtime-core runtime-heap:runtime-heap runtime-jit:runtime-jit runtime-debug:runtime-debug lang-tang:lang-tang"
+# source directory:installed DLL name (ctang installs as "tang"), in libraries.txt
+# dependency order: text needs security, and compress and archive need it too
+DEPS="cutil:cutil security:security unicode:unicode chron:chron regex:regex math:math text:text ctang:tang compress:compress archive:archive http:http vendor-sqlite:vendor-sqlite runtime-core:runtime-core runtime-heap:runtime-heap runtime-jit:runtime-jit runtime-debug:runtime-debug lang-tang:lang-tang"
 LIBS="defiant-storage defiant-storage-memory defiant-storage-sqlite defiant-core defiant-test defiant-web"
 
 for need in podman rsync bison flex m4 python3; do
