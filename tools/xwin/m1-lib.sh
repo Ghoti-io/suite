@@ -99,6 +99,9 @@ run() { # run <target>...: -k so that one failure does not hide the rest
     eval "rc_$t=$?"
   done
 }
+# A planted-defect gate whose catching test is one of the named skips below cannot be caught here; the gates
+# take the names from this variable and say "not exercised" for them, and for no other test.
+export GHOTI_PLANT_UNEXERCISED=$(grep -E "^$l " /tools/xwin/m1-skips.txt | awk '{print $3}' | tr '\n' ' ')
 rc_all=0 rc_install=0 rc_test=0 rc_examples=0
 run all install test examples
 APPS=/w/$l/build/win64/release/apps
@@ -111,11 +114,14 @@ tot=0; pass=0; skip=0; bad=0; progs=0
 for t in $APPS/test*.exe; do
   [ -e "$t" ] || continue
   progs=$((progs + 1))
+  # `make test` runs a test program from the library's root, and the Defiant libraries' tests that read the
+  # library's own headers and sources look for them there; the others have always run from the apps directory.
+  rundir=$APPS; case $l in defiant-*) rundir=/w/$l ;; esac
   if [ "$l/$(basename "$t")" = lang-wasm/testSpec_suite.exe ]; then
     (cd "$APPS" && env "${wast_env[@]}" timeout 1200 "./$(basename "$t")" \
       > "/w/logs/$l.$(basename "$t" .exe).out" 2>&1)
   else
-    (cd "$APPS" && timeout 1200 "./$(basename "$t")" \
+    (cd "$rundir" && timeout 1200 "$t" \
       > "/w/logs/$l.$(basename "$t" .exe).out" 2>&1)
   fi
   rc=$?

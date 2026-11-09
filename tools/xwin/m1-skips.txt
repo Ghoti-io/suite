@@ -45,10 +45,32 @@ runtime-jit testFloat_ir FloatHelpers.EveryMixOfIntegerAndFloatArgumentsArrivesI
 runtime-jit testFloat_ir FloatHelpers.TheNamedClassificationFromTheStoryComesOutAsStated the SysV classification is checked against an x86-64 Linux assembly probe; the Microsoft x64 convention has its own probe (Win64Helpers.*), which runs
 runtime-jit testFloat_ir FloatHelpers.AFloatResultIsTakenFromXmm0ByItsOwnWidthWhateverIsAboveBit31 the SysV classification is checked against an x86-64 Linux assembly probe; the Microsoft x64 convention has its own probe (Win64Helpers.*), which runs
 runtime-jit testCpu_features CpuDetect.TheDetectedSetIsTheCpuinfoFlagsOfTheHostWhenThatFileIsTheHostsOwn the oracle is /proc/cpuinfo of a native Linux x86-64 host (the CPU-feature arms themselves run under wine)
-# defiant-storage-sqlite, defiant-test: what needs a directory that refuses writes, fork or an ELF reader stays skipped and named.
-defiant-storage-sqlite testPlacement Io.DiskFailureOnPutIsNotCommitted a read-only directory does not stop a Windows process creating files in it
+# defiant-test: what needs a directory that refuses writes, fork or an ELF reader stays skipped and named.
 defiant-test testHarness Site.Readable the reader is a separate ELF program started with fork and checked with readelf
 defiant-core testInst Inst.Effective the effective-config example is run with a chosen environment through fork and execve
+# defiant-core: the forked deep-template cases, and the Postgres arms (no server in this gate).
+defiant-core testContexts Contexts.DeepNestOnMinimumFiber the deep-template cases run in a forked child
+defiant-core testContexts Contexts.DeepRecursionOnMinimumFiber the deep-template cases run in a forked child
+defiant-core testGroups GroupsPoPostgres.AConditionOnANestedFieldIsRefusedAsAFieldTheTypeLacks the Postgres arm needs a Postgres server (make test-groups-postgres)
+defiant-core testGroups GroupsPoPostgres.ADiffNamesTheGroupThatChanged the Postgres arm needs a Postgres server (make test-groups-postgres)
+defiant-core testGroups GroupsPoPostgres.ADraftOfATreeIsPublishedAsOneRevision the Postgres arm needs a Postgres server (make test-groups-postgres)
+defiant-core testGroups GroupsPoPostgres.AFlatSaveOfANestedTypeKeepsItsGroupItems the Postgres arm needs a Postgres server (make test-groups-postgres)
+defiant-core testGroups GroupsPoPostgres.AReorderChangesOrderKeysOnly the Postgres arm needs a Postgres server (make test-groups-postgres)
+defiant-core testGroups GroupsPoPostgres.ARevertWritesANewRevisionAndOldRevisionsReadAsTheyDid the Postgres arm needs a Postgres server (make test-groups-postgres)
+defiant-core testGroups GroupsPoPostgres.ATrackingEventThreeGroupsDeepWritesOneItemVersionAndOneRevision the Postgres arm needs a Postgres server (make test-groups-postgres)
+defiant-core testGroups GroupsPoPostgres.ATreeIsCheckedAgainstTheTypeAndAMisfitStagesNothing the Postgres arm needs a Postgres server (make test-groups-postgres)
+defiant-core testGroups GroupsPoPostgres.ItemIdsAreStableAcrossSavesAndOnlyTheChangedItemIsWritten the Postgres arm needs a Postgres server (make test-groups-postgres)
+defiant-core testGroups GroupsPoPostgres.TheOrderIsListedThroughItsIndexedFields the Postgres arm needs a Postgres server (make test-groups-postgres)
+defiant-core testGroups GroupsPoPostgres.ThePurchaseOrderRoundTripsAsItWasWritten the Postgres arm needs a Postgres server (make test-groups-postgres)
+defiant-core testGroups GroupsRenderPostgres.AFieldTheReaderMayNotSeeIsAbsentInEveryItem the Postgres arm needs a Postgres server (make test-groups-postgres)
+defiant-core testGroups GroupsRenderPostgres.ATemplateIteratesTheLinesAndTheirTaxes the Postgres arm needs a Postgres server (make test-groups-postgres)
+defiant-core testGroups GroupsRenderPostgres.AnOrderTheReaderMayNotSeeIsNotThere the Postgres arm needs a Postgres server (make test-groups-postgres)
+defiant-core testScale ScalePostgres.ACountReadsItsAnswerNotTheTable the Postgres arm needs a Postgres server (make test-scale-postgres)
+defiant-core testScale ScalePostgres.AFilteredListPageReadsItsAnswerNotTheTable the Postgres arm needs a Postgres server (make test-scale-postgres)
+defiant-core testScale ScalePostgres.AnUnindexedFilterReadsTheTableAndIsSeenTo the Postgres arm needs a Postgres server (make test-scale-postgres)
+defiant-core testScale ScalePostgres.CreatingOneMoreEntityCostsWhatItDidAtAThousand the Postgres arm needs a Postgres server (make test-scale-postgres)
+defiant-core testScale ScalePostgres.TheFilteredFieldIsIndexedAtBothSizes the Postgres arm needs a Postgres server (make test-scale-postgres)
+defiant-core testTemplates Templates.DeepTreeOnTheSmallestFiber the deep-tree case needs fork and fibers
 # archive: a shell to run, a fifo to make, and two tests that wait for data the job is not given.
 archive testArcpio_write SharWrite.TheScriptWhenRunRecreatesTheTree a shell archive is run by sh, which Windows does not have; check-arcpio-writer runs one under a real sh
 archive testFs ExtractRoot.PackRefusesAFifo Windows has no fifo in the filesystem to pack

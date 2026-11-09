@@ -29,6 +29,15 @@ control "core unsetenv" defiant-core src/inst/inst.c \
     {' \
 '#ifdef NEVER_DEFINED
     {'
+control "storage non-finite order" defiant-storage src/model_snapshot.c \
+'  return ((bits >> 52) & 0x7ffu) != 0x7ffu ? GDEFSTOR_OK : GDEFSTOR_ERR_CORRUPT;' \
+'  return isfinite(*out) ? GDEFSTOR_OK : GDEFSTOR_ERR_CORRUPT;'
+control "core number parse" defiant-core src/entity/store.c \
+"  if (end == NULL || *end != '\\0') {" \
+"  if (end == NULL || *end != '\\0' || !isfinite(v)) {"
+control "core clock" defiant-core src/subject/subject.c \
+'  if (clock_gettime(CLOCK_REALTIME, &ts) != 0 || ts.tv_sec < 0) {' \
+'  if (timespec_get(&ts, TIME_UTC) != TIME_UTC || ts.tv_sec < 0) {'
 control "vendored SQLite warning" vendor-sqlite Makefile \
 ' -Wno-unused-parameter -include' ' -include'
 [ $bad -eq 0 ] && echo "CONTROLS ok" || echo "CONTROLS FAILED"
