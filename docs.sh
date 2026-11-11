@@ -447,6 +447,31 @@ measured.append("| --- | --- |")
 measured.append("| Implemented | " + ", ".join(built_names) + " |")
 measured.append("| Not implemented | " + ", ".join(missing) + " |")
 measured.append("")
+# The Vector resvg-suite score is the one the library's own `make conformance`
+# wrote, read from its build directory. A library that was not built has no
+# score file, and the manual says so rather than carrying an old number.
+score_files = sorted((root / "libs/vector").glob("build/*/release/conformance/score"))
+measured.append("## Vector conformance")
+measured.append("")
+if score_files:
+    text = score_files[0].read_text().splitlines()
+    pin = next((l for l in text if l.startswith("resvg-test-suite ")), "")
+    cases = next((l for l in text if l.startswith("cases ")), "")
+    score = next((l for l in text if l.startswith("score ")), "")
+    tol = next((l for l in text if l.startswith("tolerance ")), "")
+    if not (pin and cases and score):
+        raise SystemExit("docs.sh: vector score file is not in the expected form")
+    measured.append("Read from the score file `make conformance` wrote in the")
+    measured.append("library's build directory.")
+    measured.append("")
+    measured.append(f"- Suite: `{pin}`")
+    measured.append(f"- {cases.replace('cases ', 'Cases: ')}")
+    measured.append(f"- {score.replace('score ', 'Score ', 1)}")
+    if tol:
+        measured.append(f"- {tol.replace('tolerance ', 'Tolerance: ', 1)}")
+else:
+    measured.append("Vector had not been built, so there was no score to read.")
+measured.append("")
 (suite / "manual" / "pages" / "measured.md").write_text("\n".join(measured))
 print("docs.sh: measured", n_libraries, "libraries")
 PY

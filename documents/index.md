@@ -47,6 +47,7 @@ Clone the libraries, build them, and build this manual from
 | [Text](@ref text) | JSON, including JSON Schema, and CSV, YAML, TOML, and INI. |
 | [TLS](@ref tls) | TLS 1.3 as a state machine over buffers, for both roles, with no I/O and no clock: the record layer over a byte stream, or handshake messages by epoch with the traffic secrets for QUIC; session tickets and resumption, and early data. Built on Certificate and Security. |
 | [Unicode](@ref unicode) | Character properties, the four normalisation forms, segmentation, the bidirectional algorithm, case mapping, and character names. |
+| [Vector](@ref vector) | Vector formats read into a typed document and lowered into the shape family's scene, so one drawing serves the CPU rasterizer, GPU sinks, writers and toolpaths. SVG first, scored against the resvg test suite; the figure is measured with the rest below. |
 | [Vendor SQLite](@ref vendor-sqlite) | The pinned SQLite 3.53.4 amalgamation built as a suite library, exposing the upstream `sqlite3_*` API through pkg-config. |
 
 The size of each library, the tests its build lists, and the versions its

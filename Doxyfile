@@ -106,6 +106,10 @@ INPUT                  = suite/suite.md \
                          libs/font/documentation \
                          libs/font/examples \
                          libs/font/CONTRIBUTING.md \
+                         libs/vector/include \
+                         libs/vector/src \
+                         libs/vector/documentation \
+                         libs/vector/CONTRIBUTING.md \
                          libs/model/include \
                          libs/model/src \
                          libs/model/documentation \
