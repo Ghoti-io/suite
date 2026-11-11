@@ -225,9 +225,10 @@ int main(int argc, char ** argv) {
     /* The bytes of the last frame, so that a change which is only meant to be faster can be seen to leave them alone. */
     uint64_t hash = 14695981039346656037ull;
     const uint8_t * px = (const uint8_t *)gimg_raster_pixels_const(r);
+    const size_t stride = gimg_raster_stride_bytes(r);
     for (size_t y = 0; y < (size_t)H; y++) {
       for (size_t i = 0; i < (size_t)W * 4u; i++) {
-        hash = (hash ^ px[y * gimg_raster_stride_bytes(r) + i]) * 1099511628211ull;
+        hash = (hash ^ px[y * stride + i]) * 1099511628211ull;
       }
     }
     printf("%-30s %10.3f %12.1f %10zu  %016llx%s\n", cases[k].name, best, covered / (best * 1e3), refused, (unsigned long long)hash,
