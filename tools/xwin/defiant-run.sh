@@ -5,6 +5,7 @@
 #
 #   suite/tools/xwin/defiant-run.sh [scratch-dir]      (default /tmp/xwin-defiant)
 #   M1_SRC=<dir> suite/tools/xwin/defiant-run.sh ...   take libs/ from <dir>
+#   M1_IN_IMAGE=1 suite/tools/xwin/defiant-run.sh /w   inside Containerfile.wine's image
 #
 # Everything the Defiant libraries stand on is built and installed first, with
 # its own Makefile and no tests (m1-run.sh is the gate for the runtime stack
@@ -27,11 +28,18 @@ W=${1:-/tmp/xwin-defiant}
 DEPS="cutil:cutil security:security unicode:unicode chron:chron regex:regex math:math text:text ctang:tang compress:compress archive:archive http:http vendor-sqlite:vendor-sqlite runtime-core:runtime-core runtime-heap:runtime-heap runtime-jit:runtime-jit runtime-debug:runtime-debug lang-tang:lang-tang"
 LIBS="defiant-storage defiant-storage-memory defiant-storage-sql defiant-storage-sqlite defiant-core defiant-test defiant-web"
 
-for need in podman rsync bison flex m4 python3; do
-  command -v $need >/dev/null || { echo "defiant-run: $need is needed on the host" >&2; exit 2; }
-done
-[ -d /usr/lib/wine ] || { echo "defiant-run: the host needs wine in /usr/lib/wine" >&2; exit 2; }
-[ -d /usr/src/googletest ] || { echo "defiant-run: the host needs googletest sources in /usr/src/googletest" >&2; exit 2; }
+if [ -n "${M1_IN_IMAGE:-}" ]; then
+  # Inside the image of Containerfile.wine, as m1-run.sh runs: the scratch tree must be /w and
+  # suite/tools /tools, and there is no container to start.
+  [ "$W" = /w ] || { echo "defiant-run: with M1_IN_IMAGE the scratch directory is /w" >&2; exit 2; }
+  command -v rsync >/dev/null || { echo "defiant-run: rsync is needed" >&2; exit 2; }
+else
+  for need in podman rsync bison flex m4 python3; do
+    command -v $need >/dev/null || { echo "defiant-run: $need is needed on the host" >&2; exit 2; }
+  done
+  [ -d /usr/lib/wine ] || { echo "defiant-run: the host needs wine in /usr/lib/wine" >&2; exit 2; }
+  [ -d /usr/src/googletest ] || { echo "defiant-run: the host needs googletest sources in /usr/src/googletest" >&2; exit 2; }
+fi
 mkdir -p "$W/logs"
 for d in $DEPS; do
   rsync -a --exclude build --exclude .git "$SRC/libs/${d%%:*}/" "$W/${d%%:*}/" || exit 2
