@@ -55,6 +55,10 @@ defiant-core testGroups GroupsPoPostgres.AConditionOnANestedFieldIsRefusedAsAFie
 defiant-core testGroups GroupsPoPostgres.ADiffNamesTheGroupThatChanged the Postgres arm needs a Postgres server (make test-groups-postgres)
 defiant-core testGroups GroupsPoPostgres.ADraftOfATreeIsPublishedAsOneRevision the Postgres arm needs a Postgres server (make test-groups-postgres)
 defiant-core testGroups GroupsPoPostgres.AFlatSaveOfANestedTypeKeepsItsGroupItems the Postgres arm needs a Postgres server (make test-groups-postgres)
+defiant-core testScale ScalePostgres.AColdCatalogReadsTheModelOnceAndNoMore the Postgres arm needs a Postgres server
+defiant-core testScale ScalePostgres.AFreshRequestOnAWarmCatalogReadsNoModel the Postgres arm needs a Postgres server
+defiant-core testScale ScalePostgres.APageOnAWarmRequestStaysWithinItsBudget the Postgres arm needs a Postgres server
+defiant-core testScale ScalePostgres.FourFieldsOfAnEntityCostWhatOneDoes the Postgres arm needs a Postgres server
 defiant-core testGroups GroupsPoPostgres.AReorderChangesOrderKeysOnly the Postgres arm needs a Postgres server (make test-groups-postgres)
 defiant-core testGroups GroupsPoPostgres.ARevertWritesANewRevisionAndOldRevisionsReadAsTheyDid the Postgres arm needs a Postgres server (make test-groups-postgres)
 defiant-core testGroups GroupsPoPostgres.ATrackingEventThreeGroupsDeepWritesOneItemVersionAndOneRevision the Postgres arm needs a Postgres server (make test-groups-postgres)
