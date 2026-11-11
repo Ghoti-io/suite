@@ -183,7 +183,7 @@ int main(int argc, char ** argv) {
       {"1.7x rotated 30 deg cubic", 1.7, 30.0, GSHSCENE_IMAGE_EXTEND_REFLECT, GSHSCENE_IMAGE_FILTER_CUBIC},
   };
   const double covered = (double)COLS * ROWS * CELL_W * CELL_H;
-  printf("%-30s %10s %12s %10s\n", "case", "frame ms", "Mpixel/s", "refused");
+  printf("%-30s %10s %12s %10s  %s\n", "case", "frame ms", "Mpixel/s", "refused", "frame hash");
   for (size_t k = 0; k < sizeof cases / sizeof cases[0]; k++) {
     if (argc > 2 && strstr(cases[k].name, argv[2]) == NULL) {
       continue; /* a case whose name holds the text: for a profiler, which wants one */
@@ -222,7 +222,15 @@ int main(int argc, char ** argv) {
         best = t1 - t0;
       }
     }
-    printf("%-30s %10.3f %12.1f %10zu%s\n", cases[k].name, best, covered / (best * 1e3), refused,
+    /* The bytes of the last frame, so that a change which is only meant to be faster can be seen to leave them alone. */
+    uint64_t hash = 14695981039346656037ull;
+    const uint8_t * px = (const uint8_t *)gimg_raster_pixels_const(r);
+    for (size_t y = 0; y < (size_t)H; y++) {
+      for (size_t i = 0; i < (size_t)W * 4u; i++) {
+        hash = (hash ^ px[y * gimg_raster_stride_bytes(r) + i]) * 1099511628211ull;
+      }
+    }
+    printf("%-30s %10.3f %12.1f %10zu  %016llx%s\n", cases[k].name, best, covered / (best * 1e3), refused, (unsigned long long)hash,
         refused ? "  (not the time of drawing it)" : "");
     gshscene_report_destroy(report);
     gimg_raster_destroy(r);
