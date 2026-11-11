@@ -15,7 +15,7 @@
  * references' image paths filter by their own definitions (the area filter is shape-scene's, and neither reference defines it), so
  * a comparison needs a minimal pair per case before its figure means anything.
  *
- *   images [frames]  prints one line per case: the filter, the map, the pixels covered, the time of a frame in milliseconds, the fill
+ *   images [frames [case]]  prints one line per case: the filter, the map, the pixels covered, the time of a frame in milliseconds, the fill
  *                    rate in Mpixel/s over the covered area, and how many items the sink refused (a refusal is a resource limit, and the
  *                    time of a frame that refused an item is not the time of drawing it, so the line says so)
  *
@@ -185,6 +185,9 @@ int main(int argc, char ** argv) {
   const double covered = (double)COLS * ROWS * CELL_W * CELL_H;
   printf("%-30s %10s %12s %10s\n", "case", "frame ms", "Mpixel/s", "refused");
   for (size_t k = 0; k < sizeof cases / sizeof cases[0]; k++) {
+    if (argc > 2 && strstr(cases[k].name, argv[2]) == NULL) {
+      continue; /* a case whose name holds the text: for a profiler, which wants one */
+    }
     GSHSCENE_List * l = build(img, &cases[k]);
     GIMG_Raster * r = NULL;
     GIMG_Pixel_Format f = GIMG_PIXEL_RGBA8;
