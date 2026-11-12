@@ -41,7 +41,7 @@ P="$S/prefix"
 SRC="$S/src"
 mkdir -p "$P" "$SRC" "$S/shim"
 # suite/libraries.txt order, up to vector's own dependencies.
-STACK="cutil security unicode chron regex math text compress color image shape-geometry shape-scene shape-cpu vector"
+STACK="cutil security unicode chron regex math text compress color image shape-geometry shape-scene shape-cpu font vector"
 
 fail() { printf '\nvector.sh: FAIL: %s\n' "$*" >&2; exit 1; }
 say() { printf '%s\n' "$*"; }

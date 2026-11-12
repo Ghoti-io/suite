@@ -19,7 +19,7 @@ if [ -n "${M1_IN_IMAGE:-}" ]; then
   [ "$W" = /w ] || { echo "vector-run: with M1_IN_IMAGE the scratch directory is /w" >&2; exit 2; }
 fi
 mkdir -p "$W/logs"
-LIBS="cutil security unicode chron compress math regex color text image shape-geometry shape-scene shape-cpu vector"
+LIBS="cutil security unicode chron compress math regex color text image shape-geometry shape-scene shape-cpu font vector"
 for l in $LIBS; do
   rsync -a --exclude build --exclude .git "$SRC/libs/$l/" "$W/$l/" || exit 2
 done
