@@ -145,6 +145,9 @@ int main(int argc, char ** argv) {
   const int frames = argc > 1 ? atoi(argv[1]) : 5;
   GSHCPU_Limits lim;
   gshcpu_limits_default(&lim);
+  if (getenv("HATCHES_CACHE_MIB")) {
+    lim.max_cache_bytes = (uint64_t)atoll(getenv("HATCHES_CACHE_MIB")) << 20; /* the stroke cache's bound, to see what a cold frame costs against a warm one */
+  }
   if (gshscene_store_create(NULL, NULL, &g_store) != GSHSCENE_OK || gshcpu_sink_create(NULL, NULL, &lim, &g_cpu) != GSHCPU_OK) {
     fprintf(stderr, "hatches: setup failed\n");
     return 1;
