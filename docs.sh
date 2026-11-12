@@ -431,7 +431,8 @@ pretty = {
     "PERL": "Perl", "PCRE": "PCRE2", "ECMASCRIPT": "ECMAScript",
     "PYTHON": "Python", "JAVA": "Java", "DOTNET": ".NET",
     "RUBY": "Ruby", "RE2": "RE2", "RUST": "Rust", "TCL": "Tcl",
-    "VIM": "Vim", "EMACS": "Emacs", "IREGEXP": "I-Regexp",
+    "VIM_BACKTRACK": "Vim (backtracking)", "VIM_NFA": "Vim (NFA)",
+    "EMACS": "Emacs", "IREGEXP": "I-Regexp",
     "REFLEX": "RE/flex",
 }
 built_names = [pretty[n.removeprefix("GRX_SYNTAX_")] for n in built]
