@@ -29,7 +29,7 @@ endif
 
 BENCH_CFLAGS := -std=c17 -O2 -g -Wall -Wextra -Werror -ffp-contract=off
 
-all: $(BUILD_DIR)/bench-shape $(BUILD_DIR)/pamdiff $(BUILD_DIR)/corroborate $(BUILD_DIR)/stroke-text $(BUILD_DIR)/clip-unions $(BUILD_DIR)/images
+all: $(BUILD_DIR)/bench-shape $(BUILD_DIR)/pamdiff $(BUILD_DIR)/corroborate $(BUILD_DIR)/stroke-text $(BUILD_DIR)/clip-unions $(BUILD_DIR)/images $(BUILD_DIR)/hatches
 
 $(BUILD_DIR)/bench-shape: bench-shape.c scene.c scene.h Makefile
 	@mkdir -p $(@D)
@@ -49,6 +49,11 @@ $(BUILD_DIR)/clip-unions: clip-unions.c Makefile
 $(BUILD_DIR)/images: images.c Makefile
 	@mkdir -p $(@D)
 	$(CC) $(BENCH_CFLAGS) $(PKG_CFLAGS) -o $@ images.c $(PKG_LIBS) $(RPATH) -lm
+
+# What a hatch fill costs on shape-cpu, one case per family set (hatches.c).
+$(BUILD_DIR)/hatches: hatches.c Makefile
+	@mkdir -p $(@D)
+	$(CC) $(BENCH_CFLAGS) $(PKG_CFLAGS) -o $@ hatches.c $(PKG_LIBS) $(RPATH) -lm
 
 $(BUILD_DIR)/pamdiff: pamdiff.c Makefile
 	@mkdir -p $(@D)
