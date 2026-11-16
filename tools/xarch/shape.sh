@@ -85,7 +85,9 @@
 #      math, and cutil's real allocator.c and atomic.c, color's gamut.c and
 #      image's raster.c (the sink renders through shape-scene's contract into an
 #      image raster, story 13b), must print the hashes committed in
-#      libs/shape-cpu/tests/corpus/coverage.hash, render.hash and (strokes story S4c) dense.hash on every target.
+#      libs/shape-cpu/tests/corpus/coverage.hash, render.hash, (strokes story S4c) dense.hash, render-fast.hash and the filter scenes'
+#      filter.hash and filter-fast.hash (every primitive of the filter engine, both color spaces, maps that turn, shear and mirror, backdrop
+#      filters: libs/shape-cpu/tests/filter_fixtures.h) on every target.
 #      The coverage part fills random polygons under both fill rules, random
 #      curves, rectangles with an open subpath, and shapes moved to the corners
 #      of the 26.6 range, and hashes every coverage in the library's own
@@ -98,8 +100,11 @@
 #      folds its results in the host's byte order must print the committed
 #      hashes on a little-endian target and others on a big-endian one; and,
 #      because the compositor is double arithmetic, i686 without the SSE flags
-#      and aarch64 with contraction on must print another render hash.  The
-#      plant (one differing bit on each target in turn) is as in section 4.
+#      and aarch64 with contraction on must print another render hash, and
+#      another hash of the filter scenes on each tier (the filter engine is
+#      the same arithmetic, with math's exp, pow, sqrt, sin and cos).  The
+#      plant (one differing bit on each target in turn) is as in section 4,
+#      and the one planted build must also move each part's own value.
 #
 #   8. The shape-scene hash gate (CAP-13, CAP-16, AD-17).  libs/shape-scene/tools/
 #      corpus-hash.c, built with every src/*/*.c of shape-scene, of shape-geometry
@@ -974,7 +979,15 @@ cd_count=$(awk '$1=="count"{print $2}' "$CPU/tests/corpus/dense.hash")
 cf_hash=$(awk '$1=="hash"{print $2}' "$CPU/tests/corpus/render-fast.hash")
 cf_count=$(awk '$1=="count"{print $2}' "$CPU/tests/corpus/render-fast.hash")
 [ -n "$cf_hash" ] && [ -n "$cf_count" ] || { echo "   FAIL  no committed fast renders in $CPU/tests/corpus/render-fast.hash"; status=1; }
-ch_want="$ch_hash $ch_count $cr_hash $cr_count $cd_hash $cd_count $cf_hash $cf_count"
+# The filter scenes (the filter engine's primitives, in both spaces, under maps that turn and shear, and as backdrop filters): the
+# renders on the default coverages and on the fast ones, a pair each (tests/corpus/filter.hash, tests/corpus/filter-fast.hash).
+cl_hash=$(awk '$1=="hash"{print $2}' "$CPU/tests/corpus/filter.hash")
+cl_count=$(awk '$1=="count"{print $2}' "$CPU/tests/corpus/filter.hash")
+[ -n "$cl_hash" ] && [ -n "$cl_count" ] || { echo "   FAIL  no committed filter renders in $CPU/tests/corpus/filter.hash"; status=1; }
+cx_hash=$(awk '$1=="hash"{print $2}' "$CPU/tests/corpus/filter-fast.hash")
+cx_count=$(awk '$1=="count"{print $2}' "$CPU/tests/corpus/filter-fast.hash")
+[ -n "$cx_hash" ] && [ -n "$cx_count" ] || { echo "   FAIL  no committed fast filter renders in $CPU/tests/corpus/filter-fast.hash"; status=1; }
+ch_want="$ch_hash $ch_count $cr_hash $cr_count $cd_hash $cd_count $cf_hash $cf_count $cl_hash $cl_count $cx_hash $cx_count"
 # The probe is built with shape-scene's sources (the sink contract and the lists), shape-geometry's (the
 # flattener, the device path, the maps, the hash) and, because those call math, math's; with cutil's real
 # allocator.c and atomic.c (the scene's mutex and counts are cutil's), color's gamut.c and image's raster.c,
@@ -985,7 +998,7 @@ mkdir -p "$B/gen/scene-testing/ghoti.io/shape-scene/testing"
 cp "$ROOT/libs/shape-scene/tests/glyph_test_provider.h" "$B/gen/scene-testing/ghoti.io/shape-scene/testing/"
 CPUFLAGS="-std=c17 -O2 -pedantic-errors -Wall -Wextra -Werror -ffp-contract=off -pthread -DGSHCPU_BUILD -DGSHSCENE_BUILD -DGSHGEOM_BUILD -DGMATH_BUILD -DGCOL_BUILD -DGIMG_BUILD -I$CPU/include -I$gc/generated $CPU_DEP_INCLUDES -I$B/gen/scene-testing -I$GEOM/include -I$gg/generated -I$MATH/include -I$mg/generated"
 
-# cpu_run TRIPLE CC QEMU TAG FLAGS... -> prints "HASH COUNT RENDER-HASH RENDER-COUNT DENSE-HASH DENSE-COUNT FAST-HASH FAST-COUNT"
+# cpu_run TRIPLE CC QEMU TAG FLAGS... -> prints "HASH COUNT RENDER-HASH RENDER-COUNT DENSE-HASH DENSE-COUNT FAST-HASH FAST-COUNT FILTER-HASH FILTER-COUNT FILTER-FAST-HASH FILTER-FAST-COUNT"
 cpu_run() {
   local triple=$1 cc=$2 qemu=$3 tag=$4 out
   shift 4
@@ -998,7 +1011,9 @@ cpu_run() {
   awk '/^shape-cpu.hash/{h=$2} /^shape-cpu.count/{c=$2} /^shape-cpu.render-hash/{rh=$2} /^shape-cpu.render-count/{rc=$2}
     /^shape-cpu.dense-hash/{dh=$2} /^shape-cpu.dense-count/{dc=$2}
     /^shape-cpu.render-fast-hash/{fh=$2} /^shape-cpu.render-fast-count/{fc=$2}
-    END{if (h != "" && rh != "" && dh != "" && fh != "") print h, c, rh, rc, dh, dc, fh, fc}' "$B/cpu-$tag-$triple.txt"
+    /^shape-cpu.filter-hash/{lh=$2} /^shape-cpu.filter-count/{lc=$2}
+    /^shape-cpu.filter-fast-hash/{xh=$2} /^shape-cpu.filter-fast-count/{xc=$2}
+    END{if (h != "" && rh != "" && dh != "" && fh != "" && lh != "" && xh != "") print h, c, rh, rc, dh, dc, fh, fc, lh, lc, xh, xc}' "$B/cpu-$tag-$triple.txt"
 }
 
 declare -A COK CPLANT
@@ -1035,7 +1050,7 @@ EOT2
   return $rc
 }
 
-echo " a. every target prints the committed hashes (coverage, then the renders, then the dense cells)"
+echo " a. every target prints the committed hashes (coverage, then the renders, the dense cells, the fast renders, the filter scenes)"
 cpu_gate "" || status=1
 # Which render differs, when one does: the probe's lines against the committed goldens.
 while IFS='|' read -r triple cc qemu desc; do
@@ -1047,6 +1062,14 @@ while IFS='|' read -r triple cc qemu desc; do
     echo "   | $triple: these renders differ from the goldens:"
     awk '$1=="render"{print $2, $3, $4}' "$CPU/tests/corpus/render.hash" | diff - "$B/cpu-renders-$triple.txt" | sed -n 's/^> /   |   /p'
   fi
+  # The same for the filter scenes, on each tier: which scene and format, so that a difference is a place to look.
+  for tier in filter filter-fast; do
+    awk -v t="shape-cpu.$tier" '$1==t{print $2, $3, $4}' "$B/cpu-ok-$triple.txt" > "$B/cpu-$tier-$triple.txt"
+    if ! awk '$1=="render"{print $2, $3, $4}' "$CPU/tests/corpus/$tier.hash" | diff -q - "$B/cpu-$tier-$triple.txt" > /dev/null; then
+      echo "   | $triple: these $tier renders differ from the goldens:"
+      awk '$1=="render"{print $2, $3, $4}' "$CPU/tests/corpus/$tier.hash" | diff - "$B/cpu-$tier-$triple.txt" | sed -n 's/^> /   |   /p'
+    fi
+  done
 done <<EOT
 $XARCH_TARGETS
 EOT
@@ -1098,8 +1121,40 @@ else
   echo "   FAIL  aarch64 with contraction on printed '${cfused:-nothing}': the render hash cannot see a fused multiply-add"
   status=1
 fi
+# The filter engine is the same arithmetic (and gmath_exp, gmath_pow, gmath_sqrt, gmath_sin and gmath_cos), so its scenes' hashes must see
+# both controls as well, on both tiers: a filter hash that a control leaves alone would not be seeing the engine.
+if [ -n "$cbare" ] && [ "$(echo "$cbare" | cut -d' ' -f9)" != "$cl_hash" ] && [ "$(echo "$cbare" | cut -d' ' -f11)" != "$cx_hash" ]; then
+  echo "   ok    i686 without the SSE flags prints the filter hashes $(echo "$cbare" | cut -d' ' -f9) and $(echo "$cbare" | cut -d' ' -f11), not the committed ones"
+else
+  echo "   FAIL  i686 without the SSE flags printed '${cbare:-nothing}': the filter hashes cannot see x87"
+  status=1
+fi
+if [ -n "$cfused" ] && [ "$(echo "$cfused" | cut -d' ' -f9)" != "$cl_hash" ] && [ "$(echo "$cfused" | cut -d' ' -f11)" != "$cx_hash" ]; then
+  echo "   ok    aarch64 with -ffp-contract=fast prints the filter hashes $(echo "$cfused" | cut -d' ' -f9) and $(echo "$cfused" | cut -d' ' -f11), not the committed ones"
+else
+  echo "   FAIL  aarch64 with contraction on printed '${cfused:-nothing}': the filter hashes cannot see a fused multiply-add"
+  status=1
+fi
 
 echo " c. planted: one differing bit on each target in turn must fail the gate, naming it"
+# The one build flips a bit in a result of each part; the gate below sees the whole, and this shows each part's own value moved (the
+# coverage, the renders, the dense cells, the fast renders, the filter scenes and the fast filter scenes): a part that did not move is a
+# part the probe does not read.
+while IFS='|' read -r triple cc qemu desc; do
+  triple=$(echo "$triple" | tr -d ' ')
+  [ -z "$triple" ] && continue
+  moved=1
+  for field in 1 3 5 7 9 11; do
+    if [ -z "${CPLANT[$triple]:-}" ] || [ "$(echo "${CPLANT[$triple]}" | cut -d' ' -f$field)" = "$(echo "$ch_want" | cut -d' ' -f$field)" ]; then
+      echo "   FAIL  $triple: the planted bit left field $field of the probe's line as committed ($(echo "$ch_want" | cut -d' ' -f$field))"
+      moved=0
+      status=1
+    fi
+  done
+  [ $moved -eq 1 ] && echo "   ok    $triple: the planted bit moves the hash of every part (coverage, renders, dense, fast, filter, fast filter)"
+done <<EOT
+$XARCH_TARGETS
+EOT
 while IFS='|' read -r triple cc qemu desc; do
   triple=$(echo "$triple" | tr -d ' ')
   [ -z "$triple" ] && continue

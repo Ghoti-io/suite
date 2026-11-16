@@ -21,7 +21,8 @@
 #
 # It also runs each library's corpus hash; shape-cpu's prints its coverage hash
 # and, since story 13b, one hash per render of its fixture set (the goldens of
-# tests/corpus/render.hash) and their fold, which must equal the committed ones.
+# tests/corpus/render.hash) and their fold, which must equal the committed ones; and the same for the filter scenes
+# (tests/corpus/filter.hash and filter-fast.hash).
 #
 # The math corpus hash (CAP-1): libs/math/tools/corpus-hash.c with
 # every src/elementary/*.c, over libs/math/tests/corpus, must print the hash
@@ -159,6 +160,8 @@ cp "$CPU/tests/render_fixtures.h" "$CPU/tests/corpus/render.hash" "$W/cpu/tests/
 # Strokes story S4c: the dense cells of the exact union step (the probe includes the vectors) and their committed pair.
 cp "$CPU/tests/dense_vectors.h" "$CPU/tests/corpus/dense.hash" "$W/cpu/tests/"
 cp "$CPU/tests/corpus/render-fast.hash" "$W/cpu/tests/"
+# The filter scenes (the filter engine, every primitive, in both spaces, under maps and as backdrop filters) and their committed pairs.
+cp "$CPU/tests/filter_fixtures.h" "$CPU/tests/corpus/filter.hash" "$CPU/tests/corpus/filter-fast.hash" "$W/cpu/tests/"
 # The fixtures' runs from a font use shape-scene's test glyph provider, at the path shape-scene installs it (story 14a).
 rm -rf "$W/scene-testing"
 mkdir -p "$W/scene-testing/ghoti.io/shape-scene/testing"
@@ -181,6 +184,14 @@ fast_hash=$(awk '$1=="hash"{print $2}' "$CPU/tests/corpus/render-fast.hash")
 fast_count=$(awk '$1=="count"{print $2}' "$CPU/tests/corpus/render-fast.hash")
 [ -n "$fast_hash" ] && [ -n "$fast_count" ] || { echo "shape.sh: no committed shape-cpu fast renders" >&2; exit 2; }
 echo "committed shape-cpu fast renders: $fast_hash over $fast_count"
+filter_hash=$(awk '$1=="hash"{print $2}' "$CPU/tests/corpus/filter.hash")
+filter_count=$(awk '$1=="count"{print $2}' "$CPU/tests/corpus/filter.hash")
+[ -n "$filter_hash" ] && [ -n "$filter_count" ] || { echo "shape.sh: no committed shape-cpu filter renders" >&2; exit 2; }
+echo "committed shape-cpu filter renders: $filter_hash over $filter_count"
+filter_fast_hash=$(awk '$1=="hash"{print $2}' "$CPU/tests/corpus/filter-fast.hash")
+filter_fast_count=$(awk '$1=="count"{print $2}' "$CPU/tests/corpus/filter-fast.hash")
+[ -n "$filter_fast_hash" ] && [ -n "$filter_fast_count" ] || { echo "shape.sh: no committed shape-cpu fast filter renders" >&2; exit 2; }
+echo "committed shape-cpu fast filter renders: $filter_fast_hash over $filter_fast_count"
 # The shape-scene sources and the committed hash (story 10); it is built with shape-geometry's and math's too.
 SCENE="$ROOT/libs/shape-scene"
 # cutil's real headers, its generated libver_gen.h, allocator.c and atomic.c: the scene's mutex and counts are cutil's.
@@ -270,4 +281,4 @@ font_stroke_hash=$(awk '$1=="stroke-hash"{print $2}' "$FONT/tests/data/golden/sc
 font_stroke_count=$(awk '$1=="stroke-count"{print $2}' "$FONT/tests/data/golden/scene.hash")
 [ -n "$font_stroke_hash" ] && [ -n "$font_stroke_count" ] || { echo "shape.sh: no committed font stroked-text pair" >&2; exit 2; }
 echo "committed font provider hash: $font_hash over $font_count renders; stroked text $font_stroke_hash over $font_stroke_count"
-"$HERE/m1-win.sh" "$W" "bash /tools/xwin/shape-win.sh $want $math_hash $math_count $geom_hash $geom_count $cpu_hash $cpu_count $scene_hash $scene_count $render_hash $render_count $font_hash $font_count $stroke_hash $stroke_count $plane_hash $plane_count $placeholder_hash $placeholder_count $dense_hash $dense_count $font_stroke_hash $font_stroke_count $geom_pred_hash $geom_pred_count $fast_hash $fast_count $image_hash $image_count $image_paint_hash $image_paint_count $geom_vertex_hash $geom_vertex_count $mask_hash $mask_count $geom_arc_hash $geom_arc_count $geom_arc_vertex_hash $geom_arc_vertex_count $geom_conic_hash $geom_conic_count $geom_shapes_hash $geom_shapes_count $prim_hash $prim_count $geom_clip_hash $geom_clip_count $geom_lattice_hash $geom_lattice_count $pattern_hash $pattern_count $geom_devbox_hash $geom_devbox_count $clipunion_hash $clipunion_count $geom_hatch_hash $geom_hatch_count $scene_hatch_hash $scene_hatch_count $geom_arcgrid_hash $geom_arcgrid_count $geom_latgrid_hash $geom_latgrid_count $geom_clipgrid_hash $geom_clipgrid_count $geom_walkgrid_hash $geom_walkgrid_count $geom_shapesgrid_hash $geom_shapesgrid_count"
+"$HERE/m1-win.sh" "$W" "bash /tools/xwin/shape-win.sh $want $math_hash $math_count $geom_hash $geom_count $cpu_hash $cpu_count $scene_hash $scene_count $render_hash $render_count $font_hash $font_count $stroke_hash $stroke_count $plane_hash $plane_count $placeholder_hash $placeholder_count $dense_hash $dense_count $font_stroke_hash $font_stroke_count $geom_pred_hash $geom_pred_count $fast_hash $fast_count $image_hash $image_count $image_paint_hash $image_paint_count $geom_vertex_hash $geom_vertex_count $mask_hash $mask_count $geom_arc_hash $geom_arc_count $geom_arc_vertex_hash $geom_arc_vertex_count $geom_conic_hash $geom_conic_count $geom_shapes_hash $geom_shapes_count $prim_hash $prim_count $geom_clip_hash $geom_clip_count $geom_lattice_hash $geom_lattice_count $pattern_hash $pattern_count $geom_devbox_hash $geom_devbox_count $clipunion_hash $clipunion_count $geom_hatch_hash $geom_hatch_count $scene_hatch_hash $scene_hatch_count $geom_arcgrid_hash $geom_arcgrid_count $geom_latgrid_hash $geom_latgrid_count $geom_clipgrid_hash $geom_clipgrid_count $geom_walkgrid_hash $geom_walkgrid_count $geom_shapesgrid_hash $geom_shapesgrid_count $filter_hash $filter_count $filter_fast_hash $filter_fast_count"

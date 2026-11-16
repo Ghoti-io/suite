@@ -72,6 +72,10 @@ geom_walkgrid_hash=${66:?usage: as above, GEOM_WALK_GRID_HASH GEOM_WALK_GRID_COU
 geom_walkgrid_count=${67:?usage: as above}
 geom_shapesgrid_hash=${68:?usage: as above}
 geom_shapesgrid_count=${69:?usage: as above}
+filter_hash=${70:?usage: as above, FILTER_HASH FILTER_COUNT FILTER_FAST_HASH FILTER_FAST_COUNT}
+filter_count=${71:?usage: as above}
+filter_fast_hash=${72:?usage: as above}
+filter_fast_count=${73:?usage: as above}
 geom_want="$geom_hash $geom_count $geom_pred_hash $geom_pred_count $geom_vertex_hash $geom_vertex_count $geom_arc_hash $geom_arc_count $geom_arc_vertex_hash $geom_arc_vertex_count $geom_conic_hash $geom_conic_count $geom_shapes_hash $geom_shapes_count $geom_clip_hash $geom_clip_count $geom_lattice_hash $geom_lattice_count $geom_devbox_hash $geom_devbox_count $geom_hatch_hash $geom_hatch_count $geom_arcgrid_hash $geom_arcgrid_count $geom_latgrid_hash $geom_latgrid_count $geom_clipgrid_hash $geom_clipgrid_count $geom_walkgrid_hash $geom_walkgrid_count $geom_shapesgrid_hash $geom_shapesgrid_count"
 P=/tools/xarch/shape-hash-probe.c
 cd /w || exit 2
@@ -183,20 +187,31 @@ x86_64-w64-mingw32-gcc $UF "$U/tools/corpus-hash.c" $(find "$U/src" -name '*.c' 
 # shellcheck disable=SC2086
 x86_64-w64-mingw32-gcc $UF -DSHAPE_CPU_PLANT_BIT "$U/tools/corpus-hash.c" $(find "$U/src" -name '*.c' | sort) $(find "$N/src" -name '*.c' | sort) $(find "$G/src" -name '*.c' | sort) "$M"/src/elementary/*.c "$C/src/allocator.c" "$C/src/atomic.c" "$K/src/gamut.c" "$I/src/raster.c" "$I/core/allocator.c" "$I/core/budget.c" -o cpu-plant.exe || { echo "shape-win: the planted shape-cpu probe did not build" >&2; exit 2; }
 ./cpu-probe.exe 2>/dev/null | tr -d '\r' > cpu-probe.txt
-cwant="$cpu_hash $cpu_count $render_hash $render_count $dense_hash $dense_count $fast_hash $fast_count"
-cpick='/^shape-cpu.hash/{h=$2} /^shape-cpu.count/{c=$2} /^shape-cpu.render-hash/{rh=$2} /^shape-cpu.render-count/{rc=$2} /^shape-cpu.dense-hash/{dh=$2} /^shape-cpu.dense-count/{dc=$2} /^shape-cpu.render-fast-hash/{fh=$2} /^shape-cpu.render-fast-count/{fc=$2} END{if (h != "" && rh != "" && dh != "" && fh != "") print h, c, rh, rc, dh, dc, fh, fc}'
+cwant="$cpu_hash $cpu_count $render_hash $render_count $dense_hash $dense_count $fast_hash $fast_count $filter_hash $filter_count $filter_fast_hash $filter_fast_count"
+cpick='/^shape-cpu.hash/{h=$2} /^shape-cpu.count/{c=$2} /^shape-cpu.render-hash/{rh=$2} /^shape-cpu.render-count/{rc=$2} /^shape-cpu.dense-hash/{dh=$2} /^shape-cpu.dense-count/{dc=$2} /^shape-cpu.render-fast-hash/{fh=$2} /^shape-cpu.render-fast-count/{fc=$2} /^shape-cpu.filter-hash/{lh=$2} /^shape-cpu.filter-count/{lc=$2} /^shape-cpu.filter-fast-hash/{xh=$2} /^shape-cpu.filter-fast-count/{xc=$2} END{if (h != "" && rh != "" && dh != "" && fh != "" && lh != "" && xh != "") print h, c, rh, rc, dh, dc, fh, fc, lh, lc, xh, xc}'
 cgot=$(awk "$cpick" cpu-probe.txt)
 cplant=$(./cpu-plant.exe 2>/dev/null | tr -d '\r' | awk "$cpick")
 echo "windows (wine) shape-cpu hashes: ${cgot:-none}   planted: ${cplant:-none}   committed: $cwant"
 if [ -n "$cgot" ] && [ "$cgot" = "$cwant" ]; then
-  echo "   ok    win64 prints the committed shape-cpu coverage hash, renders and dense cells"
+  echo "   ok    win64 prints the committed shape-cpu coverage hash, renders, dense cells and filter scenes"
 else
   echo "   FAIL  win64 does not print the committed shape-cpu hashes"; rc=1
   awk '$1=="shape-cpu.render"{print $2, $3, $4}' cpu-probe.txt > cpu-renders.txt
   awk '$1=="render"{print $2, $3, $4}' "$U/tests/render.hash" | diff - cpu-renders.txt | sed -n 's/^> /   |   differs: /p'
+  for tier in filter filter-fast; do
+    awk -v t="shape-cpu.$tier" '$1==t{print $2, $3, $4}' cpu-probe.txt > "cpu-$tier.txt"
+    awk '$1=="render"{print $2, $3, $4}' "$U/tests/$tier.hash" | diff - "cpu-$tier.txt" | sed -n "s/^> /   |   $tier differs: /p"
+  done
 fi
 if [ -n "$cplant" ] && [ "$cplant" != "$cwant" ]; then
   echo "   ok    planted: one differing bit in a shape-cpu result on win64 is not the committed hash"
+  # the one planted build flips a bit in each part (coverage, renders, dense, fast renders, filter scenes, fast filter scenes): each part's own
+  # value must have moved, or the probe does not read that part
+  for field in 1 3 5 7 9 11; do
+    if [ "$(echo "$cplant" | cut -d' ' -f$field)" = "$(echo "$cwant" | cut -d' ' -f$field)" ]; then
+      echo "   FAIL  planted: the win64 planted bit left field $field of the shape-cpu line as committed"; rc=1
+    fi
+  done
 else
   echo "   FAIL  planted: the win64 shape-cpu probe with a flipped bit still matches (or did not run)"; rc=1
 fi
