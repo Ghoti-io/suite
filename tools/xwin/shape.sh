@@ -206,7 +206,7 @@ cp -r "$IMAGE/include" "$W/image/include"
 cp "$IMAGE/src/raster/raster.c" "$IMAGE/src/raster/raster_internal.h" "$W/image/src/"
 mkdir -p "$W/image/core"
 cp "$IMAGE/src/core/"*.h "$W/image/core/"
-cp "$IMAGE/src/core/allocator.c" "$W/image/core/"
+cp "$IMAGE/src/core/allocator.c" "$IMAGE/src/core/budget.c" "$W/image/core/"
 make -s -C "$IMAGE" SKIP_DEP_CHECK=1 BUILD_DIR="$W/image/gen" "$W/image/gen/generated/ghoti.io/image/libver_gen.h" > "$W/logs/image-libver.log" 2>&1 || { echo "shape.sh: image libver-gen failed (see $W/logs/image-libver.log)" >&2; exit 2; }
 rm -rf "$W/scene"
 mkdir -p "$W/scene/tools" "$W/scene/gen" "$W/scene/tests"
