@@ -992,7 +992,7 @@ cpu_run() {
   # shellcheck disable=SC2086
   "$cc" $CPUFLAGS "$@" "$CPU/tools/corpus-hash.c" $(find "$CPU/src" -name '*.c' | sort) $(find "$ROOT/libs/shape-scene/src" -name '*.c' | sort) \
     $(find "$GEOM/src" -name '*.c' | sort) "$MATH"/src/elementary/*.c "$ROOT/libs/cutil/src/allocator.c" "$ROOT/libs/cutil/src/atomic.c" \
-    "$ROOT/libs/color/src/gamut/gamut.c" "$ROOT/libs/image/src/raster/raster.c" "$ROOT/libs/image/src/core/allocator.c" \
+    "$ROOT/libs/color/src/gamut/gamut.c" "$ROOT/libs/image/src/raster/raster.c" "$ROOT/libs/image/src/core/allocator.c" "$ROOT/libs/image/src/core/budget.c" \
     -o "$B/cpu-$tag-$triple" 2> "$B/cpu-$tag-$triple.err" || return 1
   xarch_run "$triple" "$qemu" "$B/cpu-$tag-$triple" > "$B/cpu-$tag-$triple.txt" 2>> "$B/cpu-$tag-$triple.err" || return 1
   awk '/^shape-cpu.hash/{h=$2} /^shape-cpu.count/{c=$2} /^shape-cpu.render-hash/{rh=$2} /^shape-cpu.render-count/{rc=$2}
@@ -1175,7 +1175,7 @@ scene_run() {
   # shellcheck disable=SC2086
   "$cc" $SCFLAGS "$@" "$SCENE/tools/corpus-hash.c" $(find "$SCENE/src" -name '*.c' | sort) $(find "$GEOM/src" -name '*.c' | sort) "$MATH"/src/elementary/*.c \
     "$ROOT/libs/cutil/src/allocator.c" "$ROOT/libs/cutil/src/atomic.c" "$ROOT/libs/color/src/gamut/gamut.c" \
-    "$ROOT/libs/image/src/raster/raster.c" "$ROOT/libs/image/src/core/allocator.c" -o "$B/scene-$tag-$triple" 2> "$B/scene-$tag-$triple.err" || return 1
+    "$ROOT/libs/image/src/raster/raster.c" "$ROOT/libs/image/src/core/allocator.c" "$ROOT/libs/image/src/core/budget.c" -o "$B/scene-$tag-$triple" 2> "$B/scene-$tag-$triple.err" || return 1
   xarch_run "$triple" "$qemu" "$B/scene-$tag-$triple" > "$B/scene-$tag-$triple.txt" 2>> "$B/scene-$tag-$triple.err" || return 1
   awk '$1=="shape-scene.hash"{h=$2} $1=="shape-scene.count"{c=$2} $1=="shape-scene.stroke-hash"{sh=$2} $1=="shape-scene.stroke-count"{sc=$2}
        $1=="shape-scene.plane-hash"{ph=$2} $1=="shape-scene.plane-count"{pc=$2}
@@ -1302,7 +1302,7 @@ font_build() {
   { echo "${FONT_MAIN:-$FONT/tools/scene-hash.c}"; find "$FONT/src" "$CPU/src" "$SCENE/src" "$GEOM/src" -name '*.c' | sort;
     ls "$MATH"/src/elementary/*.c; echo "$ROOT/libs/cutil/src/allocator.c"; echo "$ROOT/libs/cutil/src/atomic.c";
     echo "$ROOT/libs/cutil/src/file.c"; echo "$ROOT/libs/color/src/gamut/gamut.c"; echo "$ROOT/libs/image/src/raster/raster.c";
-    echo "$ROOT/libs/image/src/core/allocator.c"; } > "$objs/sources"
+    echo "$ROOT/libs/image/src/core/allocator.c"; echo "$ROOT/libs/image/src/core/budget.c"; } > "$objs/sources"
   # One object per source, named by its path so that two libraries' raster.c do not meet.
   # shellcheck disable=SC2086
   xargs -P "${JOBS:-8}" -I{} sh -c 'o=$(echo "$1" | tr / _); exec "$2" '"$FONTFLAGS $*"' -c "$1" -o "$3/$o.o"' _ {} "$cc" "$objs" \
