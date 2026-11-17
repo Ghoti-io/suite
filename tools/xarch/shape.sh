@@ -14,9 +14,9 @@
 #
 # Ten sections, each of which shows its gate failing:
 #
-#   1. The five copies of each gate script (math, shape-geometry, shape-scene,
-#      shape-cpu, vector) are byte-identical, because CONVENTIONS reuses one script text
-#      per library; a copy that has drifted is named.  Planted: a changed copy, in shape-cpu and in vector.
+#   1. The copies of each gate script (math, shape-geometry, shape-scene,
+#      shape-cpu, vector, shape-dxf) are byte-identical, because CONVENTIONS reuses one script text
+#      per library; a copy that has drifted is named.  Planted: a changed copy, in shape-cpu, in vector and in shape-dxf.
 #
 #   2. The cross-target hash gate.  shape-hash-probe.c, built with
 #      -ffp-contract=off and xarch_fp_cflags, must print the x86_64 hash on
@@ -219,12 +219,12 @@ make -s -C "$ROOT/libs/image" SKIP_DEP_CHECK=1 BUILD_DIR="$B/gen/image" "$B/gen/
   || { echo "shape.sh: could not write image's libver_gen.h (see $B/gen-image.log)" >&2; exit 2; }
 
 LIBS="math shape-geometry shape-scene shape-cpu"
-# Section 1 only: vector carries the same gate scripts but is not built by the other sections.
-SYNC_LIBS="$LIBS vector"
+# Section 1 only: vector and shape-dxf carry the same gate scripts but are not built by the other sections.
+SYNC_LIBS="$LIBS vector shape-dxf"
 status=0
 
 #---------------------------------------------------------------------------
-echo "1. the five copies of each gate script are identical"
+echo "1. the copies of each gate script are identical"
 SCRIPTS="check-edges.sh check-libm.sh check-no-x87.sh check-gates.sh check-fp-contract.sh check-stamps.py run-examples.sh"
 # same_text REFERENCE FILE... -> 0 if every file equals REFERENCE; names a differing one.
 same_text() {
@@ -250,7 +250,7 @@ sync_gate() {
   done
   return $rc
 }
-# The plant works on a copy of the five tools directories, so the real ones are
+# The plant works on a copy of the tools directories, so the real ones are
 # never touched.
 mkdir -p "$B/sync"
 for l in $SYNC_LIBS; do mkdir -p "$B/sync/$l"; cp -r "$ROOT/libs/$l/tools" "$B/sync/$l/"; done
@@ -283,6 +283,19 @@ elif grep -q "sync/vector/tools/check-libm.sh" "$B/sync-plant-vector.txt"; then
 else
   cat "$B/sync-plant-vector.txt"
   echo "   FAIL  the planted drift in vector failed the gate without naming the file"
+  status=1
+fi
+# shape-dxf's copy is read too.
+cp "$ROOT/libs/math/tools/check-libm.sh" "$B/sync/vector/tools/check-libm.sh"
+echo "# drift" >> "$B/sync/shape-dxf/tools/check-libm.sh"
+if sync_gate "$B/sync" > "$B/sync-plant-dxf.txt" 2>&1; then
+  echo "   FAIL  planted drift in shape-dxf/check-libm.sh was not caught"
+  status=1
+elif grep -q "sync/shape-dxf/tools/check-libm.sh" "$B/sync-plant-dxf.txt"; then
+  echo "   ok    planted drift in shape-dxf is caught, naming the file"
+else
+  cat "$B/sync-plant-dxf.txt"
+  echo "   FAIL  the planted drift in shape-dxf failed the gate without naming the file"
   status=1
 fi
 
