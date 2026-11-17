@@ -69,7 +69,11 @@ elf_ok() { # path
 }
 
 # Bounded run of a target program under qemu.
-run_q() { timeout -k 10 "$TMO" "$QEMU" -L "$SYSROOT" -E "LD_LIBRARY_PATH=$P/lib/ghoti.io:$LIBDIR" "$@"; }
+# The one test that needs a locale the target can load is skipped (by name, in the summary) where the host's locale compiler makes
+# files of the host's byte order: a big-endian target.
+FOREIGN=""
+[ "$ENDIAN" = big ] && FOREIGN="GSHDXF_TEST_FOREIGN_LOCALES=1"
+run_q() { timeout -k 10 "$TMO" "$QEMU" -L "$SYSROOT" -E "LD_LIBRARY_PATH=$P/lib/ghoti.io:$LIBDIR${FOREIGN:+,$FOREIGN}" "$@"; }
 
 mk() { local lib="$1"; shift; make -C "$SRC/$lib" "${CROSS[@]}" PREFIX="$P" "$@"; }
 
