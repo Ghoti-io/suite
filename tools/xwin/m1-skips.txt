@@ -31,6 +31,8 @@ lang-tang testCompile AllocationFailure.EachAllocationCompileMakesFailedInTurnGi
 lang-tang testOom AllocationFailure.EachAllocationFailedInTurnGivesAnAnswerAndLeaksNothing the allocation-failure sweep cannot reach this platform's allocations (RLIMIT_AS)
 lang-tang testOom AllocationFailure.TheFirstAllocationFailingIsOutOfMemoryAndChangesNothing the allocation-failure sweep cannot reach this platform's allocations (RLIMIT_AS)
 lang-tang testOom AllocationFailure.TheScannersOwnBufferGrowthIsReportedAsOutOfMemoryNotASyntaxError the allocation-failure sweep cannot reach this platform's allocations (RLIMIT_AS)
+lang-tang testCustom_reentry ReentryReplay.ACallableObjectCalledWithSeventeenArgumentsWhoseCopyIsRefusedIsOutOfMemory the allocation-failure sweep cannot reach this platform's allocations (needs an RLIMIT_AS-style cap; lang-tang tests/test_helpers.h)
+lang-tang testCustom_reentry ReentryReplay.AResumableNativeRefusedWhenItIsRunAgainLetsItsRecordGo the allocation-failure sweep cannot reach this platform's allocations (needs an RLIMIT_AS-style cap; lang-tang tests/test_helpers.h)
 lang-tang testTang_dap TangDap.NeedsTheDescriptorTransportAndSoIsNotRunOnWindows fork, pipes and poll; --dap is unsupported on Windows
 lang-tang testJudge Driver.ABrokenRunnerThrowsRatherThanPassingAsAVerdict the child-process driver (fork, poll, /bin/sh) is POSIX-only
 lang-tang testJudge Driver.ACrashDisagreesWithARejection the child-process driver (fork, poll, /bin/sh) is POSIX-only
