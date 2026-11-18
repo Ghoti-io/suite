@@ -169,7 +169,9 @@ for e in $APPS/examples/*.exe $APPS/bench/*.exe; do
   [ "$l" = archive ] && break
   [ -e "$e" ] || continue
   args=; case $(basename $e .exe) in web_server) args=--self-test ;; bench) args=--smoke ;; esac
-  (cd $APPS && timeout 300 $e $args > /w/logs/$l.$(basename $e .exe).out 2>&1); rc=$?
+  # lang-ecmascript's benchmarks and examples read files named relative to the library's root, as `make bench` runs them.
+  erun=$APPS; [ "$l" = lang-ecmascript ] && erun=/w/$l
+  (cd $erun && timeout 300 $e $args > /w/logs/$l.$(basename $e .exe).out 2>&1); rc=$?
   case $rc in 0) ex_ran=$((ex_ran + 1)) ;; 77) ex_skip=$((ex_skip + 1)) ;;
     *) ex_bad=$((ex_bad + 1)); echo "EXAMPLE FAILED: $(basename $e) rc=$rc" ;; esac
 done
