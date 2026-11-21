@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: LGPL-3.0-only
 #
-# runtime-core's own tests for a foreign target, run under qemu-user: a 32-bit build and a
+# runtime-core's (or runtime-heap's, as a second argument) own tests for a foreign target, run under
+# qemu-user: a 32-bit build and a
 # big-endian one.
 #
 #   core.sh i686         32-bit x86 (4-aligned int64_t, 32-bit time_t and uintptr_t), qemu-i386
@@ -19,8 +20,10 @@
 # directory (cutil's float.h is made by running its generator under qemu); builds every test program of
 # runtime-core and runs each under a time limit (CORE_XARCH_TIMEOUT, default 1800 s). A program that
 # passes no tests is a failure, and skips are listed by name. Exit status: 0 only if everything built
-# and passed. The library is the engine-independent runtime core: nothing here emits or runs machine
-# code, so what a foreign target changes is word size, byte order and the C library.
+# and passed. A death test that re-executes the binary cannot run under qemu-user, so
+# GRHEAP_TEST_DEATH_FAST=1 is set for runtime-heap's one. The libraries are engine-independent: nothing
+# here emits or runs machine code, so what a foreign target changes is word size, byte order and the C
+# library.
 set -u
 set -o pipefail
 
@@ -38,7 +41,17 @@ TMO="${CORE_XARCH_TIMEOUT:-1800}"
 P="$S/prefix"
 SRC="$S/src"
 mkdir -p "$P" "$SRC" "$S/shim"
-STACK="cutil runtime-core"
+# The library under test is the last of the stack: runtime-core (the default) or runtime-heap, which
+# is built on it ("core.sh i686 runtime-heap").
+LIB="${2:-runtime-core}"
+case "$LIB" in
+  runtime-core) STACK="cutil runtime-core" ;;
+  runtime-heap) STACK="cutil runtime-core runtime-heap"
+    # runtime-heap is 64-bit only (its design says so, and its header stops a build where a pointer
+    # is not eight bytes), so a 32-bit target is refused here rather than failed in the build.
+    [ "$ARCH" = i686 ] && { echo "core.sh: SKIPPED (not passed): runtime-heap is 64-bit only by design, so there is nothing to run for i686"; exit 0; } ;;
+  *) echo "usage: core.sh aarch64|i686|s390x [runtime-core|runtime-heap]" >&2; exit 2 ;;
+esac
 
 fail() { printf '\ncore.sh: FAIL: %s\n' "$*" >&2; exit 1; }
 say() { printf '%s\n' "$*"; }
@@ -140,22 +153,22 @@ for so in "$P"/lib/ghoti.io/*.so.*.*.*; do elf_ok "$so" || fail "$so is not a $A
 say "  $n installed libraries, each a $ARCH object"
 
 heading "Building the test programs"
-sel=$(echo 'print-%: ; @echo $($*)' | make -s --no-print-directory -C "$SRC/runtime-core" -f Makefile -f - "${CROSS[@]}" PREFIX="$P" print-TEST_NAMES 2>/dev/null | tr ' ' '\n' | sort)
-[ -n "$sel" ] || fail "runtime-core names no test program"
+sel=$(echo 'print-%: ; @echo $($*)' | make -s --no-print-directory -C "$SRC/$LIB" -f Makefile -f - "${CROSS[@]}" PREFIX="$P" print-TEST_NAMES 2>/dev/null | tr ' ' '\n' | sort)
+[ -n "$sel" ] || fail "$LIB names no test program"
 say "  $(wc -w <<<"$sel") programs"
 targets=()
 for n in $sel; do targets+=("build/linux/release/apps/$n"); done
-mk runtime-core -k -j"$JOBS" "${targets[@]}" > "$S/build-tests.log" 2>&1 || { grep -a -E " error|Error [0-9]" "$S/build-tests.log" | head -40 >&2; fail "the test programs did not build ($S/build-tests.log)"; }
+mk "$LIB" -k -j"$JOBS" "${targets[@]}" > "$S/build-tests.log" 2>&1 || { grep -a -E " error|Error [0-9]" "$S/build-tests.log" | head -40 >&2; fail "the test programs did not build ($S/build-tests.log)"; }
 
 heading "Running ($ARCH)"
-dir="$SRC/runtime-core/build/linux/release/apps"
+dir="$SRC/$LIB/build/linux/release/apps"
 fails=(); total=0; ran=0; skips=()
 for n in $sel; do
   bin="$dir/$n"
   [ -x "$bin" ] || { fails+=("$n: not built"); continue; }
   elf_ok "$bin" || fail "$bin is not a $ARCH binary: refusing to run it as one"
   start=$(date +%s)
-  out=$(cd "$SRC/runtime-core" && run_env LD_LIBRARY_PATH="$P/lib/ghoti.io:$dir" -- "$bin" 2>&1)
+  out=$(cd "$SRC/$LIB" && run_env LD_LIBRARY_PATH="$P/lib/ghoti.io:$dir" GRHEAP_TEST_DEATH_FAST=1 -- "$bin" 2>&1)
   rc=$?
   secs=$(( $(date +%s) - start ))
   passed=$(printf '%s\n' "$out" | sed -n 's/^\[  PASSED  \] \([0-9]*\) test.*/\1/p' | tail -1); passed=${passed:-0}
