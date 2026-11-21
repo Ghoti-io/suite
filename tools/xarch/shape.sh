@@ -220,7 +220,7 @@ make -s -C "$ROOT/libs/image" SKIP_DEP_CHECK=1 BUILD_DIR="$B/gen/image" "$B/gen/
 
 LIBS="math shape-geometry shape-scene shape-cpu"
 # Section 1 only: vector and shape-dxf carry the same gate scripts but are not built by the other sections.
-SYNC_LIBS="$LIBS vector shape-dxf"
+SYNC_LIBS="$LIBS vector shape-dxf font"
 status=0
 
 #---------------------------------------------------------------------------
@@ -242,8 +242,11 @@ sync_gate() {
   local rc=0 s l files
   for s in $SCRIPTS; do
     files=""
-    for l in $SYNC_LIBS; do files="$files $1/$l/tools/$s"; done
-    for l in $SYNC_LIBS; do [ -f "$1/$l/tools/$s" ] || { echo "   missing: $1/$l/tools/$s"; rc=1; }
+    for l in $SYNC_LIBS; do
+      # font's examples are command-line tools that take a font file, so it has no run-examples.sh to run them with.
+      [ "$l:$s" = "font:run-examples.sh" ] && continue
+      files="$files $1/$l/tools/$s"
+      [ -f "$1/$l/tools/$s" ] || { echo "   missing: $1/$l/tools/$s"; rc=1; }
     done
     # shellcheck disable=SC2086
     same_text "$1/math/tools/$s" $files || rc=1
