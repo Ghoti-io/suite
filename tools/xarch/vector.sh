@@ -168,6 +168,10 @@ if out=$(cd "$SRC/vector" && run_q "$gate" --golden tests/golden/lower $fixtures
   printf '%s\n' "$out" | tail -2 | sed 's/^/        /'
 else
   printf '%s\n' "$out" | tail -20 >&2
+  # Show what differs: the gate rewrites a copy of the goldens, and the copy is compared with the committed ones.
+  rm -rf "$S/regen"; mkdir -p "$S/regen"
+  (cd "$SRC/vector" && run_q "$gate" --update --golden "$S/regen" $fixtures >/dev/null 2>&1) || true
+  diff -r "$SRC/vector/tests/golden/lower" "$S/regen" 2>&1 | head -40 >&2 || true
   fails+=("lower_gate: a golden differs on $ARCH")
 fi
 # The gate shown to fail: one hex digit of a golden hash changed, in a copy, must be refused by the same binary.
