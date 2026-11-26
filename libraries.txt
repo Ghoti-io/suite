@@ -19,12 +19,16 @@ math       https://github.com/Ghoti-io/math.git       master cutil
 regex      https://github.com/Ghoti-io/regex.git      master cutil,unicode,?text
 color      https://github.com/Ghoti-io/color.git      master cutil,security
 text       https://github.com/Ghoti-io/text.git       master cutil,security,chron,unicode,regex,math,?color
+markup     https://github.com/Ghoti-io/markup.git     master cutil
 image      https://github.com/Ghoti-io/image.git      master cutil,compress,color
 shape-geometry https://github.com/Ghoti-io/shape-geometry.git master cutil,math
 shape-scene https://github.com/Ghoti-io/shape-scene.git master cutil,color,math,image,shape-geometry
 shape-cpu  https://github.com/Ghoti-io/shape-cpu.git  master cutil,color,math,image,shape-geometry,shape-scene
 shape-dxf  https://github.com/Ghoti-io/shape-dxf.git  master cutil,color,math,image,shape-geometry,shape-scene
 font       https://github.com/Ghoti-io/font.git       master cutil,compress,unicode,math,image,shape-geometry,shape-scene,shape-cpu
+layout-inline https://github.com/Ghoti-io/layout-inline.git master cutil,font
+layout     https://github.com/Ghoti-io/layout.git     master cutil,markup,layout-inline
+layout-paint https://github.com/Ghoti-io/layout-paint.git master cutil,layout,shape-scene
 vector     https://github.com/Ghoti-io/vector.git     master cutil,compress,unicode,text,shape-scene,shape-geometry,color,math,font,image,?shape-cpu
 model      https://github.com/Ghoti-io/model.git      master cutil
 archive    https://github.com/Ghoti-io/archive.git    master cutil,compress,security
