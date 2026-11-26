@@ -2,10 +2,10 @@
 #
 # Builds libghoti.io-tls for every target in the matrix, and checks that every
 # target answers the RFC 8448 known answers exactly as the host does
-# (libs/tls, planning/tls.md steps 3 and 4: the client's handshake, the record
-# layer, the server's flight, and a real client against a real server).
+# (the client's handshake, the record layer, the server's flight, and a real
+# client against a real server).
 #
-# Run it in the ghoti-xarch image, from the workspace root, with the four
+# Run it in the ghoti-xarch image, from the directory holding suite/ and libs/, with the four
 # libraries staged as committed at /deps (suite/tools/xarch/tls-host.sh does both):
 #
 #   podman run --rm -v "$PWD:/work:ro,z" -v /tmp/tls-xarch/deps:/deps:ro,z \
@@ -95,7 +95,7 @@ gen certificate GHOTI_IO_GCERT_LIBVER_GEN_H CERTIFICATE
 gen tls GHOTI_IO_GTLS_LIBVER_GEN_H TLS
 
 DEPINC="-I $CUTIL/include -I $SECURITY/include -I $CERT/include -I $TLS/include"
-# Each library with the flags its own Makefile uses (CONVENTIONS.md section 6),
+# Each library with the flags its own Makefile uses,
 # so a warning the host compiler does not raise but this one does is a failure.
 # security's and certificate's 32-bit -Wtype-limits findings and cutil's
 # -Wmaybe-uninitialized on i686 are demoted for those libraries alone, as in

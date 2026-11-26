@@ -60,7 +60,7 @@ run_tests() {          # $1 = library, $2 = the count it must be
 
 echo
 echo "=== certificate's unit tests, under wine (make test, the gates cleared: they are Linux's)"
-run_tests certificate 161
+run_tests certificate 162
 if [ "${WITH_SECURITY:-0}" = 1 ]; then
   echo
   echo "=== security's unit tests, under wine"
