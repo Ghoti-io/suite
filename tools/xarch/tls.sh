@@ -99,8 +99,9 @@ DEPINC="-I $CUTIL/include -I $SECURITY/include -I $CERT/include -I $TLS/include"
 # so a warning the host compiler does not raise but this one does is a failure.
 # security's and certificate's 32-bit -Wtype-limits findings and cutil's
 # -Wmaybe-uninitialized on i686 are demoted for those libraries alone, as in
-# http.sh, and for the same reasons.
-CUFLAGS="-pedantic-errors -Wall -Wextra -Werror -Wno-error=maybe-uninitialized -Wno-error=unused-function -Wfatal-errors -std=c17 -O2 -g -fvisibility=hidden -DGHOTIIO_CUTIL_BUILD"
+# http.sh, and for the same reasons. cutil also takes its LFS_FLAGS: its file
+# layer refuses to build with a 32-bit off_t, which i686 still has by default.
+CUFLAGS="-pedantic-errors -Wall -Wextra -Werror -Wno-error=maybe-uninitialized -Wno-error=unused-function -Wfatal-errors -std=c17 -D_FILE_OFFSET_BITS=64 -O2 -g -fvisibility=hidden -DGHOTIIO_CUTIL_BUILD"
 SEFLAGS="-pedantic-errors -Wall -Wextra -Werror -Wno-error=type-limits -Wfloat-conversion -fstrict-aliasing -Wstrict-aliasing=1 -Wno-error=unused-function -Wfatal-errors -std=c17 -O2 -g -fvisibility=hidden -DGSEC_BUILD"
 CEFLAGS="-pedantic-errors -Wall -Wextra -Werror -Wno-error=type-limits -Wfloat-conversion -fstrict-aliasing -Wstrict-aliasing=1 -Wno-error=unused-function -Wfatal-errors -std=c17 -O2 -g -fvisibility=hidden -DGCERT_BUILD"
 TLFLAGS="-pedantic-errors -Wall -Wextra -Werror -Wfloat-conversion -fstrict-aliasing -Wstrict-aliasing=1 -Wno-error=unused-function -Wfatal-errors -std=c17 -O2 -g -fvisibility=hidden -DGTLS_BUILD"
