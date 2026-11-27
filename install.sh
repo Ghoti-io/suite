@@ -32,6 +32,16 @@
 # container is not given the host engine socket. --no-container runs the
 # same gates inside make test.
 #
+# A library whose tests run against a heap that moves every object
+# (lang-ecmascript's test-torture) needs a second runtime-heap, built with
+# RELOCATE=yes. It installs under the same library and pkg-config names as the
+# normal one, so it goes into a prefix of its own beside the main one, the
+# main prefix with .relocate appended (.local.relocate/ by default; under
+# --global, .local.relocate/ in the parent directory). It is built right after
+# runtime-heap's normal install, against the main prefix, and only when --test
+# selects a library that needs it; that library's make test is given
+# RELOCATE_PREFIX naming it.
+#
 # Usage:
 #   ./install.sh
 #   ./install.sh --test
@@ -75,6 +85,28 @@ for arg in "$@"; do
       ;;
   esac
 done
+
+# The libraries whose make test needs RELOCATE_PREFIX, and fails without it.
+# lang-tang's make test runs its relocation arm only when RELOCATE_PREFIX is
+# set and otherwise says loudly that it did not, and that arm wants every
+# dependency installed beside the relocating heap; it is not given one here.
+RELOCATE_CONSUMERS="lang-ecmascript"
+if [ "$GLOBAL" -eq 1 ]; then
+  RELOC_PREFIX="$ROOT/.local.relocate"
+else
+  RELOC_PREFIX="${PREFIX%/}.relocate"
+fi
+
+# True when this run tests a library that needs the relocating heap.
+relocate_needed() {
+  [ "$ACTION" = install ] && [ -n "$TEST" ] || return 1
+  for consumer in $RELOCATE_CONSUMERS; do
+    case "$TEST" in
+      all|*",$consumer,"*) return 0 ;;
+    esac
+  done
+  return 1
+}
 
 # --global is the system prefix. A PREFIX= beside it used to be forwarded
 # to make and is now parsed out, so it would be ignored. Say so.
@@ -267,6 +299,9 @@ if [ -z "${GHOTI_BUILD_CONTAINER:-}" ] && [ "$ACTION" != uninstall ] && [ "$NO_C
       own_gid=$(id -g "$SUDO_USER")
     fi
     sudo chown -R "$own_uid:$own_gid" "$LIBS"
+    if [ -d "$RELOC_PREFIX" ]; then
+      sudo chown -R "$own_uid:$own_gid" "$RELOC_PREFIX"
+    fi
     for logf in "$ROOT"/.bootstrap-*.log; do
       [ -e "$logf" ] || continue
       sudo chown "$own_uid:$own_gid" "$logf"
@@ -411,6 +446,29 @@ for repo in $walk; do
     eval "make -C \"\$LIBS/\$repo\" -j\"\$jobs\" PREFIX=\"\$PREFIX\" $ACTION $make_args" >"$log" 2>&1 \
       || { echo "install.sh: $repo failed; see $shown" >&2; exit 1; }
   fi
+  [ "$repo" = runtime-heap ] || continue
+  # The relocating heap, in its own prefix. Its build tree is build/<b>-reloc,
+  # apart from the normal one, and its dependencies are found through the
+  # main prefix's pkg-config path (or, under --global, the system's). Nothing
+  # links against it; a test loads it ahead of the normal heap. It needs no
+  # root, even under --global, because it is under the parent directory.
+  if [ "$ACTION" = install ] && relocate_needed; then
+    echo "  runtime-heap: RELOCATE=yes into $RELOC_PREFIX"
+    # shellcheck disable=SC2086
+    eval "make -C \"\$LIBS/\$repo\" -j\"\$jobs\" PREFIX=\"\$RELOC_PREFIX\" RELOCATE=yes install $make_args" >>"$log" 2>&1 \
+      || { echo "install.sh: $repo: RELOCATE=yes install failed; see $shown" >&2; exit 1; }
+  elif [ "$ACTION" = uninstall ] && [ -d "$RELOC_PREFIX" ]; then
+    echo "  runtime-heap: RELOCATE=yes from $RELOC_PREFIX"
+    # The makefile resolves its dependencies even to uninstall, and they are
+    # in the main prefix, which an uninstall does not put on the path.
+    pc_path=${PKG_CONFIG_PATH:-}
+    if [ "$GLOBAL" -eq 0 ]; then
+      pc_path="$PREFIX/share/pkgconfig${pc_path:+:$pc_path}"
+    fi
+    # shellcheck disable=SC2086
+    eval "PKG_CONFIG_PATH=\"\$pc_path\" make -C \"\$LIBS/\$repo\" PREFIX=\"\$RELOC_PREFIX\" RELOCATE=yes uninstall $make_args" >>"$log" 2>&1 \
+      || { echo "install.sh: $repo: RELOCATE=yes uninstall failed; see $shown" >&2; exit 1; }
+  fi
 done
 
 # The tests run after everything is installed, not one by one as each library
@@ -452,6 +510,9 @@ if [ "$ACTION" = install ] && [ -n "$TEST" ]; then
     else
       prefix_arg="PREFIX=\"\$PREFIX\""
     fi
+    case " $RELOCATE_CONSUMERS " in
+      *" $repo "*) prefix_arg="$prefix_arg RELOCATE_PREFIX=\"\$RELOC_PREFIX\"" ;;
+    esac
     # shellcheck disable=SC2086
     eval "make -C \"\$LIBS/\$repo\" -j\"\$jobs\" $prefix_arg test $make_args" >>"$log" 2>&1 \
       || { echo "install.sh: $repo: make test failed; see $shown" >&2; exit 1; }
